@@ -1,6 +1,7 @@
 /*
 !/.gitignore
 !/api-*/
+!/reservas-deportivas/
 node_modules/
 .DS_Store
 .idea/
