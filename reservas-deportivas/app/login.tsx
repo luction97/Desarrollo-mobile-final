@@ -1,30 +1,29 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
-  // Cambiamos el estado de "password" a "contrasena"
-  const [contrasena, setContrasena] = useState(''); 
+  const [contrasena, setContrasena] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [errorMensaje, setErrorMensaje] = useState('');
   const { login } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
-    // Validamos la nueva variable
+    setErrorMensaje('');
     if (!email || !contrasena) {
-      Alert.alert('Error', 'Completá todos los campos');
+      setErrorMensaje('Completá todos los campos');
       return;
     }
     
     setCargando(true);
     try {
-      // Le pasamos la contraseña a la función login
       await login(email, contrasena);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Error de inicio de sesión', error.message);
+      setErrorMensaje(error.message || 'Error desconocido');
     } finally {
       setCargando(false);
     }
@@ -34,6 +33,12 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Iniciar Sesión</Text>
       
+      {errorMensaje ? (
+        <Text style={{ color: 'red', marginBottom: 15, textAlign: 'center', fontWeight: 'bold' }}>
+          {errorMensaje}
+        </Text>
+      ) : null}
+
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -46,8 +51,8 @@ export default function LoginScreen() {
       <TextInput
         style={styles.input}
         placeholder="Contraseña"
-        value={contrasena} // Usamos la nueva variable
-        onChangeText={setContrasena} // Usamos el nuevo setter
+        value={contrasena}
+        onChangeText={setContrasena}
         secureTextEntry
       />
       

@@ -2,19 +2,22 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 // Configuramos cómo se ve la notificación si la app está abierta
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export const notificacionesService = {
-  // 1. Pedir permisos (obligatorio en iOS y Android 13+)
   async pedirPermisos() {
+    if (Platform.OS === 'web') return false;
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     
@@ -30,15 +33,19 @@ export const notificacionesService = {
     return true;
   },
 
-  // 2. Programar el recordatorio para un turno
   async programarRecordatorio(nombreEspacio: string, fechaTurno: Date) {
+    // ⚠️ Si estamos en la web, no intentamos programar la notificación (evita el error)
+    if (Platform.OS === 'web') {
+      console.log('🔔 [WEB] Notificación simulada. En el celular sí va a vibrar y aparecer.');
+      return; 
+    }
+
     const tienePermisos = await this.pedirPermisos();
     if (!tienePermisos) return;
 
-    // Calculamos la hora: 2 horas antes del turno
     // const horaAviso = new Date(fechaTurno.getTime() - 2 * 60 * 60 * 1000); 
-
-    // ⚠️ PARA PROBAR AHORA: Lo programamos para dentro de 5 segundos
+    
+    // Para probar ahora: 5 segundos
     const horaAviso = new Date();
     horaAviso.setSeconds(horaAviso.getSeconds() + 5);
 
