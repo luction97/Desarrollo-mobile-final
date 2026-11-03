@@ -7,22 +7,9 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { AuthProvider } from '../src/context/AuthContext'; // <-- Importamos nuestro contexto
-import * as Notifications from 'expo-notifications';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
+import { AuthProvider } from '../src/context/AuthContext';
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
@@ -30,7 +17,6 @@ export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -39,7 +25,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -61,26 +46,22 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    // Envolvemos toda la app con el AuthProvider
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        
-        {/* ACÁ ESTÁ EL STACK CON LAS NUEVAS PANTALLAS AGREGADAS */}
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen 
             name="scanner" 
-            options={{ 
-              title: 'Escanear QR', 
-              headerTintColor: '#fff', 
-              headerStyle: { backgroundColor: '#000' } 
-            }} 
+            options={{ title: 'Escanear QR', headerTintColor: '#fff', headerStyle: { backgroundColor: '#000' } }} 
           />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
+          
+          {/* 👇 LA NUEVA PANTALLA VA EXACTAMENTE ACÁ 👇 */}
+          <Stack.Screen name="mis-reservas" options={{ title: 'Mis Reservas' }} />
+          
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
-
       </ThemeProvider>
     </AuthProvider>
   );

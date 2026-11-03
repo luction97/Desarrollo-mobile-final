@@ -8,8 +8,7 @@ interface LoginResponse {
 }
 
 export const authService = {
-  async login(email: string, contrasena: string): Promise<Usuario> { // <-- Cambiado acá también
-    // Cambiamos "password" por "contrasena"
+  async login(email: string, contrasena: string): Promise<Usuario> {
     const data = await api.post<LoginResponse>('/auth/ingreso', { email, contrasena });
     
     await storage.setItem('token', data.token);
