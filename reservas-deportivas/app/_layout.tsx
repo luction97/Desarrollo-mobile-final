@@ -56,6 +56,10 @@ function RootLayoutNav() {
             options={{ title: 'Escanear QR', headerTintColor: '#fff', headerStyle: { backgroundColor: '#000' } }} 
           />
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
+          
+          {/* 👇 LA NUEVA PANTALLA VA EXACTAMENTE ACÁ 👇 */}
+          <Stack.Screen name="mis-reservas" options={{ title: 'Mis Reservas' }} />
+          
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>
