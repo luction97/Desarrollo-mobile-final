@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Button, Platform, Alert, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { ESPACIOS } from '../../src/mocks';
+import { api } from '../../src/services/api'; // <-- Importamos la API
 import { Espacio } from '../../src/tipos';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { File, Directory, Paths } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
-import { Mapa } from '../../src/components/Mapa'; // <-- Importamos el componente
+import { Mapa } from '../../src/components/Mapa';
 
 export default function EspacioDetalleScreen() {
   const { id } = useLocalSearchParams();
@@ -18,21 +18,46 @@ export default function EspacioDetalleScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fotoLocal, setFotoLocal] = useState<string | null>(null);
 
+  // 👇 BUSCAMOS EL ESPACIO EN LA API CON FALLBACK DE VIDEO 👇
   useEffect(() => {
-    const encontrado = ESPACIOS.find(e => e.id === id);
-    if (encontrado) setEspacio(encontrado);
+    const cargarEspacio = async () => {
+      try {
+        const data = await api.get<Espacio>(`/espacios/${id}`);
+        
+        // Si la API devuelve videoUrl como null, le inyectamos un video de prueba
+        if (!data.videoUrl) {
+          data.videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+        }
+
+        setEspacio(data);
+      } catch (error) {
+        console.error("Error al cargar el espacio de la API, usando mock:", error);
+        // Fallback por si la API falla
+        const { ESPACIOS } = require('../../src/mocks');
+        const encontrado = ESPACIOS.find((e: Espacio) => e.id === id);
+        if (encontrado) setEspacio(encontrado);
+      }
+    };
+    cargarEspacio();
   }, [id]);
 
-  useEffect(() => {
-    (async () => {
+  const solicitarUbicacion = async () => {
+    setErrorMsg(null); 
+    try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setErrorMsg('Permiso de ubicación denegado. Puedes seguir usando la app.');
+        setErrorMsg('Permiso de ubicación denegado.');
         return;
       }
       let loc = await Location.getCurrentPositionAsync({});
       setLocation(loc);
-    })();
+    } catch (error) {
+      setErrorMsg('Error al obtener la ubicación.');
+    }
+  };
+
+  useEffect(() => {
+    solicitarUbicacion();
   }, []);
 
   const player = useVideoPlayer(espacio?.videoUrl || null, player => {
@@ -82,7 +107,7 @@ export default function EspacioDetalleScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={{ marginTop: 10 }}>Buscando espacio...</Text>
+        <Text style={{ marginTop: 10 }}>Cargando espacio...</Text>
       </View>
     );
   }
@@ -95,22 +120,34 @@ export default function EspacioDetalleScreen() {
         <Text style={styles.title}>{espacio.nombre}</Text>
         <Text style={styles.subtitle}>{espacio.complejo}</Text>
 
+        <Text style={styles.price}>
+          {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(espacio.precioPorHora)} / hora
+        </Text>
+
         <Text style={styles.sectionTitle}>Ubicación</Text>
-        {errorMsg ? (
-          <Text style={{ color: 'red' }}>{errorMsg}</Text>
-        ) : (
-          <View style={styles.mapContainer}>
-            {/* Usamos el componente que se adapta a web/celular */}
-            <Mapa 
-              latitud={espacio.coordenadas.latitud} 
-              longitud={espacio.coordenadas.longitud} 
-              nombre={espacio.nombre} 
-            />
-            <View style={{ marginTop: 10 }}>
-               <Button title="Cómo llegar (Abrir en Mapas)" onPress={abrirMapaNativo} color="#1976D2" />
+        
+        <View style={styles.mapSection}>
+          {errorMsg ? (
+            <View style={styles.errorBox}>
+              <Text style={{ color: 'red', textAlign: 'center', marginBottom: 15 }}>
+                {errorMsg} Podés seguir usando la app, pero no verás el mapa interactivo.
+              </Text>
+              <Button title="Reintentar ubicación" onPress={solicitarUbicacion} color="#E65100" />
             </View>
+          ) : (
+            <View style={styles.mapWrapper}>
+              <Mapa 
+                latitud={espacio.coordenadas.latitud} 
+                longitud={espacio.coordenadas.longitud} 
+                nombre={espacio.nombre} 
+              />
+            </View>
+          )}
+          
+          <View style={{ marginTop: 15 }}>
+             <Button title="Cómo llegar (Abrir en Mapas)" onPress={abrirMapaNativo} color="#1976D2" />
           </View>
-        )}
+        </View>
 
         <Text style={styles.sectionTitle}>Estado actual de la cancha</Text>
         <Button title="📸 Tomar foto del estado" onPress={sacarFoto} color="#E65100" />
@@ -141,9 +178,18 @@ const styles = StyleSheet.create({
   image: { width: '100%', height: 250 },
   content: { padding: 20 },
   title: { fontSize: 26, fontWeight: 'bold' },
-  subtitle: { fontSize: 18, color: '#666', marginBottom: 15 },
+  subtitle: { fontSize: 18, color: '#666', marginBottom: 5 },
+  price: { fontSize: 22, fontWeight: 'bold', color: '#2E7D32', marginBottom: 15 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 20, marginBottom: 10 },
-  mapContainer: { height: 250, marginBottom: 15 },
+  mapSection: { marginBottom: 20 },
+  mapWrapper: { height: 250, borderRadius: 10, overflow: 'hidden' },
+  errorBox: { 
+    backgroundColor: '#FFEBEE', 
+    padding: 20, 
+    borderRadius: 10, 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   videoContainer: { width: '100%', height: 200, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000', marginBottom: 30 },
   video: { flex: 1 },
 });

@@ -57,8 +57,11 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
           
-          {/* 👇 LA NUEVA PANTALLA VA EXACTAMENTE ACÁ 👇 */}
-          <Stack.Screen name="mis-reservas" options={{ title: 'Mis Reservas' }} />
+          {/* 👇 ACÁ AGREGAMOS LA RUTA DEL PANEL ADMIN 👇 */}
+          <Stack.Screen name="admin" options={{ title: 'Panel Admin' }} />
+          <Stack.Screen name="catalogo" options={{ title: 'Catálogo de Espacios' }} />
+          
+          <Stack.Screen name="agenda" options={{ title: 'Agenda y Ausentes' }} />
           
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
