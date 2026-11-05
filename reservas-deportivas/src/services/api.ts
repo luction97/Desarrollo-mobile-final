@@ -57,5 +57,6 @@ export const api = {
   get: <T>(endpoint: string) => requestApi<T>('GET', endpoint),
   post: <T>(endpoint: string, body: any) => requestApi<T>('POST', endpoint, body),
   put: <T>(endpoint: string, body: any) => requestApi<T>('PUT', endpoint, body),
+  patch: <T>(endpoint: string, body: any) => requestApi<T>('PATCH', endpoint, body), // 👈 AGREGADO
   delete: <T>(endpoint: string) => requestApi<T>('DELETE', endpoint),
 };
