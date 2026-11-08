@@ -1,9 +1,83 @@
+# Proyectos versionados
 /*
 !/.gitignore
 !/api-*/
 !/reservas-deportivas/
-node_modules/
-.DS_Store
-.idea/
-uploads/
 !/LICENSE
+
+# Documentación local
+/docs/
+AGENTS.md
+
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Dependencias
+node_modules/
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~
+
+# Archivos locales
+uploads/
+
+# App: entorno y credenciales
+/reservas-deportivas/**/.envrc
+/reservas-deportivas/**/*.jks
+/reservas-deportivas/**/*.keystore
+/reservas-deportivas/**/*.p8
+/reservas-deportivas/**/*.p12
+/reservas-deportivas/**/*.key
+/reservas-deportivas/**/*.mobileprovision
+/reservas-deportivas/**/*.pem
+/reservas-deportivas/**/*.cer
+/reservas-deportivas/**/*.crt
+/reservas-deportivas/**/credentials.json
+/reservas-deportivas/**/*.pfx
+/reservas-deportivas/**/*.provisionprofile
+/reservas-deportivas/**/*service-account*.json
+/reservas-deportivas/**/*firebase-adminsdk*.json
+/reservas-deportivas/**/google-services.json
+/reservas-deportivas/**/GoogleService-Info.plist
+
+# App: builds y archivos generados
+/reservas-deportivas/**/.expo/
+/reservas-deportivas/**/dist/
+/reservas-deportivas/**/web-build/
+/reservas-deportivas/**/expo-env.d.ts
+/reservas-deportivas/**/*.tsbuildinfo
+/reservas-deportivas/**/*.apk
+/reservas-deportivas/**/*.aab
+/reservas-deportivas/**/*.ipa
+/reservas-deportivas/**/*.xcarchive/
+/reservas-deportivas/**/*.dSYM/
+/reservas-deportivas/**/coverage/
+
+# App: proyectos nativos generados (CNG) y Metro
+/reservas-deportivas/android
+/reservas-deportivas/ios
+/reservas-deportivas/**/.kotlin/
+/reservas-deportivas/**/.metro-health-check*
+
+# App: logs y bases locales
+/reservas-deportivas/**/npm-debug.*
+/reservas-deportivas/**/yarn-debug.*
+/reservas-deportivas/**/yarn-error.*
+/reservas-deportivas/**/pnpm-debug.log*
+/reservas-deportivas/**/*.orig.*
+/reservas-deportivas/**/*.log
+/reservas-deportivas/**/*.sqlite
+/reservas-deportivas/**/*.sqlite3
+/reservas-deportivas/**/*.db
+/reservas-deportivas/**/*.db-wal
+/reservas-deportivas/**/*.db-shm
+/reservas-deportivas/**/*.sqlite-wal
+/reservas-deportivas/**/*.sqlite-shm
+/reservas-deportivas/**/*.sqlite3-wal
+/reservas-deportivas/**/*.sqlite3-shm
