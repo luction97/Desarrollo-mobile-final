@@ -1,9 +1,9 @@
 import axios from 'axios';
 import { storage } from './storage';
 
-// ⚠️ CAMBIÁ ESTA IP POR LA DE TU PC (para probar en el celular)
-// O dejala en localhost si estás probando en la web
-const BASE_URL = 'http://localhost:3000'; 
+// URL base de la API. Se configura en .env (ver .env.example).
+// El fallback mantiene el comportamiento de desarrollo local.
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
