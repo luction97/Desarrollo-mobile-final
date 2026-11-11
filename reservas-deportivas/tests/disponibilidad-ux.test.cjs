@@ -5,6 +5,8 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { create, act } = require('react-test-renderer');
+const { createUiEnvironment } = require('./helpers/ui-environment.cjs');
+const shared = createUiEnvironment();
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function cargar(archivo, dependencias) {
@@ -15,6 +17,8 @@ function cargar(archivo, dependencias) {
   new Function('require', 'module', 'exports', codigo)(nombre => {
     if (Object.hasOwn(dependencias, nombre)) return dependencias[nombre];
     if (['react', 'react/jsx-runtime'].includes(nombre)) return require(nombre);
+    if (nombre.endsWith('/theme')) return shared.theme;
+    if (nombre.endsWith('/ui')) return shared.ui;
     throw new Error(`Dependencia sin controlar: ${nombre}`);
   }, modulo, modulo.exports);
   return modulo.exports;
@@ -25,26 +29,48 @@ const nativos = {
   ActivityIndicator: 'ActivityIndicator', Button: 'Button', ScrollView: 'ScrollView',
   Pressable: 'Pressable', Modal: 'Modal', StyleSheet: { create: s => s },
 };
-const futuro = { id: 'turno-prueba', fecha: '2099-01-15', inicio: '20:00', fin: '21:00', estado: 'libre', precio: 12000 };
+const futuro = { id: 'turno-prueba', espacioId: 'esp-02', fecha: '2099-01-15', inicio: '20:00', fin: '21:00', estado: 'libre', precio: 12000, motivoBloqueo: null };
+const espacio = {
+  id: 'esp-02', nombre: 'Cancha 2', deporteId: 'dep-futbol5', complejo: 'Polideportivo',
+  capacidad: 10, precioPorHora: 12000, imagenes: [], videoUrl: null, reglas: '', activo: true,
+};
+const fechas = cargar('src/utils/fechas.ts', {});
 
-async function montar() {
+async function montar({ fallar = false } = {}) {
   const navegaciones = [];
-  const router = { push: ruta => navegaciones.push(ruta) };
+  const router = { push: ruta => navegaciones.push(typeof ruta === 'string' ? ruta : ruta.pathname) };
   const pantalla = cargar('app/(tabs)/index.tsx', {
     'react-native': nativos,
-    'expo-router': { useRouter: () => router, useFocusEffect: callback => React.useEffect(callback, [callback]) },
-    '../../src/services/api': { api: { post: () => assert.fail('El invitado no debe crear reservas') } },
-    '../../src/services/turnos': { obtenerGrillaDia: async () => [futuro] },
-    '../../src/context/AuthContext': { useAuth: () => ({ usuario: null, logout: async () => {} }) },
-    '../../src/services/notificaciones': { notificacionesService: {} },
-    'expo-network': { addNetworkStateListener: () => ({ remove() {} }) },
-    '../../src/services/db': { inicializarDB: async () => {} },
+    'expo-router': {
+      useRouter: () => router,
+      useFocusEffect: callback => React.useEffect(callback, [callback]),
+      useLocalSearchParams: () => ({}),
+    },
+    '../../src/services/turnos': { consultarGrilla: async () => {
+      if (fallar) throw new Error('No se pudo consultar la disponibilidad.');
+      return { datos: [futuro], local: false };
+    } },
+    '../../src/services/espacios': {
+      obtenerEspacios: async () => ({ datos: [espacio], local: false }),
+      obtenerEspaciosLocales: async () => [espacio],
+      obtenerDeportes: async () => [{ id: 'dep-futbol5', nombre: 'Fútbol 5' }],
+    },
+    '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
+    '../../src/services/preferencias': { default: { getItem: async () => null, setItem: async () => {} } },
+    '../../src/context/AuthContext': { useAuth: () => ({ usuario: null, cargando: false, logout: async () => {} }) },
+    'expo-network': {
+      getNetworkStateAsync: async () => ({ isConnected: true }),
+      addNetworkStateListener: () => ({ remove() {} }),
+    },
     '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/components/ReservaDialog': { ReservaDialog: 'ReservaDialog' },
+    '../../src/utils/fechas': fechas,
     '../../src/utils/turnos': cargar('src/utils/turnos.ts', {}),
   }).default;
   let vista;
   await act(async () => { vista = create(React.createElement(pantalla)); });
   return { vista, navegaciones,
+    recuperar: () => { fallar = false; },
     fila: turno => vista.root.findByType('FlatList').props.renderItem({ item: turno }),
     cerrar: async () => { await act(async () => vista.unmount()); },
   };
@@ -66,15 +92,33 @@ test('invitado elige un libre futuro: diálogo contextual sin alert ni redirecci
   } finally { await caso.cerrar(); }
 });
 
+test('error de disponibilidad conserva mensaje y Reintentar recupera la grilla', async () => {
+  const caso = await montar({ fallar: true });
+  try {
+    // FlatList es un host en este arnés: su estado vacío se monta aparte.
+    const lista = caso.vista.root.findByType('FlatList');
+    let vacio;
+    await act(async () => { vacio = create(lista.props.ListEmptyComponent); });
+    assert.ok(vacio.root.findAllByType('NativeText').some(n =>
+      n.props.accessibilityRole === 'alert' && n.props.children === 'No se pudo consultar la disponibilidad.'));
+    const reintentar = vacio.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === 'Reintentar');
+    assert.ok(reintentar);
+    caso.recuperar();
+    await act(async () => { await reintentar.props.onPress(); });
+    assert.equal(caso.vista.root.findByType('FlatList').props.data[0].id, futuro.id);
+    await act(async () => { vacio.unmount(); });
+  } finally { await caso.cerrar(); }
+});
+
 test('ahora no cierra el diálogo y conserva la fecha elegida sin navegar', async () => {
   const caso = await montar();
   try {
-    const fechaAntes = caso.vista.root.findByType('ScrollView').props.children;
+    const grillaAntes = caso.vista.root.findByType('FlatList').props.data;
     await act(async () => { await caso.fila(futuro).props.onPress(); });
     await act(async () => { caso.vista.root.findByType('DialogoAviso').props.onCerrar(); });
     assert.equal(caso.vista.root.findAllByType('DialogoAviso').length, 0);
     assert.deepEqual(caso.navegaciones, []);
-    assert.deepEqual(caso.vista.root.findByType('ScrollView').props.children.map(n => n.key), fechaAntes.map(n => n.key));
+    assert.deepEqual(caso.vista.root.findByType('FlatList').props.data, grillaAntes);
   } finally { await caso.cerrar(); }
 });
 
@@ -108,8 +152,11 @@ test('turnos pasados y ocupados están deshabilitados y anuncian su estado', asy
 });
 
 test('diálogo tiene controles de 48 dp, cierre con Atrás y tema oscuro sin dependencias nuevas', async () => {
+  const dark = createUiEnvironment('dark');
   const { DialogoAviso } = cargar('src/components/DialogoAviso.tsx', {
     'react-native': { ...nativos, Platform: { OS: 'web' }, useColorScheme: () => 'dark' },
+    './ui': dark.ui,
+    '../theme': dark.theme,
   });
   let cerrados = 0;
   let confirmados = 0;
@@ -130,6 +177,7 @@ test('diálogo tiene controles de 48 dp, cierre con Atrás y tema oscuro sin dep
     }
     acciones[0].props.onPress();
     assert.equal(confirmados, 1);
-    assert.equal(vista.root.findByProps({ accessibilityViewIsModal: true }).props.style[1].backgroundColor, '#19231d');
+    const surface = vista.root.findAllByType('View').find(n => n.props.accessibilityViewIsModal);
+    assert.equal(Object.assign({}, ...surface.props.style.filter(Boolean)).backgroundColor, dark.theme.darkColors.surface);
   } finally { if (vista) await act(async () => vista.unmount()); }
 });

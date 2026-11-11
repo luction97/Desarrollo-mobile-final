@@ -1,166 +1,115 @@
-import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg';
-import { api } from '../../src/services/api';
-import { Reserva } from '../../src/tipos';
-
-const mostrarAlerta = (titulo: string, mensaje: string, onConfirm?: () => void) => {
-  if (Platform.OS === 'web') {
-    if (onConfirm) {
-      if (window.confirm(`${titulo}\n\n${mensaje}`)) onConfirm();
-    } else {
-      window.alert(`${titulo}\n\n${mensaje}`);
-    }
-  } else {
-    if (onConfirm) {
-      Alert.alert(titulo, mensaje, [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Aceptar', style: 'destructive', onPress: onConfirm },
-      ]);
-    } else {
-      Alert.alert(titulo, mensaje);
-    }
-  }
-};
-
-// El QR codifica mes/día y hora como segundo y tercer segmento (ej. VGY-1104-23-QZMUR8).
-const obtenerFechaDelQr = (codigoQr: string) => {
-  try {
-    const partes = codigoQr.split('-');
-    if (partes.length >= 3) {
-      const mesDia = partes[1];
-      const hora = partes[2];
-      
-      const dia = mesDia.substring(2, 4);
-      const mes = mesDia.substring(0, 2);
-      
-      return `${dia}/${mes} a las ${hora}:00 hs`;
-    }
-  } catch (error) {
-    return 'Fecha no disponible';
-  }
-  return 'Fecha no disponible';
-};
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import * as Network from 'expo-network';
+import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
+import { CodigoQr } from '../../src/components/CodigoQr';
+import { DialogoAviso } from '../../src/components/DialogoAviso';
+import { useTheme } from '../../src/theme';
+import { useAuth } from '../../src/context/AuthContext';
+import { cancelarReserva, esErrorSesion, reservasGuardadas, sincronizarReservas } from '../../src/services/reservas';
+import type { ReservaGuardada } from '../../src/modelos/reservas';
+import { fechaLegible, instanteTurno } from '../../src/utils/fechas';
 
 export default function MisReservasScreen() {
-  const [reservas, setReservas] = useState<Reserva[]>([]);
+  const { colors } = useTheme();
+  const { usuario, cargando: cargandoSesion } = useAuth();
+  const router = useRouter();
+  const [datos, setDatos] = useState<ReservaGuardada[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [local, setLocal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pasadas, setPasadas] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
+  const [confirmacion, setConfirmacion] = useState<ReservaGuardada | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const generacion = useRef(0);
+  const ocupado = useRef(false);
 
-  const cargarReservas = async () => {
-    setCargando(true);
+  const cargar = useCallback(async () => {
+    if (!usuario) { setDatos([]); setCargando(false); return; }
+    const version = ++generacion.current;
     setError(null);
+    setCargando(true);
+    const guardadas = await reservasGuardadas(usuario.id).catch(() => []);
+    if (version !== generacion.current) return;
+    setDatos(guardadas); setLocal(true); setCargando(false);
     try {
-      const data = await api.get<Reserva[]>('/yo/reservas');
-      console.log('Reservas actualizadas desde la API:', data);
-      setReservas(data);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar las reservas.');
-    } finally {
-      setCargando(false);
+      const red = await Network.getNetworkStateAsync();
+      if (red.isConnected === false) return;
+      const actuales = await sincronizarReservas(usuario.id);
+      if (version === generacion.current) { setDatos(actuales); setLocal(false); }
+    } catch (e) {
+      if (version === generacion.current && !esErrorSesion(e)) setError(e instanceof Error ? e.message : 'No se pudieron actualizar las reservas.');
     }
+  }, [usuario?.id]);
+
+  useFocusEffect(useCallback(() => {
+    void cargar();
+    return () => { generacion.current++; };
+  }, [cargar]));
+
+  const cancelar = async () => {
+    if (!confirmacion || ocupado.current) return;
+    ocupado.current = true; setCancelando(true);
+    try {
+      const resultado = await cancelarReserva(confirmacion);
+      setDatos(prev => prev.map(d => d.reserva.id === resultado.reserva.id ? { ...d, reserva: resultado.reserva } : d));
+      setConfirmacion(null);
+      setMensaje(resultado.guardadaLocalmente ? 'La reserva fue cancelada.' : 'Reserva cancelada. No pudimos actualizar la copia del teléfono.');
+    } catch (e) { setConfirmacion(null); setMensaje(e instanceof Error ? e.message : 'No se pudo cancelar la reserva.'); }
+    finally { ocupado.current = false; setCancelando(false); }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      cargarReservas();
-    }, [])
-  );
+  if (cargandoSesion || cargando) return <Screen topInset><StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando reservas...</Text></StateView></Screen>;
+  if (!usuario) return <Screen topInset><StateView>
+    <Text variant="title">Tus reservas y códigos QR</Text>
+    <Button title="Iniciar sesión" onPress={() => router.push({ pathname: '/login', params: { volverA: 'reservas' } })} />
+  </StateView></Screen>;
 
-  const handleCancelar = (id: string) => {
-    mostrarAlerta(
-      'Cancelar Reserva',
-      '¿Estás seguro que querés cancelar este turno?',
-      async () => {
-        try {
-          await api.post(`/reservas/${id}/cancelacion`, {});
-          mostrarAlerta('Cancelada', 'La reserva fue cancelada correctamente.');
-          await cargarReservas(); 
-        } catch (err: any) {
-          mostrarAlerta('Error', err.message || 'No se pudo cancelar la reserva.');
-        }
-      }
-    );
-  };
+  const ahora = new Date();
+  const esProxima = (d: ReservaGuardada) => d.reserva.estado === 'confirmada' &&
+    (!d.turno || new Date(instanteTurno(d.turno.fecha, d.turno.inicio).getTime() + 60 * 60 * 1000) > ahora);
+  const visibles = datos.filter(d => d.reserva.usuarioId === usuario.id && (pasadas ? !esProxima(d) : esProxima(d))).sort((a, b) =>
+    (pasadas ? -1 : 1) * a.reserva.cancelableHasta.localeCompare(b.reserva.cancelableHasta));
 
-  if (cargando) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#2E7D32" />
-        <Text style={{ marginTop: 10 }}>Cargando reservas...</Text>
+  return <Screen topInset>
+    <View style={uiLayout.inset}>
+      <Text variant="title" accessibilityRole="header">Mis Reservas</Text>
+      <View style={uiLayout.row}>
+        <Chip selected={!pasadas} onPress={() => setPasadas(false)}>Próximas</Chip>
+        <Chip selected={pasadas} onPress={() => setPasadas(true)}>Pasadas</Chip>
+        <Button size="sm" variant="ghost" title="Actualizar" onPress={cargar} />
       </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: 'red', marginBottom: 20, textAlign: 'center' }}>{error}</Text>
-        <TouchableOpacity onPress={cargarReservas} style={styles.retryButton}>
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const futuras = reservas.filter(r => r.estado === 'confirmada');
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Mis Reservas Activas</Text>
-      
-      <FlatList
-        data={futuras}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={styles.emptyText}>No tenés reservas activas por ahora.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View>
-                <Text style={styles.cardTitle}>Cancha 2 - Fútbol 5</Text>
-                <Text style={styles.cardDate}>
-                  📅 {obtenerFechaDelQr(item.codigoQr)}
-                </Text>
-              </View>
-              <Text style={styles.cardStatus}>{item.estado.toUpperCase()}</Text>
-            </View>
-            
-            <View style={{ alignItems: 'center', marginVertical: 15, backgroundColor: 'white', padding: 10, borderRadius: 10 }}>
-              <QRCode 
-                value={item.codigoQr} 
-                size={150} 
-              />
-            </View>
-
-            <Text style={styles.cardInfo}>Código: {item.codigoQr}</Text>
-            <Text style={styles.cardInfo}>Personas: {item.cantidadPersonas}</Text>
-            
-            <TouchableOpacity 
-              style={styles.cancelButton} 
-              onPress={() => handleCancelar(item.id)}
-            >
-              <Text style={styles.cancelText}>Cancelar Reserva</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+      {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Copia del teléfono · El estado puede haber cambiado</Text>}
+      {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     </View>
-  );
+    <FlatList data={visibles} keyExtractor={d => d.reserva.id} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
+      ListEmptyComponent={<StateView><Text tone="muted">{local ? 'No hay reservas guardadas en este teléfono.' : pasadas ? 'No tenés reservas pasadas.' : 'No tenés reservas próximas.'}</Text>
+        <Button title="Ver disponibilidad" variant="secondary" onPress={() => router.push('/(tabs)')} /></StateView>}
+      renderItem={({ item }) => <Surface style={uiLayout.section}>
+        <View style={uiLayout.row}>
+          <View style={uiLayout.grow}>
+            <Text variant="subtitle">{item.espacio?.nombre ?? 'Espacio no disponible'}</Text>
+            <Text tone="muted">{item.espacio?.complejo}</Text>
+          </View>
+          <Badge variant={item.reserva.estado === 'confirmada' ? 'success' : 'neutral'}>{item.reserva.estado.toUpperCase()}</Badge>
+        </View>
+        {item.turno && <>
+          <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
+          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.turno.precio)} · Se paga en el lugar</Text>}
+        </>}
+        {esProxima(item) && <CodigoQr value={item.reserva.codigoQr} />}
+        <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>
+        <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
+        {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
+          ? <Button title="Cancelar Reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />
+          : <Text tone="muted">Para cancelar, avisá al encargado.</Text>)}
+        {item.espacio && <Button title="Cómo llegar" variant="secondary" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.espacio!.id } })} />}
+      </Surface>} />
+    {confirmacion && !cancelando && <DialogoAviso titulo="Cancelar Reserva" mensaje="¿Querés cancelar este turno?" accionPrincipal="Cancelar reserva" accionSecundaria="Volver"
+      destructivo onCerrar={() => setConfirmacion(null)} onConfirmar={cancelar} />}
+    {cancelando && <StateView><ActivityIndicator color={colors.primary} /></StateView>}
+    {mensaje && <DialogoAviso titulo="Mis Reservas" mensaje={mensaje} accionPrincipal="Entendido" onCerrar={() => setMensaje(null)} onConfirmar={() => setMensaje(null)} />}
+  </Screen>;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#FAFAFA' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, marginTop: 40 },
-  emptyText: { color: '#666', fontStyle: 'italic', textAlign: 'center', marginTop: 20 },
-  card: { backgroundColor: 'white', padding: 15, borderRadius: 10, marginBottom: 15, elevation: 2 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  cardDate: { fontSize: 15, color: '#1976D2', fontWeight: 'bold', marginTop: 4 },
-  cardStatus: { color: '#2E7D32', fontWeight: 'bold', fontSize: 12, backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  cardInfo: { fontSize: 14, color: '#555', marginBottom: 5, textAlign: 'center' },
-  cancelButton: { marginTop: 15, padding: 10, backgroundColor: '#FFCDD2', borderRadius: 5, alignItems: 'center' },
-  cancelText: { color: '#C62828', fontWeight: 'bold' },
-  retryButton: { backgroundColor: '#1976D2', padding: 10, borderRadius: 5 },
-});

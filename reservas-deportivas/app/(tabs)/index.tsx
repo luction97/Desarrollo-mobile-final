@@ -1,360 +1,196 @@
-import { api } from '../../src/services/api';
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Button, ScrollView } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router'; 
-import { obtenerGrillaDia } from '../../src/services/turnos';
-import { Turno } from '../../src/tipos';
-import { useAuth } from '../../src/context/AuthContext'; 
-import { notificacionesService } from '../../src/services/notificaciones';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
-import { inicializarDB } from '../../src/services/db';
+import { Badge, Button, Chip, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
+import { ReservaDialog } from '../../src/components/ReservaDialog';
+import { borders, layout, radius, spacing, useTheme } from '../../src/theme';
+import { useAuth } from '../../src/context/AuthContext';
+import { consultarGrilla } from '../../src/services/turnos';
+import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
+import { crearReserva } from '../../src/services/reservas';
+import preferencias from '../../src/services/preferencias';
+import { fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
+import type { Deporte, Espacio, Turno } from '../../src/tipos';
 
-interface AvisoDisponibilidad {
-  titulo: string;
-  mensaje?: string;
-  detalle?: string;
-  requiereIngreso?: boolean;
-}
+interface Aviso { titulo: string; mensaje?: string; detalle?: string; ingreso?: boolean; verQr?: boolean }
 
-export default function TabOneScreen() {
+export default function DisponibilidadScreen() {
+  const { colors } = useTheme();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ espacioId?: string; fecha?: string }>();
+  const { usuario, logout, cargando: cargandoSesion } = useAuth();
+  const [espacios, setEspacios] = useState<Espacio[]>([]);
+  const [deportes, setDeportes] = useState<Deporte[]>([]);
+  const [espacioId, setEspacioId] = useState('');
+  const [fecha, setFecha] = useState(fechaArgentina());
+  const [dias] = useState(() => Array.from({ length: 7 }, (_, i) => {
+    const dia = new Date(`${fechaArgentina()}T12:00:00-03:00`);
+    dia.setUTCDate(dia.getUTCDate() + i);
+    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(dia) };
+  }));
   const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [sinRed, setSinRed] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<AvisoDisponibilidad | null>(null);
-  const mostrarAviso = (titulo: string, mensaje: string) => setAviso({ titulo, mensaje });
-
-  const [dias, setDias] = useState<{ fecha: Date, diaSemana: string, diaNumero: string, fechaStr: string }[]>([]);
-  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
-
-  const router = useRouter();
-  const { usuario, logout } = useAuth();
-
-  useEffect(() => {
-    const proximos7Dias = [];
-    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    
-    for (let i = 0; i < 7; i++) {
-      const fecha = new Date();
-      fecha.setDate(fecha.getDate() + i);
-      
-      const year = fecha.getFullYear();
-      const month = String(fecha.getMonth() + 1).padStart(2, '0');
-      const day = String(fecha.getDate()).padStart(2, '0');
-      
-      proximos7Dias.push({
-        fecha,
-        diaSemana: i === 0 ? 'Hoy' : diasSemana[fecha.getDay()],
-        diaNumero: day,
-        fechaStr: `${year}-${month}-${day}`
-      });
-    }
-    setDias(proximos7Dias);
-  }, []);
-
-  const formatearFecha = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const fechaPrueba = formatearFecha(fechaSeleccionada);
+  const [sinRed, setSinRed] = useState(false);
+  const [local, setLocal] = useState(false);
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [seleccionado, setSeleccionado] = useState<Turno | null>(null);
+  const [reservando, setReservando] = useState(false);
+  const [errorReserva, setErrorReserva] = useState<string | null>(null);
+  const operando = useRef(false);
+  const generacion = useRef(0);
+  const espacio = espacios.find(e => e.id === espacioId) ?? null;
 
   useEffect(() => {
-    inicializarDB();
-    const subscription = Network.addNetworkStateListener((state) => {
-      setSinRed(!state.isConnected);
-    });
-    return () => subscription.remove();
+    let activo = true;
+    const aplicar = (datos: Espacio[], favorito: string | null) => {
+      if (!activo) return;
+      setEspacios(datos);
+      setEspacioId(actual => datos.some(e => e.id === params.espacioId) ? params.espacioId!
+        : datos.some(e => e.id === actual) ? actual : datos.find(e => e.id === favorito)?.id ?? datos[0]?.id ?? '');
+    };
+    const cargar = async () => {
+      const favorito = await preferencias.getItem('ultimoEspacio').catch(() => null);
+      const locales = await obtenerEspaciosLocales().catch(() => []);
+      aplicar(locales, favorito);
+      try { const resultado = await obtenerEspacios(); aplicar(resultado.datos, favorito); }
+      catch (e) { if (activo && !locales.length) { setError(e instanceof Error ? e.message : 'No se pudo cargar el catálogo.'); setCargando(false); } }
+      const listaDeportes = await obtenerDeportes();
+      if (activo) setDeportes(listaDeportes);
+    };
+    void cargar();
+    return () => { activo = false; };
+  }, [params.espacioId]);
+
+  useEffect(() => {
+    if (params.fecha && dias.some(d => d.fecha === params.fecha)) setFecha(params.fecha);
+  }, [params.fecha, dias]);
+
+  useEffect(() => {
+    let activo = true;
+    void Network.getNetworkStateAsync().then(red => { if (activo) setSinRed(red.isConnected === false); }).catch(() => undefined);
+    const listener = Network.addNetworkStateListener(red => setSinRed(red.isConnected === false));
+    return () => { activo = false; listener.remove(); };
   }, []);
 
-  const cargarGrilla = async () => {
-    setCargando(true);
-    setError(null);
+  const cargarGrilla = useCallback(async () => {
+    if (!espacioId) { setCargando(false); return; }
+    const version = ++generacion.current;
+    setCargando(true); setError(null);
     try {
-      const data = await obtenerGrillaDia('esp-02', fechaPrueba);
-      setTurnos(data);
-    } catch (err: any) {
-      setError(err.message || 'No se pudieron cargar los turnos. Revisá tu conexión.');
-    } finally {
-      setCargando(false);
+      const resultado = await consultarGrilla(espacioId, fecha);
+      if (version === generacion.current) { setTurnos(resultado.datos); setLocal(resultado.local); }
+    } catch (e) { if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la disponibilidad.'); }
+    finally { if (version === generacion.current) setCargando(false); }
+  }, [espacioId, fecha]);
+
+  useFocusEffect(useCallback(() => {
+    void cargarGrilla();
+    return () => { generacion.current++; };
+  }, [cargarGrilla, sinRed]));
+
+  const elegir = (turno: Turno) => {
+    if (turno.estado !== 'libre' || cargandoSesion || operando.current) return;
+    if (instanteTurno(turno.fecha, turno.inicio) <= new Date()) {
+      setAviso({ titulo: 'Este turno ya pasó', mensaje: 'Elegí un horario futuro para hacer tu reserva.' }); return;
     }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      cargarGrilla();
-    }, [fechaPrueba])
-  );
-
-  const handleReservar = async (turno: Turno) => {
-    if (turno.estado !== 'libre') return; 
-    
-    const ahora = new Date();
-    const horaTurno = new Date(`${turno.fecha}T${turno.inicio}:00`);
-    if (horaTurno < ahora) {
-      mostrarAviso('Este turno ya pasó', 'Elegí un horario futuro para hacer tu reserva.');
-      return;
-    }
-
     if (!usuario) {
-      setAviso({
-        titulo: 'Ingresá para reservar',
-        detalle: `${turno.fecha.split('-').reverse().join('/')} · ${turno.inicio}–${turno.fin}`,
-        requiereIngreso: true,
-      });
-      return;
+      setAviso({ titulo: 'Ingresá para reservar', detalle: `${fechaLegible(turno.fecha)} · ${turno.inicio}–${turno.fin}`, ingreso: true }); return;
     }
+    if (usuario.rol !== 'jugador') { setAviso({ titulo: 'Cuenta de personal', mensaje: 'Las reservas se realizan con una cuenta de jugador.' }); return; }
+    if (sinRed || local) { setAviso({ titulo: 'Conectate para reservar', mensaje: 'La disponibilidad guardada puede haber cambiado. Reintentá cuando tengas conexión.' }); return; }
+    setErrorReserva(null); setSeleccionado(turno);
+  };
 
+  const confirmar = async (cantidad: number) => {
+    if (!seleccionado || !espacio || !usuario || operando.current) return;
+    operando.current = true; setReservando(true); setErrorReserva(null);
     try {
-      await api.post('/reservas', {
-        turnoId: turno.id, 
-        cantidadPersonas: 2, 
-      });
-
-      setTurnos(prevTurnos => 
-        prevTurnos.map(t => 
-          t.id === turno.id ? { ...t, estado: 'reservado' as any } : t
-        )
-      );
-
-      const fechaTurno = new Date(`${turno.fecha}T${turno.inicio}:00`);
-      await notificacionesService.programarRecordatorio('Cancha 2 - Fútbol 5', fechaTurno);
-      
-      mostrarAviso('Reserva confirmada', 'Tu reserva se guardó. Podés verla en Mis Reservas.');
-
-    } catch (error: any) {
-      mostrarAviso('No se pudo reservar', error.message || 'No se pudo reservar el turno.');
-    }
+      const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
+      setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
+      setSeleccionado(null);
+      setAviso({ titulo: 'Reserva confirmada', mensaje: resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.' : 'No pudimos guardar el QR en este teléfono. Abrí Mis Reservas con conexión para guardarlo.', verQr: true });
+    } catch (e) { setErrorReserva(e instanceof Error ? e.message : 'No se pudo reservar.'); }
+    finally { operando.current = false; setReservando(false); }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      router.replace('/login');
-    } catch {
-      mostrarAviso('No se pudo cerrar sesión', 'Volvé a intentar para eliminar la sesión del dispositivo.');
-    }
+  const salir = async () => {
+    try { await logout(); }
+    catch { setAviso({ titulo: 'No se pudo cerrar sesión', mensaje: 'Volvé a intentar.' }); }
   };
+  const ahora = new Date();
 
-  const renderContenido = () => {
-    if (cargando) {
-      return (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={{ marginTop: 10, color: '#666' }}>Cargando disponibilidad...</Text>
-        </View>
-      );
-    }
-
-    if (error) {
-      return (
-        <View style={styles.centerContainer}>
-          <Text style={{ color: '#C62828', textAlign: 'center', marginBottom: 15 }}>{error}</Text>
-          <Button title="Reintentar" onPress={cargarGrilla} color="#2E7D32" />
-        </View>
-      );
-    }
-
-    const ahora = new Date();
-    return (
-      <FlatList
-        key={fechaPrueba}
-        data={ordenarTurnosParaMostrar(turnos, ahora)}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No hay turnos disponibles para este día.</Text>
-        }
-        renderItem={({ item }) => {
-          const horaTurno = new Date(`${item.fecha}T${item.inicio}:00`);
-          const esPasado = horaTurno < ahora;
-          
-          const precioFormateado = new Intl.NumberFormat('es-AR', {
-            style: 'currency',
-            currency: 'ARS',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-          }).format(item.precio);
-
-          return (
-            <TouchableOpacity onPress={() => handleReservar(item)} activeOpacity={0.7}
-              disabled={esPasado || item.estado !== 'libre'}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: esPasado || item.estado !== 'libre' }}
-              accessibilityLabel={`${item.inicio} a ${item.fin}. ${esPasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precioFormateado}` : item.estado}`}
-              accessibilityHint={!esPasado && item.estado === 'libre' ? 'Seleccionar horario para reservar' : undefined}>
-              <View style={[styles.row, esPasado && { opacity: 0.5 }]}>
-                <View>
-                  <Text style={styles.hourText}>{item.inicio} - {item.fin}</Text>
-                  {item.motivoBloqueo && <Text style={styles.reasonText}>{item.motivoBloqueo}</Text>}
-                  {esPasado && <Text style={styles.reasonText}>Turno pasado · No reservable</Text>}
-                  
-                  {item.estado === 'libre' && !esPasado && (
-                    <Text style={styles.priceText}>{precioFormateado}</Text>
-                  )}
-                </View>
-                <View style={[styles.badge, { 
-                  backgroundColor: item.estado === 'libre' ? '#E8F5E9' : 
-                                   item.estado === 'fijo' ? '#F3E5F5' : 
-                                   item.estado === 'reservado' ? '#FFEBEE' : '#FFF3E0'
-                }]}>
-                  <Text style={{ 
-                    fontWeight: 'bold',
-                    color: item.estado === 'libre' ? '#2E7D32' : 
-                           item.estado === 'fijo' ? '#7B1FA2' : 
-                           item.estado === 'reservado' ? '#C62828' : '#E65100'
-                  }}>
-                    {item.estado.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    );
-  };
-
-  return (
-    <View style={styles.container}>
-      {sinRed && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>⚠️ MODO OFFLINE: Datos guardados localmente.</Text>
-        </View>
-      )}
-
-      <View style={styles.header}>
-        <Text style={styles.userTitle}>
-          Hola, {usuario ? usuario.nombre.split(' ')[0] : 'Invitado'} 👋
-        </Text>
-        
-        {usuario ? (
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Text style={styles.logoutText}>Salir</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={() => router.push('/login')} style={styles.loginButton}>
-            <Text style={styles.loginText}>Entrar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.daysContainer}>
-        {dias.map((dia, index) => {
-          const isSelected = dia.fechaStr === fechaPrueba;
-          return (
-            <TouchableOpacity 
-              key={index} 
-              style={[styles.dayCard, isSelected && styles.dayCardSelected]}
-              onPress={() => setFechaSeleccionada(dia.fecha)}
-            >
-              <Text style={[styles.dayName, isSelected && { color: 'white' }]}>{dia.diaSemana}</Text>
-              <Text style={[styles.dayNumber, isSelected && { color: 'white' }]}>{dia.diaNumero}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-      
-      <View style={styles.cardsContainer}>
-        <TouchableOpacity 
-          style={[styles.card, { backgroundColor: '#1976D2' }]}
-          onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: 'esp-02' } })}
-        >
-          <Text style={styles.cardText}>📹 Ver Detalle y Video</Text>
-        </TouchableOpacity>
-
-        {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && <TouchableOpacity
-          style={[styles.card, { backgroundColor: '#E65100' }]}
-          onPress={() => router.push('/scanner')}
-        >
-          <Text style={styles.cardText}>📷 Escanear QR</Text>
-        </TouchableOpacity>}
-      </View>
-
-      {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && (
-        <View style={{ marginBottom: 20 }}>
-          <TouchableOpacity 
-            style={{ backgroundColor: '#333', padding: 12, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginBottom: 10 }}
-            onPress={() => router.push('/admin')}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>⚙️ Panel de Administración</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={{ backgroundColor: '#455A64', padding: 12, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginBottom: 10 }}
-            onPress={() => router.push('/agenda')}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>📋 Agenda del Día y Ausentes</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={{ backgroundColor: '#1976D2', padding: 12, borderRadius: 10, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
-            onPress={() => router.push('/catalogo')}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>🏟️ Ver Catálogo de Espacios</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={{ flex: 1 }}>
-        {renderContenido()}
-      </View>
-      {aviso && <DialogoAviso
-        titulo={aviso.titulo}
-        mensaje={aviso.mensaje}
-        detalle={aviso.detalle}
-        accionPrincipal={aviso.requiereIngreso ? 'Iniciar sesión' : 'Entendido'}
-        accionSecundaria={aviso.requiereIngreso ? 'Ahora no' : undefined}
-        onCerrar={() => setAviso(null)}
-        onConfirmar={() => {
-          setAviso(null);
-          if (aviso.requiereIngreso) router.push('/login');
-        }}
-      />}
+  const cabecera = <View style={styles.cabecera}>
+    <View style={uiLayout.row}>
+      <Text variant="title" style={uiLayout.grow}>Hola, {usuario ? usuario.nombre.split(' ')[0] : 'Invitado'}</Text>
+      {usuario ? <Button variant="ghost" size="sm" title="Salir" onPress={salir} />
+        : <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
-  );
+    {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión con el servidor · Datos guardados</Text>}
+    <Button variant="secondary" title="Ver catálogo de espacios" onPress={() => router.push('/catalogo')} />
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
+      {espacios.map(e => <Chip key={e.id} selected={e.id === espacioId} onPress={() => {
+        setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined);
+      }}>{e.nombre}</Chip>)}
+    </ScrollView>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
+      {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={`${d.nombre} ${fechaLegible(d.fecha)}`}
+        onPress={() => setFecha(d.fecha)} style={styles.dia}>
+        <Text variant="label" tone={d.fecha === fecha ? 'primary' : 'muted'}>{d.nombre}</Text>
+        <Text numeric variant="title">{d.fecha.slice(-2)}</Text>
+      </PressableSurface>)}
+    </ScrollView>
+    {espacio && <Button variant="ghost" title="Ver detalle y video" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />}
+    {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && <View style={uiLayout.section}>
+      <Button variant="secondary" title="Escanear QR" onPress={() => router.push('/scanner')} />
+      <View style={uiLayout.row}>
+        <Button variant="ghost" title="Administración" onPress={() => router.push('/admin')} />
+        <Button variant="ghost" title="Agenda del día" onPress={() => router.push('/agenda')} />
+      </View>
+    </View>}
+  </View>;
+
+  return <Screen topInset>
+    <FlatList data={cargando || error ? [] : ordenarTurnosParaMostrar(turnos, ahora)} keyExtractor={t => t.id}
+      key={`${espacioId}:${fecha}`} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
+      ListHeaderComponent={cabecera} ListEmptyComponent={cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando disponibilidad...</Text></StateView>
+        : error ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={cargarGrilla} /></StateView>
+        : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No hay turnos disponibles para este día.'}</Text></StateView>}
+      renderItem={({ item }) => {
+        const pasado = instanteTurno(item.fecha, item.inicio) <= ahora;
+        const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion;
+        const precio = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.precio);
+        return <PressableSurface onPress={() => elegir(item)} disabled={deshabilitado} accessibilityState={{ disabled: deshabilitado }}
+          accessibilityLabel={`${item.inicio} a ${item.fin}. ${pasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precio}` : item.estado}`}>
+          <View style={uiLayout.row}>
+            <View style={uiLayout.grow}>
+              <Text numeric variant="action" tone={pasado ? 'muted' : 'text'}>{item.inicio} - {item.fin}</Text>
+              {item.motivoBloqueo && <Text variant="label" tone="muted">{item.motivoBloqueo}</Text>}
+              {pasado && <Text variant="label" tone="muted">Turno pasado · No reservable</Text>}
+              {item.estado === 'libre' && !pasado && <Text numeric variant="label" tone="primary">{precio}</Text>}
+            </View>
+            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{item.estado.toUpperCase()}</Badge>
+          </View>
+        </PressableSurface>;
+      }} />
+    {seleccionado && espacio && <ReservaDialog turno={seleccionado} espacio={espacio}
+      deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? espacio.deporteId.replace('dep-', '')}
+      cargando={reservando} error={errorReserva} onConfirmar={confirmar} onCerrar={() => setSeleccionado(null)} />}
+    {aviso && <DialogoAviso titulo={aviso.titulo} mensaje={aviso.mensaje} detalle={aviso.detalle}
+      accionPrincipal={aviso.ingreso ? 'Iniciar sesión' : aviso.verQr ? 'Ver QR' : 'Entendido'} accionSecundaria={aviso.ingreso ? 'Ahora no' : undefined}
+      onCerrar={() => setAviso(null)} onConfirmar={() => {
+        setAviso(null);
+        if (aviso.ingreso) router.push({ pathname: '/login', params: { espacioId, fecha } });
+        if (aviso.verQr) router.push('/(tabs)/two');
+      }} />}
+  </Screen>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, paddingTop: 50, backgroundColor: '#FAFAFA' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 50 },
-  offlineBanner: { backgroundColor: '#d32f2f', padding: 10, borderRadius: 8, marginBottom: 15 },
-  offlineText: { color: 'white', fontWeight: 'bold', textAlign: 'center', fontSize: 12 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-  userTitle: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  logoutButton: { backgroundColor: '#FFCDD2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
-  logoutText: { color: '#C62828', fontWeight: 'bold', fontSize: 12 },
-  loginButton: { backgroundColor: '#C8E6C9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
-  loginText: { color: '#2E7D32', fontWeight: 'bold', fontSize: 12 },
-  
-  daysContainer: { marginBottom: 20, maxHeight: 80 },
-  dayCard: { 
-    width: 65, 
-    height: 75, 
-    backgroundColor: 'white', 
-    borderRadius: 12, 
-    marginRight: 10, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: '#eee'
-  },
-  dayCardSelected: { backgroundColor: '#2E7D32', borderColor: '#2E7D32' },
-  dayName: { fontSize: 14, color: '#666', fontWeight: 'bold', marginBottom: 4 },
-  dayNumber: { fontSize: 20, color: '#333', fontWeight: 'bold' },
-
-  cardsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  card: { flex: 1, padding: 15, borderRadius: 10, marginHorizontal: 5, alignItems: 'center', elevation: 2 },
-  cardText: { color: 'white', fontWeight: 'bold', fontSize: 14, textAlign: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, paddingHorizontal: 15, backgroundColor: 'white', marginBottom: 8, borderRadius: 10, alignItems: 'center', elevation: 1 },
-  hourText: { fontSize: 16, fontWeight: '500', color: '#333' },
-  reasonText: { fontSize: 11, color: '#888', marginTop: 2 },
-  priceText: { fontSize: 13, color: '#2E7D32', fontWeight: 'bold', marginTop: 2 },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  emptyText: { color: '#666', textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
+  cabecera: { paddingVertical: spacing.lg, gap: spacing.lg },
+  horizontal: { gap: spacing.sm },
+  dia: { minWidth: layout.dayWidth, alignItems: 'center', borderRadius: radius.input, borderCurve: borders.curve },
 });

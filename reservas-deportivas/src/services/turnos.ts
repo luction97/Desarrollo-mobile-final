@@ -1,26 +1,25 @@
 import { api } from './api';
 import { guardarTurnosLocalmente, obtenerTurnosLocales } from './db';
 import * as Network from 'expo-network';
-import { Turno } from '../tipos';
+import type { Turno } from '../tipos';
+
+export async function consultarGrilla(espacioId: string, fecha: string): Promise<{ datos: Turno[]; local: boolean }> {
+  let conectado = true;
+  try { conectado = (await Network.getNetworkStateAsync()).isConnected !== false; } catch { /* Se intenta la API igual. */ }
+  if (conectado) {
+    try {
+      const datos = await api.listarTodo<Turno>(`/espacios/${encodeURIComponent(espacioId)}/turnos?fecha=${fecha}`);
+      await guardarTurnosLocalmente(datos).catch(() => undefined);
+      return { datos, local: false };
+    } catch (error) {
+      const datos = await obtenerTurnosLocales(espacioId, fecha);
+      if (!datos.length) throw error;
+      return { datos, local: true };
+    }
+  }
+  return { datos: await obtenerTurnosLocales(espacioId, fecha), local: true };
+}
 
 export async function obtenerGrillaDia(espacioId: string, fecha: string): Promise<Turno[]> {
-  const estadoRed = await Network.getNetworkStateAsync();
-  
-  if (!estadoRed.isConnected) {
-    console.log('⚠️ Sin internet, leyendo de SQLite...');
-    return await obtenerTurnosLocales(espacioId, fecha);
-  }
-
-  try {
-    console.log('🌐 Conectado, buscando turnos reales en la API...');
-    
-    const turnosReales = await api.get<Turno[]>(`/espacios/${espacioId}/turnos?fecha=${fecha}`);
-
-    await guardarTurnosLocalmente(turnosReales);
-    
-    return turnosReales;
-  } catch (error) {
-    console.error('Error al traer turnos de la API, usando datos locales:', error);
-    return await obtenerTurnosLocales(espacioId, fecha);
-  }
+  return (await consultarGrilla(espacioId, fecha)).datos;
 }
