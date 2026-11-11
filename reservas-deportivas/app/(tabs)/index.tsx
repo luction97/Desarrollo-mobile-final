@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
-import { Badge, Button, Chip, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
+import { Badge, Button, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { ReservaDialog } from '../../src/components/ReservaDialog';
 import { borders, layout, radius, spacing, useTheme } from '../../src/theme';
@@ -196,11 +196,6 @@ export default function DisponibilidadScreen() {
       })}
     </ScrollView>
 
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
-      {espacios.map(e => <Chip key={e.id} selected={e.id === espacioId} onPress={() => {
-        setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined);
-      }}>{e.nombre}</Chip>)}
-    </ScrollView>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
       {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={`${d.nombre} ${fechaLegible(d.fecha)}`}
         onPress={() => setFecha(d.fecha)} style={styles.dia}>
