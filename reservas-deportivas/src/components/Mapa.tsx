@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
+import { Badge, Button, Surface, Text } from './ui';
+import { borders, layout, radius, spacing, useTheme } from '../theme';
+import { distanciaLegible, distanciaMetros } from '../utils/distancias';
 import * as Location from 'expo-location';
 import { useNetworkState } from 'expo-network';
 import { crearDocumentoMapa } from '../mapa/documento';
@@ -7,6 +10,7 @@ import { CoordenadasMapa, EstadoMapa, PuntoMapa, ATRIBUCION_URL, REPORTE_URL, en
 import { VisorMapa } from './mapa/VisorMapa';
 
 export function Mapa({ puntos }: { puntos: PuntoMapa[] }) {
+  const { colors } = useTheme();
   const validos = useMemo(() => puntos.filter(puntoValido), [puntos]);
   const [ubicacion, setUbicacion] = useState<CoordenadasMapa | null>(null);
   const [mensaje, setMensaje] = useState('Tu ubicación es opcional y solo se usa mientras consultás esta pantalla.');
@@ -72,47 +76,44 @@ export function Mapa({ puntos }: { puntos: PuntoMapa[] }) {
     setMensaje('No se pudo abrir una aplicación de mapas. Usá las coordenadas indicadas.');
   };
 
-  if (!validos.length) return <Text style={styles.texto}>No hay coordenadas guardadas para mostrar.</Text>;
+  const ordenados = ubicacion ? [...validos].sort((a, b) => distanciaMetros(ubicacion, a) - distanciaMetros(ubicacion, b) || a.id.localeCompare(b.id)) : validos;
+
+  if (!validos.length) return <Text tone="muted" variant="label">No hay coordenadas guardadas para mostrar.</Text>;
   return <View style={styles.contenedor}>
-    <Text style={styles.texto}>Mapa de complejos. La cartografía en línea es provista por OpenStreetMap; recibe tu IP y el área consultada.</Text>
-    <View style={styles.visor}>
+    <Text tone="muted" variant="caption">Mapa de complejos. La cartografía en línea es provista por OpenStreetMap; recibe tu IP y el área consultada.</Text>
+    <View style={[styles.visor, { backgroundColor: colors.primaryContainer }]}>
       <VisorMapa key={intento} html={html} onMensaje={recibir} onError={() => setEstado('error')} />
     </View>
-    <Text accessibilityLiveRegion="polite" style={styles.texto}>
+    <Text tone="muted" variant="label" accessibilityLiveRegion="polite">
       {sinRed ? 'Sin conexión. Se muestran los datos locales; el fondo cartográfico puede no estar disponible.'
         : estado === 'error' ? 'No se pudo cargar toda la cartografía. Los datos y coordenadas siguen disponibles.'
         : estado === 'cargando' ? 'Cargando cartografía…' : 'Cartografía disponible.'}
     </Text>
     {(estado === 'error' || sinRed) && <Accion titulo="Reintentar mapa" onPress={() => setIntento(n => n + 1)} />}
-    <Text accessibilityLiveRegion="polite" style={styles.texto}>{mensaje}</Text>
+    <Text tone="muted" variant="label" accessibilityLiveRegion="polite">{mensaje}</Text>
     <Accion titulo={buscando ? 'Obteniendo ubicación…' : 'Mostrar mi ubicación'} onPress={() => void localizar()} disabled={buscando} />
     {ajustes && <Accion titulo="Abrir ajustes de ubicación" onPress={() => { void Linking.openSettings().catch(() => setMensaje('Abrí los permisos desde los ajustes del dispositivo.')); }} />}
     {ubicacion && <Accion titulo="Ocultar mi ubicación" onPress={() => { setUbicacion(null); setMensaje('Tu ubicación está oculta.'); }} />}
-    {validos.map(p => <View key={p.id} style={[styles.punto, seleccion === p.id && styles.seleccionado]}>
-      <Text style={styles.nombre}>{p.nombre}</Text>
-      <Text selectable style={styles.texto}>{p.latitud.toFixed(6)}, {p.longitud.toFixed(6)}</Text>
+    {ordenados.map((p, indice) => <Surface variant="outlined" key={p.id} style={[styles.punto, seleccion === p.id && { borderColor: colors.primary, borderWidth: borders.focus }]}>
+      <Text variant="action">{p.nombre}</Text>
+      {ubicacion && <>
+        {indice === 0 && <Badge variant="success">Más cercano de los mostrados</Badge>}
+        <Text variant="label">A {distanciaLegible(distanciaMetros(ubicacion, p))} en línea recta</Text>
+      </>}
+      <Text selectable numeric variant="label" tone="muted">{p.latitud.toFixed(6)}, {p.longitud.toFixed(6)}</Text>
       <Accion titulo={`Cómo llegar a ${p.nombre}`} onPress={() => void llegar(p)} />
-    </View>)}
+    </Surface>)}
     <Accion titulo="© OpenStreetMap contributors · Licencia" onPress={() => void abrirEnlace(ATRIBUCION_URL)} />
     <Accion titulo="Informar un problema del mapa" onPress={() => void abrirEnlace(REPORTE_URL)} />
   </View>;
 }
 
 function Accion({ titulo, onPress, disabled = false }: { titulo: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
-    onPress={onPress} style={({ pressed }) => [styles.boton, (pressed || disabled) && styles.atenuado]}>
-    <Text style={styles.enlace}>{titulo}</Text>
-  </Pressable>;
+  return <Button variant="secondary" size="sm" title={titulo} disabled={disabled} onPress={onPress} />;
 }
 
 const styles = StyleSheet.create({
-  contenedor: { gap: 8, marginBottom: 16 },
-  visor: { height: 280, borderRadius: 10, overflow: 'hidden', backgroundColor: '#edf1eb' },
-  texto: { color: '#374151', fontSize: 14, lineHeight: 21 },
-  nombre: { color: '#111827', fontSize: 16, fontWeight: '600' },
-  punto: { padding: 10, borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8 },
-  seleccionado: { borderColor: '#2e7d32', borderWidth: 2 },
-  boton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#eef4ee', borderRadius: 8 },
-  enlace: { color: '#14532d', fontSize: 15, fontWeight: '600' },
-  atenuado: { opacity: 0.6 },
+  contenedor: { gap: spacing.md, marginBottom: spacing.lg },
+  visor: { height: layout.mapHeight, borderRadius: radius.card, borderCurve: borders.curve, overflow: 'hidden' },
+  punto: { gap: spacing.sm },
 });

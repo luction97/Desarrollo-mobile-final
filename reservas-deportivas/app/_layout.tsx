@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -8,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '../src/context/AuthContext';
+import { useTheme } from '../src/theme';
 
 export {
   ErrorBoundary,
@@ -21,8 +21,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
+    Ionicons: require('@react-native-vector-icons/ionicons/fonts/Ionicons.ttf'),
   });
 
   useEffect(() => {
@@ -44,16 +43,25 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const { colors } = useTheme();
 
   return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
+      <ThemeProvider value={{
+        ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme),
+        colors: {
+          ...(colorScheme === 'dark' ? DarkTheme : DefaultTheme).colors,
+          primary: colors.primary, background: colors.background, card: colors.surface,
+          text: colors.text, border: colors.border, notification: colors.danger,
+        },
+      }}>
+        <Stack screenOptions={{ headerTintColor: colors.text, headerStyle: { backgroundColor: colors.background }, headerShadowVisible: false, contentStyle: { backgroundColor: colors.background } }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="registro" options={{ title: 'Crear cuenta' }} />
           <Stack.Screen 
             name="scanner" 
-            options={{ title: 'Escanear QR', headerTintColor: '#fff', headerStyle: { backgroundColor: '#000' } }} 
+            options={{ title: 'Escanear QR' }}
           />
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
           

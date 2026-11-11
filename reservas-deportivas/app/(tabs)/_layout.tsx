@@ -1,11 +1,16 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import { Tabs } from 'expo-router';
+import { layout, spacing, typography, useTheme } from '../../src/theme';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#2E7D32',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, minHeight: layout.tabBarMinHeight },
+        tabBarLabelStyle: { ...typography.caption, flexShrink: 0 },
         headerShown: false,
       }}>
       
@@ -13,7 +18,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Disponibilidad',
-          tabBarIcon: ({ color }) => <FontAwesome size={28} name="calendar" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="calendar-outline" color={color} />,
         }}
       />
 
@@ -21,7 +26,7 @@ export default function TabLayout() {
         name="two"
         options={{
           title: 'Mis Reservas',
-          tabBarIcon: ({ color }) => <FontAwesome size={28} name="list" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="list-outline" color={color} />,
         }}
       />
     </Tabs>

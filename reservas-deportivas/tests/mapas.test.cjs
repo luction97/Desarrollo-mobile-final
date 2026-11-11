@@ -5,6 +5,8 @@ const path = require('node:path');
 const ts = require('typescript');
 const React = require('react');
 const { act, create } = require('react-test-renderer');
+const { createUiEnvironment } = require('./helpers/ui-environment.cjs');
+const shared = createUiEnvironment();
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function cargar(archivo, dependencias = {}) {
@@ -15,11 +17,15 @@ function cargar(archivo, dependencias = {}) {
   new Function('require', 'module', 'exports', codigo)(nombre => {
     if (Object.hasOwn(dependencias, nombre)) return dependencias[nombre];
     if (['react', 'react/jsx-runtime'].includes(nombre)) return require(nombre);
+    if (nombre === './ui') return shared.ui;
+    if (nombre === '../theme') return shared.theme;
+    if (nombre === '../utils/distancias') return distancias;
     throw new Error(`Dependencia sin controlar: ${nombre}`);
   }, modulo, modulo.exports);
   return modulo.exports;
 }
 const modelo = cargar('src/mapa/modelo.ts');
+const distancias = cargar('src/utils/distancias.ts');
 const p = { id: 'esp-01', nombre: 'Complejo municipal', latitud: -31.86, longitud: -59.02 };
 const { crearDocumentoMapa } = cargar('src/mapa/documento.ts', {
   './modelo': modelo, '../../assets/leaflet/bundle.json': { default: require('../assets/leaflet/bundle.json') },
@@ -91,6 +97,7 @@ test('caché guarda solo puntos públicos y recupera sin red; tolera corrupción
 test('WebView conserva caché HTTP, identifica la app y no permite archivos ni navegación remota', () => {
   const { VisorMapa } = cargar('src/components/mapa/VisorMapa.tsx', {
     'react-native-webview': { WebView: 'WebView' }, '../../mapa/modelo': modelo,
+    '../../theme/colors': shared.theme,
   });
   const vista = VisorMapa({ html: '<html/>', onMensaje() {}, onError() {} });
   assert.equal(vista.props.cacheEnabled, true);
@@ -118,7 +125,7 @@ test('permiso denegado mantiene mapa/datos y Cómo llegar; la ubicación solo se
   try {
     await act(async () => { vista = create(React.createElement(Mapa, { puntos: [p] })); });
     assert.equal(solicitudes, 0);
-    const boton = texto => vista.root.findAllByType('Pressable').find(n => n.findByType('Text').props.children.includes(texto));
+    const boton = texto => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel.includes(texto));
     await act(async () => { await boton('Mostrar mi ubicación').props.onPress(); });
     assert.equal(solicitudes, 1);
     assert.equal(vista.root.findAllByType('VisorMapa').length, 1);
@@ -146,7 +153,7 @@ test('ubicación permitida llega al visor y se puede ocultar; no cambia los punt
   const original = { ...p };
   try {
     await act(async () => { vista = create(React.createElement(Mapa, { puntos: [p] })); });
-    const boton = texto => vista.root.findAllByType('Pressable').find(n => n.findByType('Text').props.children.includes(texto));
+    const boton = texto => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel.includes(texto));
     await act(async () => { await boton('Mostrar mi ubicación').props.onPress(); });
     assert.deepEqual(posicion, { latitud: -31.8, longitud: -59.1 });
     assert.deepEqual(p, original);
@@ -170,7 +177,7 @@ test('sin handler geo usa respaldo web; si ambos fallan conserva coordenadas y c
   let vista;
   try {
     await act(async () => { vista = create(React.createElement(Mapa, { puntos: [p] })); });
-    const boton = () => vista.root.findAllByType('Pressable').find(n => n.findByType('Text').props.children.includes('Cómo llegar'));
+    const boton = () => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel.includes('Cómo llegar'));
     await act(async () => { await boton().props.onPress(); });
     assert.equal(abiertos.length, 2);
     assert.ok(abiertos[1].startsWith('https://www.openstreetmap.org/'));

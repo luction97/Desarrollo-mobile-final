@@ -1,5 +1,6 @@
 import { WebView } from 'react-native-webview';
 import { IDENTIFICACION_MAPA } from '../../mapa/modelo';
+import { lightColors } from '../../theme/colors';
 
 export interface VisorMapaProps {
   html: string;
@@ -29,6 +30,6 @@ export function VisorMapa({ html, onMensaje, onError }: VisorMapaProps) {
     onHttpError={onError}
     onRenderProcessGone={onError}
     onContentProcessDidTerminate={onError}
-    style={{ flex: 1, backgroundColor: '#edf1eb' }}
+    style={{ flex: 1, backgroundColor: lightColors.primaryContainer }}
   />;
 }
