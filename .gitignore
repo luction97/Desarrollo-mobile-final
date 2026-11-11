@@ -1,6 +1,7 @@
 # Proyectos versionados
 /*
 !/.gitignore
+!/.easignore
 !/api-*/
 !/reservas-deportivas/
 !/LICENSE
