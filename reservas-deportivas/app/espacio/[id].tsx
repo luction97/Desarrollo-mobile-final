@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
-import { Button, ScrollScreen, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
+import { View, StyleSheet, Image, ActivityIndicator, Platform, Linking } from 'react-native';
+import { Button, Chip, ScrollScreen, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
 import { borders, layout, radius, spacing, useTheme } from '../../src/theme';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -125,25 +125,38 @@ export default function EspacioDetalleScreen() {
       <View style={styles.content}>
         <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>
         <Text tone="muted">{espacio.complejo}</Text>
+        <Text variant="label" tone="muted">{espacio.deporteId.replace('dep-', '').toUpperCase()}</Text>
 
         <Text numeric variant="title" tone="primary">
           {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(espacio.precioPorHora)} / hora
         </Text>
         <Text variant="label" tone="muted">Se paga en el lugar</Text>
-        <Button title="Ver disponibilidad" onPress={() => router.push({ pathname: '/(tabs)', params: { espacioId: espacio.id } })} />
-        <Text>{espacio.superficie} · {espacio.techado ? 'Techado' : 'Al aire libre'} · {espacio.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Text>
-        <Text>Capacidad: {espacio.capacidad} personas</Text>
+
+        <View style={styles.chipsRow}>
+          <Chip selected={false}>{espacio.superficie}</Chip>
+          <Chip selected={false}>{espacio.techado ? 'Techado' : 'Al aire libre'}</Chip>
+          <Chip selected={false}>{espacio.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Chip>
+          <Chip selected={false}>{`Capacidad ${espacio.capacidad}`}</Chip>
+        </View>
+
+        <View style={uiLayout.row}>
+          <Button title="Ver disponibilidad" onPress={() => router.push({ pathname: '/(tabs)', params: { espacioId: espacio.id } })} />
+          <Button variant="secondary" title="Cómo llegar" onPress={() => {
+            const { latitud, longitud } = espacio.coordenadas;
+            void Linking.openURL(`https://www.openstreetmap.org/?mlat=${latitud}&mlon=${longitud}#map=17/${latitud}/${longitud}`);
+          }} />
+        </View>
+
         <Text>{espacio.reglas}</Text>
 
         <Text variant="subtitle" style={styles.sectionTitle}>Ubicación</Text>
-        
         <Mapa puntos={puntos} />
 
         <Text variant="subtitle" style={styles.sectionTitle}>Estado actual de la cancha</Text>
         <Button variant="secondary" title="Tomar foto del estado" disabled={guardando} onPress={() => elegirFoto(true)} />
         <Button variant="ghost" title="Elegir foto de la galería" disabled={guardando} onPress={() => elegirFoto(false)} />
         {aviso && <Text accessibilityLiveRegion="polite">{aviso}</Text>}
-        
+
         {fotoLocal && (
           <View style={uiLayout.section}>
             <Text tone="muted">Foto guardada en el dispositivo:</Text>
@@ -173,6 +186,7 @@ const styles = StyleSheet.create({
   image: { width: '100%', aspectRatio: layout.mediaRatio },
   content: { padding: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.md },
   sectionTitle: { marginTop: spacing.xl },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   photo: { width: '100%', aspectRatio: layout.mediaRatio, borderRadius: radius.card, borderCurve: borders.curve },
   videoContainer: { width: '100%', aspectRatio: layout.mediaRatio, borderRadius: radius.card, borderCurve: borders.curve, overflow: 'hidden' },
   video: { flex: 1 },

@@ -36,6 +36,7 @@ const espacio = {
 };
 const fechas = cargar('src/utils/fechas.ts', {});
 const modeloCanchas = cargar('src/canchas/modelo.ts', {});
+const imagenesCanchas = { fotoDeCancha: () => null };
 
 async function montar({ fallar = false } = {}) {
   const navegaciones = [];
@@ -57,6 +58,7 @@ async function montar({ fallar = false } = {}) {
       obtenerDeportes: async () => [{ id: 'dep-futbol5', nombre: 'Fútbol 5' }],
     },
     '../../src/canchas/modelo': modeloCanchas,
+    '../../src/canchas/imagenes': imagenesCanchas,
     '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
     '../../src/services/preferencias': { default: { getItem: async () => null, setItem: async () => {} } },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: null, cargando: false, logout: async () => {} }) },

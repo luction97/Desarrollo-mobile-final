@@ -1,0 +1,51 @@
+import { View, StyleSheet } from 'react-native';
+import { Button, Screen, Surface, Text, uiLayout } from '../../src/components/ui';
+import { layout, radius, spacing, useTheme } from '../../src/theme';
+import { useRouter } from 'expo-router';
+import { useAuth } from '../../src/context/AuthContext';
+
+export default function PerfilScreen() {
+  const { colors } = useTheme();
+  const router = useRouter();
+  const { usuario, logout, cargando } = useAuth();
+
+  const esPersonal = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
+
+  return (
+    <Screen topInset>
+      <View style={styles.container}>
+        <Text variant="title" accessibilityRole="header">Perfil</Text>
+        {!usuario ? (
+          <Surface style={styles.card}>
+            <Text variant="subtitle">Invitado</Text>
+            <Text tone="muted">Iniciá sesión para ver tus reservas y gestionar tu cuenta.</Text>
+            <Button title="Iniciar sesión" onPress={() => router.push('/login')} />
+            <Button variant="ghost" title="Crear cuenta" onPress={() => router.push('/registro')} />
+          </Surface>
+        ) : (
+          <>
+            <Surface style={styles.card}>
+              <Text variant="subtitle">{usuario.nombre}</Text>
+              <Text tone="muted">{usuario.email}</Text>
+              <Text variant="label" tone="muted">Rol: {usuario.rol}</Text>
+              <Button variant="ghost" title="Cerrar sesión" onPress={() => void logout()} loading={cargando} />
+            </Surface>
+            {esPersonal && (
+              <Surface style={styles.card}>
+                <Text variant="subtitle">Gestión</Text>
+                <Button variant="secondary" title="Agenda del día" onPress={() => router.push('/agenda')} />
+                <Button variant="secondary" title="Escanear QR" onPress={() => router.push('/scanner')} />
+                <Button variant="secondary" title="Administración" onPress={() => router.push('/admin')} />
+              </Surface>
+            )}
+          </>
+        )}
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: spacing.xl, gap: spacing.lg },
+  card: { padding: spacing.lg, gap: spacing.sm, borderRadius: radius.card },
+});

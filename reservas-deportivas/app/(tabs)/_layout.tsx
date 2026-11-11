@@ -17,8 +17,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Disponibilidad',
-          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="calendar-outline" color={color} />,
+          title: 'Espacios',
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="football-outline" color={color} />,
         }}
       />
 
@@ -26,7 +26,15 @@ export default function TabLayout() {
         name="two"
         options={{
           title: 'Mis Reservas',
-          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="list-outline" color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="ticket-outline" color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: 'Perfil',
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="person-outline" color={color} />,
         }}
       />
     </Tabs>

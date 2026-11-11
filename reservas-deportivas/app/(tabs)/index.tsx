@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
 import { Badge, Button, Chip, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
@@ -15,6 +15,7 @@ import { fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fec
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
 import { seleccionarCanchasDeEjemplo } from '../../src/canchas/modelo';
+import { fotoDeCancha } from '../../src/canchas/imagenes';
 
 interface Aviso { titulo: string; mensaje?: string; detalle?: string; ingreso?: boolean; verQr?: boolean }
 
@@ -41,6 +42,8 @@ export default function DisponibilidadScreen() {
   const [seleccionado, setSeleccionado] = useState<Turno | null>(null);
   const [reservando, setReservando] = useState(false);
   const [errorReserva, setErrorReserva] = useState<string | null>(null);
+  const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
+  const [filtroComplejo, setFiltroComplejo] = useState<string>('todos');
   const operando = useRef(false);
   const generacion = useRef(0);
   const espacio = espacios.find(e => e.id === espacioId) ?? null;
@@ -110,8 +113,7 @@ export default function DisponibilidadScreen() {
   const confirmar = async (cantidad: number) => {
     if (!seleccionado || !espacio || !usuario || operando.current) return;
     operando.current = true; setReservando(true); setErrorReserva(null);
-    try {
-      const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
+    try { const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
       setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
       setSeleccionado(null);
       setAviso({ titulo: 'Reserva confirmada', mensaje: resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.' : 'No pudimos guardar el QR en este teléfono. Abrí Mis Reservas con conexión para guardarlo.', verQr: true });
@@ -123,7 +125,14 @@ export default function DisponibilidadScreen() {
     try { await logout(); }
     catch { setAviso({ titulo: 'No se pudo cerrar sesión', mensaje: 'Volvé a intentar.' }); }
   };
+
   const ahora = new Date();
+  const complejosDisponibles = ['todos', ...new Set(espacios.map(e => e.complejo).filter(c => c && c.trim() !== '' && c !== '—' && c !== '-'))];
+  const espaciosFiltrados = espacios.filter(e => {
+    const cumpleDeporte = filtroDeporte === 'todos' || e.deporteId === filtroDeporte;
+    const cumpleComplejo = filtroComplejo === 'todos' || e.complejo === filtroComplejo;
+    return cumpleDeporte && cumpleComplejo;
+  });
 
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
@@ -132,7 +141,45 @@ export default function DisponibilidadScreen() {
         : <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
     {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión con el servidor · Datos guardados</Text>}
-    <Button variant="secondary" title="Ver catálogo de espacios" onPress={() => router.push('/catalogo')} />
+
+    <View style={styles.filtros}>
+      <Text variant="label" tone="muted">Filtrar por deporte</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
+          <Chip key={dep} selected={filtroDeporte === dep} onPress={() => setFiltroDeporte(dep)}>
+            {dep === 'todos' ? 'Todos' : deportes.find(d => d.id === dep)?.nombre ?? dep.replace('dep-', '').toUpperCase()}
+          </Chip>
+        ))}
+      </ScrollView>
+      <Text variant="label" tone="muted">Filtrar por complejo</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        {complejosDisponibles.map(comp => (
+          <Chip key={comp} selected={filtroComplejo === comp} onPress={() => setFiltroComplejo(comp)}>
+            {comp === 'todos' ? 'Todos' : comp}
+          </Chip>
+        ))}
+      </ScrollView>
+    </View>
+
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
+      {espaciosFiltrados.map(e => {
+        const foto = fotoDeCancha(e);
+        return (
+          <PressableSurface key={e.id} style={styles.card} onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); }}>
+            {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
+            <View style={styles.cardInfo}>
+              <Text variant="subtitle" numberOfLines={1}>{e.nombre}</Text>
+              <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? e.deporteId}</Text>
+              <Text numeric variant="action" tone="primary">
+                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(e.precioPorHora)} / hora
+              </Text>
+              <Button size="sm" variant="ghost" title="Detalle" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
+            </View>
+          </PressableSurface>
+        );
+      })}
+    </ScrollView>
+
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
       {espacios.map(e => <Chip key={e.id} selected={e.id === espacioId} onPress={() => {
         setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined);
@@ -145,14 +192,6 @@ export default function DisponibilidadScreen() {
         <Text numeric variant="title">{d.fecha.slice(-2)}</Text>
       </PressableSurface>)}
     </ScrollView>
-    {espacio && <Button variant="ghost" title="Ver detalle y video" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />}
-    {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && <View style={uiLayout.section}>
-      <Button variant="secondary" title="Escanear QR" onPress={() => router.push('/scanner')} />
-      <View style={uiLayout.row}>
-        <Button variant="ghost" title="Administración" onPress={() => router.push('/admin')} />
-        <Button variant="ghost" title="Agenda del día" onPress={() => router.push('/agenda')} />
-      </View>
-    </View>}
   </View>;
 
   return <Screen topInset>
@@ -193,6 +232,12 @@ export default function DisponibilidadScreen() {
 
 const styles = StyleSheet.create({
   cabecera: { paddingVertical: spacing.lg, gap: spacing.lg },
+  filtros: { gap: spacing.sm },
+  filterRow: { alignItems: 'center', gap: spacing.sm },
+  cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
+  card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
+  cardImage: { width: '100%', height: 120, resizeMode: 'cover' },
+  cardInfo: { padding: spacing.md, gap: spacing.xs },
   horizontal: { gap: spacing.sm },
   dia: { minWidth: layout.dayWidth, alignItems: 'center', borderRadius: radius.input, borderCurve: borders.curve },
 });
