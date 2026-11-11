@@ -35,6 +35,7 @@ const espacio = {
   capacidad: 10, precioPorHora: 12000, imagenes: [], videoUrl: null, reglas: '', activo: true,
 };
 const fechas = cargar('src/utils/fechas.ts', {});
+const modeloCanchas = cargar('src/canchas/modelo.ts', {});
 
 async function montar({ fallar = false } = {}) {
   const navegaciones = [];
@@ -55,6 +56,7 @@ async function montar({ fallar = false } = {}) {
       obtenerEspaciosLocales: async () => [espacio],
       obtenerDeportes: async () => [{ id: 'dep-futbol5', nombre: 'Fútbol 5' }],
     },
+    '../../src/canchas/modelo': modeloCanchas,
     '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
     '../../src/services/preferencias': { default: { getItem: async () => null, setItem: async () => {} } },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: null, cargando: false, logout: async () => {} }) },

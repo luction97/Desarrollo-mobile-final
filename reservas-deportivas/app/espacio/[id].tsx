@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Mapa } from '../../src/components/Mapa';
 import { PuntoMapa, puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales, obtenerPuntosLocales } from '../../src/services/mapas';
+import { fotoDeCancha } from '../../src/canchas/imagenes';
 
 export default function EspacioDetalleScreen() {
   const { colors } = useTheme();
@@ -115,9 +116,11 @@ export default function EspacioDetalleScreen() {
     );
   }
 
+  const fotoRegistrada = fotoDeCancha(espacio);
+
   return (
     <ScrollScreen contentContainerStyle={styles.scroll}>
-      <Image source={{ uri: espacio.imagenes[0] }} style={styles.image} />
+      {fotoRegistrada ? <Image source={fotoRegistrada} style={styles.image} accessibilityLabel={`Foto de ${espacio.nombre}`} /> : null}
 
       <View style={styles.content}>
         <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>

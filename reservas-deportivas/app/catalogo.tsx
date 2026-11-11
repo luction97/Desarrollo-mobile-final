@@ -9,6 +9,8 @@ import { Espacio } from '../src/tipos';
 import { Mapa } from '../src/components/Mapa';
 import { agruparComplejos, puntosDeEspacios, PuntoMapa } from '../src/mapa/modelo';
 import { guardarPuntosLocales, obtenerPuntosLocales } from '../src/services/mapas';
+import { seleccionarCanchasDeEjemplo } from '../src/canchas/modelo';
+import { fotoDeCancha } from '../src/canchas/imagenes';
 
 export default function CatalogoScreen() {
   const { colors } = useTheme();
@@ -31,7 +33,7 @@ export default function CatalogoScreen() {
       setPuntosLocales(locales);
       try {
         const resultado = await obtenerEspacios();
-        const data = resultado.datos;
+        const data = seleccionarCanchasDeEjemplo(resultado.datos);
         if (!activo) return;
         setEspacios(data);
         setDesdeCache(resultado.local);
@@ -115,27 +117,30 @@ export default function CatalogoScreen() {
           {mostrarMapa && <Mapa puntos={agruparComplejos(errorCarga || desdeCache || cargando ? puntosLocales : puntosDeEspacios(espaciosFiltrados))} />}
         </View>}
         ListEmptyComponent={!cargando ? <StateView><Text tone="muted">{errorCarga ? 'Catálogo no disponible. Podés consultar las ubicaciones guardadas.' : 'No hay espacios que coincidan con los filtros.'}</Text></StateView> : null}
-        renderItem={({ item }) => (
-          <PressableSurface
-            style={styles.card}
-            onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.id } })}
-          >
-            <Image source={{ uri: item.imagenes[0] }} style={styles.image} />
-            <View style={styles.info}>
-              <Text variant="subtitle">{item.nombre}</Text>
-              
-              <Text variant="label" tone="muted">
-                {item.complejo && item.complejo !== '—' ? `${item.complejo} • ` : ''}
-                {item.superficie || 'Superficie no especificada'}
-              </Text>
-              <Text variant="label" tone="muted">{item.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Text>
+        renderItem={({ item }) => {
+          const foto = fotoDeCancha(item);
+          return (
+            <PressableSurface
+              style={styles.card}
+              onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.id } })}
+            >
+              {foto && <Image source={foto} style={styles.image} accessibilityLabel={`Foto de ${item.nombre}`} />}
+              <View style={styles.info}>
+                <Text variant="subtitle">{item.nombre}</Text>
 
-              <Text numeric variant="action" tone="primary">
-                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(item.precioPorHora)} / hora
-              </Text>
-            </View>
-          </PressableSurface>
-        )}
+                <Text variant="label" tone="muted">
+                  {item.complejo && item.complejo !== '—' ? `${item.complejo} • ` : ''}
+                  {item.superficie || 'Superficie no especificada'}
+                </Text>
+                <Text variant="label" tone="muted">{item.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Text>
+
+                <Text numeric variant="action" tone="primary">
+                  {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(item.precioPorHora)} / hora
+                </Text>
+              </View>
+            </PressableSurface>
+          );
+        }}
       />
     </Screen>
   );

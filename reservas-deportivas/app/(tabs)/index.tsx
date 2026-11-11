@@ -14,6 +14,7 @@ import preferencias from '../../src/services/preferencias';
 import { fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
+import { seleccionarCanchasDeEjemplo } from '../../src/canchas/modelo';
 
 interface Aviso { titulo: string; mensaje?: string; detalle?: string; ingreso?: boolean; verQr?: boolean }
 
@@ -48,9 +49,10 @@ export default function DisponibilidadScreen() {
     let activo = true;
     const aplicar = (datos: Espacio[], favorito: string | null) => {
       if (!activo) return;
-      setEspacios(datos);
-      setEspacioId(actual => datos.some(e => e.id === params.espacioId) ? params.espacioId!
-        : datos.some(e => e.id === actual) ? actual : datos.find(e => e.id === favorito)?.id ?? datos[0]?.id ?? '');
+      const canchas = seleccionarCanchasDeEjemplo(datos);
+      setEspacios(canchas);
+      setEspacioId(actual => canchas.some(e => e.id === params.espacioId) ? params.espacioId!
+        : canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
     };
     const cargar = async () => {
       const favorito = await preferencias.getItem('ultimoEspacio').catch(() => null);
