@@ -4,14 +4,14 @@
     "slug": "reservas-deportivas",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/branding/icon_app-reservas_deportivas_1024.png",
     "scheme": "reservasdeportivas",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/branding/logo-presentacion-reservas-deportivas-villaguay.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F7F5EF"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,8 +24,8 @@
       "package": "com.luction97.reservasdeportivas",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/branding/icon_app-reservas_deportivas_1024.png",
+        "backgroundColor": "#F7F5EF"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -42,10 +42,22 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/branding/icon_app-reservas_deportivas_1024.png"
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/branding/logo-presentacion-reservas-deportivas-villaguay.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F5EF",
+          "dark": {
+            "backgroundColor": "#12160F"
+          }
+        }
+      ],
       "expo-secure-store",
       [
         "expo-local-authentication",
