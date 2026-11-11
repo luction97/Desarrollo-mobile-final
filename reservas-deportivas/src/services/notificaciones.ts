@@ -1,7 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
-// Configuramos cómo se ve la notificación si la app está abierta
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -34,7 +33,6 @@ export const notificacionesService = {
   },
 
   async programarRecordatorio(nombreEspacio: string, fechaTurno: Date) {
-    // ⚠️ Si estamos en la web, no intentamos programar la notificación (evita el error)
     if (Platform.OS === 'web') {
       console.log('🔔 [WEB] Notificación simulada. En el celular sí va a vibrar y aparecer.');
       return; 
@@ -43,9 +41,7 @@ export const notificacionesService = {
     const tienePermisos = await this.pedirPermisos();
     if (!tienePermisos) return;
 
-    // const horaAviso = new Date(fechaTurno.getTime() - 2 * 60 * 60 * 1000); 
-    
-    // Para probar ahora: 5 segundos
+    // Pendiente E5: reemplazar el retardo corto de desarrollo por 2 horas antes de fechaTurno.
     const horaAviso = new Date();
     horaAviso.setSeconds(horaAviso.getSeconds() + 5);
 

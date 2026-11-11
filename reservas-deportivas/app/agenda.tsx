@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import QRCode from 'react-native-qrcode-svg'; // <-- IMPORTAMOS EL QR
+import QRCode from 'react-native-qrcode-svg';
 import { api } from '../src/services/api';
 import { Reserva } from '../src/tipos';
 
-// Función para extraer la fecha del QR (VGY-1028-18-XXXX -> 28/10 a las 18:00)
 const obtenerFechaDelQr = (codigoQr: string) => {
   try {
     const partes = codigoQr.split('-');
@@ -75,7 +74,6 @@ export default function AgendaScreen() {
               </Text>
             </View>
             
-            {/* 👇 ACÁ AGREGAMOS EL CÓDIGO QR VISUAL 👇 */}
             <View style={{ alignItems: 'center', marginVertical: 15, backgroundColor: 'white', padding: 10, borderRadius: 10 }}>
               <QRCode value={item.codigoQr} size={120} />
             </View>

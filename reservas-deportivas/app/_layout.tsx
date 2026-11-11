@@ -57,7 +57,6 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
           
-          {/* 👇 ACÁ AGREGAMOS LA RUTA DEL PANEL ADMIN 👇 */}
           <Stack.Screen name="admin" options={{ title: 'Panel Admin' }} />
           <Stack.Screen name="catalogo" options={{ title: 'Catálogo de Espacios' }} />
           

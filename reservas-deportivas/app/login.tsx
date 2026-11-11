@@ -6,7 +6,6 @@ import { autenticarConBiometria } from '../src/services/biometria';
 import { authService } from '../src/services/auth';
 import { Usuario } from '../src/tipos';
 import * as LocalAuthentication from 'expo-local-authentication';
-// 👇 CAMBIAMOS FontAwesome POR Ionicons 👇
 import { Ionicons } from '@expo/vector-icons'; 
 
 export default function LoginScreen() {
@@ -86,7 +85,6 @@ export default function LoginScreen() {
           <Text style={styles.welcomeBack}>¡Hola de nuevo, {usuarioGuardado.nombre.split(' ')[0]}!</Text>
           
           <TouchableOpacity style={styles.biometriaButton} onPress={handleBiometria}>
-            {/* 👇 ACÁ USAMOS EL ICONO DE IONICONS 👇 */}
             <Ionicons name="finger-print" size={50} color="#2E7D32" />
             <Text style={styles.biometriaText}>Ingresar con Huella / Rostro</Text>
           </TouchableOpacity>

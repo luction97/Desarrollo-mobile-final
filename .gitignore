@@ -49,6 +49,8 @@ uploads/
 /reservas-deportivas/**/GoogleService-Info.plist
 
 # App: builds y archivos generados
+# Expo regenera este archivo; sus exclusiones se mantienen aquí.
+/reservas-deportivas/.gitignore
 /reservas-deportivas/**/.expo/
 /reservas-deportivas/**/dist/
 /reservas-deportivas/**/web-build/

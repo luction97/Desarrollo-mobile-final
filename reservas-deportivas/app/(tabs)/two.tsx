@@ -24,19 +24,17 @@ const mostrarAlerta = (titulo: string, mensaje: string, onConfirm?: () => void) 
   }
 };
 
-// 👇 FUNCIÓN MÁGICA PARA EXTRAER LA FECHA DEL CÓDIGO QR 👇
+// El QR codifica mes/día y hora como segundo y tercer segmento (ej. VGY-1104-23-QZMUR8).
 const obtenerFechaDelQr = (codigoQr: string) => {
   try {
-    // El código tiene el formato: VGY-1104-23-QZMUR8
     const partes = codigoQr.split('-');
     if (partes.length >= 3) {
-      const mesDia = partes[1]; // "1104" -> 4 de Noviembre
-      const hora = partes[2];   // "23" -> 23:00
+      const mesDia = partes[1];
+      const hora = partes[2];
       
-      const dia = mesDia.substring(2, 4); // "04"
-      const mes = mesDia.substring(0, 2); // "11"
+      const dia = mesDia.substring(2, 4);
+      const mes = mesDia.substring(0, 2);
       
-      // Formateamos a algo lindo: "04/11 a las 23:00 hs"
       return `${dia}/${mes} a las ${hora}:00 hs`;
     }
   } catch (error) {
@@ -121,7 +119,6 @@ export default function MisReservasScreen() {
             <View style={styles.cardHeader}>
               <View>
                 <Text style={styles.cardTitle}>Cancha 2 - Fútbol 5</Text>
-                {/* 👇 ACÁ MOSTRAMOS LA FECHA EXTRAÍDA 👇 */}
                 <Text style={styles.cardDate}>
                   📅 {obtenerFechaDelQr(item.codigoQr)}
                 </Text>

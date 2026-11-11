@@ -27,7 +27,7 @@ export default function TabOneScreen() {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
 
   const router = useRouter();
-  const { usuario } = useAuth(); 
+  const { usuario, logout } = useAuth();
 
   useEffect(() => {
     const proximos7Dias = [];
@@ -126,7 +126,12 @@ export default function TabOneScreen() {
   };
 
   const handleLogout = async () => {
-    router.replace('/login'); 
+    try {
+      await logout();
+      router.replace('/login');
+    } catch {
+      mostrarAlerta('No se pudo cerrar sesión', 'Volvé a intentar para eliminar la sesión del dispositivo.');
+    }
   };
 
   const renderContenido = () => {
@@ -249,15 +254,14 @@ export default function TabOneScreen() {
           <Text style={styles.cardText}>📹 Ver Detalle y Video</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && <TouchableOpacity
           style={[styles.card, { backgroundColor: '#E65100' }]}
           onPress={() => router.push('/scanner')}
         >
           <Text style={styles.cardText}>📷 Escanear QR</Text>
-        </TouchableOpacity>
+        </TouchableOpacity>}
       </View>
 
-      {/* 👇 BOTONERA DE ADMINISTRACIÓN COMPLETA 👇 */}
       {(usuario?.rol === 'administrador' || usuario?.rol === 'encargado') && (
         <View style={{ marginBottom: 20 }}>
           <TouchableOpacity 
@@ -282,7 +286,6 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </View>
       )}
-      {/* 👆 FIN DE LA BOTONERA DE ADMINISTRACIÓN 👆 */}
 
       <View style={{ flex: 1 }}>
         {renderContenido()}

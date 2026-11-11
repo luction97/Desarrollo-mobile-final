@@ -1,8 +1,7 @@
 import { Turno } from '../tipos';
 
-// VERSIÓN WEB: Usa localStorage en lugar de SQLite
+// Implementación web del módulo ./db (Metro resuelve db.native.ts en iOS/Android).
 export async function inicializarDB() {
-  // No hace falta inicializar nada en la web
 }
 
 export async function guardarTurnosLocalmente(turnos: Turno[]) {

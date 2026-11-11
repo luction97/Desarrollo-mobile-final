@@ -1,8 +1,6 @@
 import axios from 'axios';
 import { storage } from './storage';
 
-// URL base de la API. Se configura en .env (ver .env.example).
-// El fallback mantiene el comportamiento de desarrollo local.
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const apiClient = axios.create({
@@ -57,6 +55,6 @@ export const api = {
   get: <T>(endpoint: string) => requestApi<T>('GET', endpoint),
   post: <T>(endpoint: string, body: any) => requestApi<T>('POST', endpoint, body),
   put: <T>(endpoint: string, body: any) => requestApi<T>('PUT', endpoint, body),
-  patch: <T>(endpoint: string, body: any) => requestApi<T>('PATCH', endpoint, body), // 👈 AGREGADO
+  patch: <T>(endpoint: string, body: any) => requestApi<T>('PATCH', endpoint, body),
   delete: <T>(endpoint: string) => requestApi<T>('DELETE', endpoint),
 };

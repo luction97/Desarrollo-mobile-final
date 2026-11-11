@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, S
 import { useRouter } from 'expo-router';
 import { api } from '../src/services/api';
 import { useAuth } from '../src/context/AuthContext';
+import { operacionesService } from '../src/services/operaciones';
 
 const mostrarAlerta = (titulo: string, mensaje: string) => {
   if (Platform.OS === 'web') {
@@ -19,22 +20,17 @@ export default function AdminScreen() {
   const { usuario } = useAuth();
   const router = useRouter();
 
-  // La API pide la fecha como string "AAAA-MM-DD"
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 
   const handleBloquearDia = async () => {
-    if (!motivo) {
+    if (cargando || (usuario?.rol !== 'administrador' && usuario?.rol !== 'encargado')) return;
+    if (!motivo.trim()) {
       mostrarAlerta('Atención', 'Escribí un motivo para el bloqueo.');
       return;
     }
     setCargando(true);
     try {
-      // Si Swagger te pide otro campo (ej. turnoId en lugar de fecha), cambialo acá
-      await api.post('/bloqueos', {
-        espacioId: 'esp-02',
-        fecha: hoy,
-        motivo: motivo,
-      });
+      await operacionesService.bloquearDia('esp-02', hoy, motivo);
       mostrarAlerta('Bloqueo exitoso', `La cancha fue bloqueada para el día ${hoy}.`);
       setMotivo('');
     } catch (error: any) {
@@ -45,13 +41,13 @@ export default function AdminScreen() {
   };
 
   const handleCambiarPrecio = async () => {
-    if (!nuevoPrecio || isNaN(Number(nuevoPrecio))) {
+    if (cargando || usuario?.rol !== 'administrador') return;
+    if (!nuevoPrecio || !Number.isFinite(Number(nuevoPrecio)) || Number(nuevoPrecio) < 0) {
       mostrarAlerta('Atención', 'Ingresá un número válido para el precio.');
       return;
     }
     setCargando(true);
     try {
-      // 👇 Ahora sí, usamos PATCH que es lo que pide NestJS 👇
       await api.patch('/espacios/esp-02', {
         precioPorHora: Number(nuevoPrecio),
       });
@@ -100,7 +96,7 @@ export default function AdminScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.card}>
+      {usuario?.rol === 'administrador' && <View style={styles.card}>
         <Text style={styles.cardTitle}>💰 Cambiar Precio por Hora</Text>
         <Text style={styles.cardDesc}>Modifica el valor de la Cancha 2.</Text>
         
@@ -119,7 +115,7 @@ export default function AdminScreen() {
         >
           <Text style={styles.buttonText}>Actualizar Precio</Text>
         </TouchableOpacity>
-      </View>
+      </View>}
 
     </ScrollView>
   );

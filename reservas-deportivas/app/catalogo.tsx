@@ -21,7 +21,6 @@ export default function CatalogoScreen() {
     });
   }, []);
 
-  // 👇 FILTRAMOS LOS COMPLEJOS VACÍOS O CON GUIONES 👇
   const complejosDisponibles = [
     'todos', 
     ...new Set(
@@ -42,7 +41,6 @@ export default function CatalogoScreen() {
   return (
     <View style={styles.container}>
       
-      {/* FILTRO POR DEPORTE */}
       <Text style={styles.filterTitle}>Filtrar por deporte</Text>
       <View style={{ height: 45, marginBottom: 15 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
@@ -60,7 +58,6 @@ export default function CatalogoScreen() {
         </ScrollView>
       </View>
 
-      {/* FILTRO POR COMPLEJO */}
       <Text style={styles.filterTitle}>Filtrar por complejo</Text>
       <View style={{ height: 45, marginBottom: 20 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
@@ -91,7 +88,6 @@ export default function CatalogoScreen() {
             <View style={styles.info}>
               <Text style={styles.title}>{item.nombre}</Text>
               
-              {/* 👇 FORMATEAMOS EL SUBTÍTULO PARA EVITAR EL "— • Arena" 👇 */}
               <Text style={styles.subtitle}>
                 {item.complejo && item.complejo !== '—' ? `${item.complejo} • ` : ''}
                 {item.superficie || 'Superficie no especificada'}

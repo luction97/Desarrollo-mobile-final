@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Button, Platform, Alert, Linking } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { api } from '../../src/services/api'; // <-- Importamos la API
+import { api } from '../../src/services/api';
 import { Espacio } from '../../src/tipos';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,13 +18,11 @@ export default function EspacioDetalleScreen() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fotoLocal, setFotoLocal] = useState<string | null>(null);
 
-  // 👇 BUSCAMOS EL ESPACIO EN LA API CON FALLBACK DE VIDEO 👇
   useEffect(() => {
     const cargarEspacio = async () => {
       try {
         const data = await api.get<Espacio>(`/espacios/${id}`);
         
-        // Si la API devuelve videoUrl como null, le inyectamos un video de prueba
         if (!data.videoUrl) {
           data.videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
         }
@@ -32,7 +30,6 @@ export default function EspacioDetalleScreen() {
         setEspacio(data);
       } catch (error) {
         console.error("Error al cargar el espacio de la API, usando mock:", error);
-        // Fallback por si la API falla
         const { ESPACIOS } = require('../../src/mocks');
         const encontrado = ESPACIOS.find((e: Espacio) => e.id === id);
         if (encontrado) setEspacio(encontrado);

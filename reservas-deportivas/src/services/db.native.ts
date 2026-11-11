@@ -1,7 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Turno } from '../tipos';
 
-// VERSIÓN CELULAR: Usa SQLite real
 const db = SQLite.openDatabaseSync('reservas.db');
 
 export async function inicializarDB() {

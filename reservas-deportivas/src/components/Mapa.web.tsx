@@ -1,4 +1,3 @@
-// src/components/Mapa.web.tsx
 import { View, Text, StyleSheet } from 'react-native';
 
 export function Mapa() {

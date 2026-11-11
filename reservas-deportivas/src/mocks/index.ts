@@ -18,7 +18,7 @@ export const ESPACIOS: Espacio[] = [
     precioPorHora: 12000,
     coordenadas: { latitud: -31.8642, longitud: -59.0281 },
     imagenes: ['https://picsum.photos/400/300'],
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', // Un video de prueba
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
     reglas: 'No se permite calzado con tapones de aluminio.',
     activo: true,
   },
@@ -34,19 +34,18 @@ export const ESPACIOS: Espacio[] = [
     precioPorHora: 10000,
     coordenadas: { latitud: -31.8645, longitud: -59.0285 },
     imagenes: ['https://picsum.photos/400/301'],
-    videoUrl: null, // Caso feo: espacio sin video
+    videoUrl: null,
     reglas: 'Prohibido colgarse del aro.',
     activo: true,
   }
 ];
 
-// Caso feo: Reserva fija que ocupa TODOS los martes a las 21:00
 export const RESERVAS_FIJAS: ReservaFija[] = [
   {
     id: 'fij-07',
     espacioId: 'esp-02',
     titular: 'Grupo de los martes',
-    dia: 2, // 2 = Martes
+    dia: 2, // 0 = domingo ... 2 = martes
     inicio: '21:00',
     fin: '22:00',
     desde: '2026-03-01',
@@ -55,11 +54,10 @@ export const RESERVAS_FIJAS: ReservaFija[] = [
   }
 ];
 
-// Reserva normal (para probar que el turno diga "reservado")
 export const RESERVAS: Reserva[] = [
   {
     id: 'res-1180',
-    turnoId: 'tur-2026-10-26-18', // Simulamos que reservó un lunes a las 18hs
+    turnoId: 'tur-2026-10-26-18',
     espacioId: 'esp-02',
     usuarioId: 'usr-207',
     cantidadPersonas: 10,
@@ -71,7 +69,6 @@ export const RESERVAS: Reserva[] = [
   }
 ];
 
-// Caso feo: Un día entero bloqueado por lluvia
 export const BLOQUEOS_DIAS_ENTEROS = [
   { espacioId: 'esp-02', fecha: '2026-10-28', motivo: 'Cancha anegada por lluvia' }
 ];

@@ -5,7 +5,7 @@ import { authService } from '../services/auth';
 interface AuthContextType {
   usuario: Usuario | null;
   cargando: boolean;
-  login: (email: string, contrasena: string) => Promise<void>; // <-- Cambiado acá
+  login: (email: string, contrasena: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -22,7 +22,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Cambiamos el nombre del parámetro acá también
   const login = async (email: string, contrasena: string) => {
     const user = await authService.login(email, contrasena);
     setUsuario(user);

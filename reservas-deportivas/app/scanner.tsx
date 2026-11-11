@@ -1,102 +1,186 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, Button, Alert } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Button, FlatList, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
-import { api } from '../src/services/api';
+import { useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../src/context/AuthContext';
+import { autenticarPersonal } from '../src/services/biometria';
+import { operacionesService } from '../src/services/operaciones';
+import type { Espacio } from '../src/tipos';
 
 export default function EscanerScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [escaneado, setEscaneado] = useState(false);
-  const router = useRouter();
+  const { usuario, cargando: cargandoSesion } = useAuth();
+  const autorizado = usuario?.rol === 'encargado' || usuario?.rol === 'administrador';
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
+  const [espacios, setEspacios] = useState<Espacio[]>([]);
+  const [espacio, setEspacio] = useState<Espacio | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [autenticado, setAutenticado] = useState(false);
+  const [enFoco, setEnFoco] = useState(false);
+  const [procesando, setProcesando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<string | null>(null);
+  // El ref evita dos peticiones antes de que React aplique el siguiente render.
+  const ocupado = useRef(false);
+  const generacion = useRef(0);
 
-  if (!permission) {
-    return <View />;
-  }
+  useFocusEffect(useCallback(() => {
+    setEnFoco(true);
+    return () => {
+      generacion.current += 1;
+      setEnFoco(false);
+      setAutenticado(false);
+    };
+  }, []));
 
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={{ textAlign: 'center', marginBottom: 20 }}>
-          Necesitamos permiso para usar la cámara y escanear los QRs.
-        </Text>
-        <Button onPress={requestPermission} title="Dar permiso" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (estado) => {
+      if (estado === 'background') {
+        generacion.current += 1;
+        setAutenticado(false);
+      }
+      if (estado === 'active') {
+        void getPermission().catch(() => setError('No se pudo consultar el permiso de cámara.'));
+      }
+    });
+    return () => subscription.remove();
+  }, [getPermission]);
 
-  const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    // Evitamos que escanee múltiples veces el mismo código en milisegundos
-    if (escaneado) return;
-    setEscaneado(true);
+  useEffect(() => {
+    generacion.current += 1;
+    setAutenticado(false);
+  }, [usuario?.id, usuario?.rol]);
 
-    // 1. Vibración de "éxito" al leer un código
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    console.log("Código QR escaneado:", data);
-
+  const cargarEspacios = async () => {
+    setCargando(true);
+    setError(null);
     try {
-      // 2. Enviamos el código a la API
-      // (Ajustá el body según lo que pida tu Swagger en POST /ingresos, 
-      // probablemente pida el codigoQr)
-      const respuesta = await api.post('/ingresos', { codigoQr: data });
-      
-      Alert.alert('¡Ingreso Válido! ✅', 'El turno fue registrado correctamente.');
-      router.back(); // Volvemos a la pantalla anterior
-    } catch (error: any) {
-      // 3. Vibración de "error" si el código es falso o de otro día
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error de Ingreso ❌', error.message || 'El código no es válido.');
-      
-      // Damos 2 segundos de pausa para volver a intentar
-      setTimeout(() => setEscaneado(false), 2000);
+      const datos = await operacionesService.obtenerEspacios();
+      setEspacios(datos.filter((item) => item.activo));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar las canchas.');
+    } finally {
+      setCargando(false);
     }
   };
 
+  useEffect(() => {
+    if (autorizado) void cargarEspacios();
+  }, [autorizado]);
+
+  const habilitarEscaner = async () => {
+    if (!autorizado || !espacio || ocupado.current) return;
+    ocupado.current = true;
+    setProcesando(true);
+    setError(null);
+    setResultado(null);
+    const actual = generacion.current;
+    try {
+      const valido = await autenticarPersonal();
+      if (actual === generacion.current) {
+        setAutenticado(valido);
+        if (!valido) setError('Identidad no confirmada. Podés volver a intentar.');
+      }
+    } catch (err: unknown) {
+      if (actual === generacion.current) setError(err instanceof Error ? err.message : 'No se pudo verificar tu identidad.');
+    } finally {
+      ocupado.current = false;
+      setProcesando(false);
+    }
+  };
+
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
+    if (ocupado.current || !autorizado || !autenticado || !espacio || !enFoco) return;
+    ocupado.current = true;
+    setProcesando(true);
+    setError(null);
+    const actual = generacion.current;
+    try {
+      const reserva = await operacionesService.registrarIngreso(data, espacio.id);
+      if (actual !== generacion.current) return;
+      setResultado(`Ingreso registrado en ${espacio.nombre}. Estado: ${reserva.estado}. Hora: ${reserva.ingresoEn ?? 'no informada'}.`);
+      // La háptica es auxiliar: su fallo no transforma un ingreso válido en error.
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (err: unknown) {
+      if (actual !== generacion.current) return;
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el ingreso.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+    } finally {
+      if (actual === generacion.current) setAutenticado(false);
+      ocupado.current = false;
+      setProcesando(false);
+    }
+  };
+
+  if (cargandoSesion) return <ActivityIndicator accessibilityLabel="Cargando sesión" />;
+  if (!autorizado) {
+    return <View style={styles.panel}><Text>Acceso restringido a encargados y administradores.</Text></View>;
+  }
+
   return (
-    <View style={styles.container}>
-      <CameraView
-        style={StyleSheet.absoluteFillObject}
-        facing="back"
-        onBarcodeScanned={escaneado ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ["qr"],
-        }}
-      />
-      
-      {/* Marco visual para que Marcelo sepa dónde apuntar */}
-      <View style={styles.overlay}>
-        <View style={styles.scanBox} />
-        <Text style={styles.scanText}>
-          Apuntá al código QR de la reserva
-        </Text>
-        {escaneado && <Text style={{color: 'white', marginTop: 20}}>Procesando...</Text>}
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+      <View style={styles.panel}>
+        <Text style={styles.title}>Registrar ingreso</Text>
+        <Text>Elegí la cancha donde estás controlando el ingreso, no la indicada por el QR.</Text>
+        {espacio && <Text style={styles.title}>{espacio.nombre}</Text>}
+        {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+        {resultado && <Text accessibilityLiveRegion="polite">{resultado}</Text>}
       </View>
-    </View>
+      {!espacio ? (
+        cargando ? <ActivityIndicator accessibilityLabel="Cargando canchas" /> : (
+          <FlatList
+            data={espacios}
+            keyExtractor={(item) => item.id}
+            ListEmptyComponent={<Text style={styles.panel}>No hay canchas disponibles.</Text>}
+            ListHeaderComponent={<Button title="Recargar canchas" onPress={cargarEspacios} />}
+            renderItem={({ item }) => (
+              <TouchableOpacity accessibilityRole="button" style={styles.option} onPress={() => { setEspacio(item); setError(null); }}>
+                <Text style={styles.title}>{item.nombre}</Text>
+                <Text>{item.complejo}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )
+      ) : (
+        <>
+          {!autenticado ? (
+            <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={procesando} onPress={habilitarEscaner} />
+          ) : !permission ? <ActivityIndicator accessibilityLabel="Consultando permiso de cámara" /> : !permission.granted ? (
+            <View style={styles.panel}>
+              <Text>Necesitamos la cámara para leer el QR de la reserva.</Text>
+              <Button title={permission.canAskAgain ? 'Permitir cámara' : 'Abrir ajustes'} onPress={() => {
+                const accion = permission.canAskAgain ? requestPermission() : Linking.openSettings();
+                void accion.catch(() => setError('No se pudo abrir el permiso de cámara. Revisá los ajustes del dispositivo.'));
+              }} />
+            </View>
+          ) : enFoco && !procesando && (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={handleBarCodeScanned}
+              onMountError={() => { setAutenticado(false); setError('No se pudo iniciar la cámara. Revisá los permisos y volvé a intentar.'); }}
+            />
+          )}
+          {procesando && <ActivityIndicator accessibilityLabel="Procesando ingreso" />}
+          <Button title="Cambiar cancha" disabled={procesando} onPress={() => {
+            setAutenticado(false);
+            setEspacio(null);
+            setError(null);
+            setResultado(null);
+          }} />
+        </>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center' },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  scanBox: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: '#2E7D32',
-    backgroundColor: 'transparent',
-    borderRadius: 20,
-  },
-  scanText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 20,
-    textAlign: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  panel: { padding: 16, gap: 12 },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#222' },
+  option: { minHeight: 48, padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
+  error: { color: '#B71C1C' },
+  camera: { flex: 1, minHeight: 160 },
 });
