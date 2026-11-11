@@ -50,10 +50,10 @@ test('otros perfiles no habilitan la excepción HTTP del preview', () => {
   });
 });
 
-test('Maps usa una variable, conserva app.json y no incorpora una clave fija', () => {
+test('mapas no necesitan configuración ni claves de Google', () => {
   conEntorno({ APP_VARIANT: undefined, GOOGLE_MAPS_ANDROID_API_KEY: 'valor-de-prueba-no-valido' }, () => {
     const config = configure({ config: app });
-    assert.equal(config.android.config.googleMaps.apiKey, 'valor-de-prueba-no-valido');
+    assert.equal(config.android.config?.googleMaps?.apiKey, undefined);
     assert.equal(app.android.config?.googleMaps?.apiKey, undefined);
   });
 });

@@ -11,6 +11,7 @@ El repositorio contiene el frontend en desarrollo y la API proporcionada por la 
 | Aplicación móvil | Expo SDK 54, React Native 0.81.5, React 19.1, TypeScript, Expo Router | `reservas-deportivas/` |
 | Backend de la cátedra | NestJS 12, TypeORM, SQLite por defecto | `api-reservas-deportivas/` |
 | Persistencia móvil | `expo-sqlite` | `reservas-deportivas/src/services/` |
+| Mapas sin API Key | WebView 13.15.0, Leaflet 1.9.4 local y teselas OpenStreetMap | `reservas-deportivas/src/mapa/` |
 
 ```text
 reservas-deportivas/
@@ -150,8 +151,20 @@ Ejecutar dentro de `reservas-deportivas/`:
 | `npm run ios` | Inicia Expo e intenta abrir el simulador iOS; requiere macOS y su entorno |
 | `npm run web` | Inicia la versión web de desarrollo |
 | `npm run typecheck` | Verifica TypeScript sin generar archivos |
+| `npm test` | Pruebas automatizadas con node:test |
+| `npm run mapas:assets` | Regenera JS/CSS/imágenes Leaflet incluidos en la app |
 
-Los comandos Android/iOS anteriores **no generan un build de producción**. El frontend todavía no tiene scripts de lint ni una suite de pruebas de negocio configurados. La versión web no sustituye las pruebas de las capacidades nativas.
+Los comandos Android/iOS anteriores **no generan un build de producción**. El frontend tiene pruebas automatizadas, pero todavía no tiene lint integral configurado. La versión web no sustituye las pruebas de las capacidades nativas.
+
+## Mapas sin tarjeta ni facturación
+
+El catálogo permite abrir un mapa de complejos y la ficha muestra la ubicación del espacio. Usa Leaflet dentro de WebView en Android/iOS y un iframe en web. Leaflet, CSS e imágenes viajan en `assets/leaflet/bundle.json`, con licencia conservada; no dependen de un CDN. No se utiliza Google Maps Platform ni API Key.
+
+Las teselas estándar de OpenStreetMap se solicitan por HTTPS solo para la vista consultada. Es un servicio comunitario sin cuenta, pagos ni garantía de disponibilidad: respetar su [política de uso](https://operations.osmfoundation.org/policies/tiles/), atribución visible, identificación de la app y caché HTTP normal. No agregar descargas de áreas ni precarga masiva.
+
+La ubicación personal es opcional y se solicita al tocar el control correspondiente; rechazarla no oculta los complejos. Cómo llegar abre una aplicación externa, sin APIs de rutas. Nombres y coordenadas consultados se conservan localmente; sin red se muestran con un aviso, **sin prometer cartografía offline**. La ubicación personal no se persiste.
+
+Para regenerar los recursos al cambiar la versión de Leaflet: `npm run mapas:assets`. Para comprobar que coinciden con la dependencia instalada: `node scripts/bundle-leaflet.cjs --check`. No eliminar los avisos legales de terceros.
 
 Para los comandos y opciones del backend, consultar su [README](api-reservas-deportivas/README.md).
 
