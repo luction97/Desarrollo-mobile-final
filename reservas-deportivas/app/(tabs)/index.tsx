@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
 import { Badge, Button, Chip, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
@@ -44,6 +44,8 @@ export default function DisponibilidadScreen() {
   const [errorReserva, setErrorReserva] = useState<string | null>(null);
   const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
   const [filtroComplejo, setFiltroComplejo] = useState<string>('todos');
+  const [abiertoDeporte, setAbiertoDeporte] = useState(false);
+  const [abiertoComplejo, setAbiertoComplejo] = useState(false);
   const operando = useRef(false);
   const generacion = useRef(0);
   const espacio = espacios.find(e => e.id === espacioId) ?? null;
@@ -142,24 +144,45 @@ export default function DisponibilidadScreen() {
     </View>
     {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión con el servidor · Datos guardados</Text>}
 
-    <View style={styles.filtros}>
-      <Text variant="label" tone="muted">Filtrar por deporte</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
-          <Chip key={dep} selected={filtroDeporte === dep} onPress={() => setFiltroDeporte(dep)}>
-            {dep === 'todos' ? 'Todos' : deportes.find(d => d.id === dep)?.nombre ?? dep.replace('dep-', '').toUpperCase()}
-          </Chip>
-        ))}
-      </ScrollView>
-      <Text variant="label" tone="muted">Filtrar por complejo</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {complejosDisponibles.map(comp => (
-          <Chip key={comp} selected={filtroComplejo === comp} onPress={() => setFiltroComplejo(comp)}>
-            {comp === 'todos' ? 'Todos' : comp}
-          </Chip>
-        ))}
-      </ScrollView>
+    <View style={styles.filtrosRow}>
+      <View style={styles.filtroCol}>
+        <Text variant="label" tone="muted">DEPORTE</Text>
+        <PressableSurface style={[styles.desplegable, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => setAbiertoDeporte(true)}>
+          <Text numberOfLines={1}>{filtroDeporte === 'todos' ? 'Todos' : deportes.find(d => d.id === filtroDeporte)?.nombre ?? filtroDeporte}</Text>
+          <Text tone="muted">▼</Text>
+        </PressableSurface>
+      </View>
+      <View style={styles.filtroCol}>
+        <Text variant="label" tone="muted">COMPLEJO</Text>
+        <PressableSurface style={[styles.desplegable, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => setAbiertoComplejo(true)}>
+          <Text numberOfLines={1}>{filtroComplejo === 'todos' ? 'Todos' : filtroComplejo}</Text>
+          <Text tone="muted">▼</Text>
+        </PressableSurface>
+      </View>
     </View>
+
+    <Modal visible={abiertoDeporte} transparent animationType="fade" onRequestClose={() => setAbiertoDeporte(false)}>
+      <Pressable style={styles.overlay} onPress={() => setAbiertoDeporte(false)}>
+        <View style={[styles.menu, { backgroundColor: colors.surface }]}>
+          {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
+            <PressableSurface key={dep} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
+              <Text>{dep === 'todos' ? 'Todos' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
+            </PressableSurface>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
+    <Modal visible={abiertoComplejo} transparent animationType="fade" onRequestClose={() => setAbiertoComplejo(false)}>
+      <Pressable style={styles.overlay} onPress={() => setAbiertoComplejo(false)}>
+        <View style={[styles.menu, { backgroundColor: colors.surface }]}>
+          {complejosDisponibles.map(comp => (
+            <PressableSurface key={comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
+              <Text>{comp === 'todos' ? 'Todos' : comp}</Text>
+            </PressableSurface>
+          ))}
+        </View>
+      </Pressable>
+    </Modal>
 
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
       {espaciosFiltrados.map(e => {
@@ -232,8 +255,12 @@ export default function DisponibilidadScreen() {
 
 const styles = StyleSheet.create({
   cabecera: { paddingVertical: spacing.lg, gap: spacing.lg },
-  filtros: { gap: spacing.sm },
-  filterRow: { alignItems: 'center', gap: spacing.sm },
+  filtrosRow: { flexDirection: 'row', gap: spacing.md },
+  filtroCol: { flex: 1, gap: spacing.xs },
+  desplegable: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.input, borderWidth: 1 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: spacing.xl },
+  menu: { borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs },
+  opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
   card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
   cardImage: { width: '100%', height: 120, resizeMode: 'cover' },
