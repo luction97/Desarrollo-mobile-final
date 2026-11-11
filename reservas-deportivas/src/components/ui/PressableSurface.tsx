@@ -16,6 +16,6 @@ export const PressableSurface = forwardRef<View, PressableSurfaceProps>(function
       ...controlSizes.md, borderRadius: radius.card, borderCurve: borders.curve,
       backgroundColor: selected ? colors.primaryContainer : colors.surface,
       borderWidth: borders.thin, borderColor: selected ? colors.primary : colors.border,
-      opacity: state.pressed && !disabled ? interaction.pressedOpacity : 1,
+      opacity: disabled ? 0.45 : (state.pressed ? interaction.pressedOpacity : 1),
     }, typeof style === 'function' ? style(state) : style]} />;
 });

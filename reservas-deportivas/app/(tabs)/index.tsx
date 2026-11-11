@@ -244,10 +244,9 @@ export default function DisponibilidadScreen() {
 const styles = StyleSheet.create({
   cabecera: { paddingVertical: spacing.lg, gap: spacing.lg },
   filtrosRow: { flexDirection: 'row', gap: spacing.md },
-  filtroCol: { flex: 1, gap: spacing.xs },
+  filtroCol: { flex: 1, gap: spacing.xs, position: 'relative', zIndex: 1 },
   desplegable: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.input, borderWidth: 1 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: spacing.xl },
-  menu: { borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs, borderWidth: 1 },
+  menu: { position: 'absolute', top: 46, left: 0, right: 0, borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs, borderWidth: 1, elevation: 8, zIndex: 20 },
   opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
   card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
