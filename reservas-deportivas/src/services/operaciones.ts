@@ -3,7 +3,15 @@ import type { Espacio, Reserva } from '../tipos';
 
 export const operacionesService = {
   obtenerEspacios(): Promise<Espacio[]> {
-    return api.get<Espacio[]>('/espacios');
+    return api.listarTodo<Espacio>('/espacios');
+  },
+
+  marcarAusente(id: string): Promise<Reserva> {
+    return api.post<Reserva>(`/reservas/${encodeURIComponent(id)}/ausente`, {});
+  },
+
+  cambiarPrecio(espacioId: string, precioPorHora: number): Promise<Espacio> {
+    return api.patch<Espacio>(`/espacios/${encodeURIComponent(espacioId)}`, { precioPorHora });
   },
 
   registrarIngreso(codigoQr: string, espacioId: string): Promise<Reserva> {

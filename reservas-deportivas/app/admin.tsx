@@ -1,136 +1,88 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { api } from '../src/services/api';
+import { Button, Chip, ScrollScreen, Screen, StateView, Surface, Text, TextField, uiLayout } from '../src/components/ui';
+import { DialogoAviso } from '../src/components/DialogoAviso';
 import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
-
-const mostrarAlerta = (titulo: string, mensaje: string) => {
-  if (Platform.OS === 'web') {
-    window.alert(`${titulo}\n\n${mensaje}`);
-  } else {
-    Alert.alert(titulo, mensaje);
-  }
-};
+import { fechaArgentina, fechaLegible } from '../src/utils/fechas';
+import { spacing, useTheme } from '../src/theme';
+import type { Espacio } from '../src/tipos';
 
 export default function AdminScreen() {
-  const [motivo, setMotivo] = useState('');
-  const [nuevoPrecio, setNuevoPrecio] = useState('');
-  const [cargando, setCargando] = useState(false);
   const { usuario } = useAuth();
+  const { colors } = useTheme();
   const router = useRouter();
+  const autorizado = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
+  const [espacios, setEspacios] = useState<Espacio[]>([]);
+  const [espacioId, setEspacioId] = useState('');
+  const [fecha, setFecha] = useState(fechaArgentina());
+  const [motivo, setMotivo] = useState('');
+  const [precio, setPrecio] = useState('');
+  const [cargando, setCargando] = useState(false);
+  const [cargandoEspacios, setCargandoEspacios] = useState(false);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [confirmar, setConfirmar] = useState(false);
+  const espacio = espacios.find(e => e.id === espacioId);
 
-  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+  const cargar = async () => {
+    setCargandoEspacios(true);
+    try { const datos = await operacionesService.obtenerEspacios(); setEspacios(datos); setEspacioId(actual => actual || datos[0]?.id || ''); }
+    catch (e) { setMensaje(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.'); }
+    finally { setCargandoEspacios(false); }
+  };
+  useEffect(() => { if (autorizado) void cargar(); }, [autorizado]);
 
-  const handleBloquearDia = async () => {
-    if (cargando || (usuario?.rol !== 'administrador' && usuario?.rol !== 'encargado')) return;
-    if (!motivo.trim()) {
-      mostrarAlerta('Atención', 'Escribí un motivo para el bloqueo.');
-      return;
-    }
-    setCargando(true);
-    try {
-      await operacionesService.bloquearDia('esp-02', hoy, motivo);
-      mostrarAlerta('Bloqueo exitoso', `La cancha fue bloqueada para el día ${hoy}.`);
-      setMotivo('');
-    } catch (error: any) {
-      mostrarAlerta('Error al bloquear', error.message || 'No se pudo crear el bloqueo.');
-    } finally {
-      setCargando(false);
-    }
+  const bloquear = async () => {
+    if (!espacio || cargando) return;
+    setConfirmar(false); setCargando(true);
+    try { await operacionesService.bloquearDia(espacio.id, fecha, motivo); setMotivo(''); setMensaje('Día bloqueado. Las reservas afectadas fueron canceladas.'); }
+    catch (e) { setMensaje(e instanceof Error ? e.message : 'No se pudo crear el bloqueo.'); }
+    finally { setCargando(false); }
   };
 
-  const handleCambiarPrecio = async () => {
-    if (cargando || usuario?.rol !== 'administrador') return;
-    if (!nuevoPrecio || !Number.isFinite(Number(nuevoPrecio)) || Number(nuevoPrecio) < 0) {
-      mostrarAlerta('Atención', 'Ingresá un número válido para el precio.');
-      return;
-    }
+  const cambiarPrecio = async () => {
+    if (!espacio || cargando || usuario?.rol !== 'administrador') return;
+    if (!precio.trim() || !Number.isInteger(Number(precio)) || Number(precio) <= 0) { setMensaje('Ingresá un precio entero, mayor que cero.'); return; }
     setCargando(true);
     try {
-      await api.patch('/espacios/esp-02', {
-        precioPorHora: Number(nuevoPrecio),
-      });
-      mostrarAlerta('Precio actualizado', 'El nuevo precio se guardó correctamente.');
-      setNuevoPrecio('');
-    } catch (error: any) {
-      mostrarAlerta('Error al cambiar precio', error.message || 'No se pudo cambiar el precio.');
-    } finally {
-      setCargando(false);
-    }
+      const actualizado = await operacionesService.cambiarPrecio(espacio.id, Number(precio));
+      setEspacios(datos => datos.map(e => e.id === actualizado.id ? actualizado : e));
+      setPrecio(''); setMensaje('Precio actualizado.');
+    } catch (e) { setMensaje(e instanceof Error ? e.message : 'No se pudo cambiar el precio.'); }
+    finally { setCargando(false); }
   };
 
-  if (usuario?.rol !== 'administrador' && usuario?.rol !== 'encargado') {
-    return (
-      <View style={styles.center}>
-        <Text style={{ color: 'red', fontWeight: 'bold' }}>Acceso denegado. Solo para administradores.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
-          <Text style={{ color: '#1976D2' }}>Volver</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Panel de Administración</Text>
-      <Text style={styles.subtitle}>Hola {usuario?.nombre}, gestioná los espacios desde acá.</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>🚫 Bloquear Cancha (Lluvia / Mantenimiento)</Text>
-        <Text style={styles.cardDesc}>Bloquea la Cancha 2 (esp-02) para el día de hoy ({hoy}).</Text>
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Motivo (ej: Cancha anegada)"
-          value={motivo}
-          onChangeText={setMotivo}
-        />
-        
-        <TouchableOpacity 
-          style={styles.buttonRojo} 
-          onPress={handleBloquearDia} 
-          disabled={cargando}
-        >
-          <Text style={styles.buttonText}>Bloquear Día</Text>
-        </TouchableOpacity>
-      </View>
-
-      {usuario?.rol === 'administrador' && <View style={styles.card}>
-        <Text style={styles.cardTitle}>💰 Cambiar Precio por Hora</Text>
-        <Text style={styles.cardDesc}>Modifica el valor de la Cancha 2.</Text>
-        
-        <TextInput
-          style={styles.input}
-          placeholder="Nuevo precio (ej: 15000)"
-          keyboardType="numeric"
-          value={nuevoPrecio}
-          onChangeText={setNuevoPrecio}
-        />
-        
-        <TouchableOpacity 
-          style={styles.buttonVerde} 
-          onPress={handleCambiarPrecio} 
-          disabled={cargando}
-        >
-          <Text style={styles.buttonText}>Actualizar Precio</Text>
-        </TouchableOpacity>
-      </View>}
-
-    </ScrollView>
-  );
+  if (!autorizado) return <Screen><StateView><Text>Acceso restringido al personal.</Text><Button title="Iniciar sesión" onPress={() => router.push('/login')} /></StateView></Screen>;
+  return <KeyboardAvoidingView style={uiLayout.grow} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollScreen>
+      <ScrollView horizontal contentContainerStyle={{ gap: spacing.sm }}>
+        {espacios.map(e => <Chip key={e.id} selected={espacioId === e.id} disabled={cargando} onPress={() => setEspacioId(e.id)}>{e.nombre}</Chip>)}
+      </ScrollView>
+      {cargandoEspacios && <ActivityIndicator color={colors.primary} />}
+      {!espacios.length && !cargandoEspacios && <Button title="Reintentar carga" onPress={cargar} />}
+      {espacio && <>
+        <Surface style={uiLayout.section}>
+          <Text variant="subtitle">Bloquear día</Text>
+          <Text>{espacio.nombre}</Text>
+          <TextField label="Fecha (AAAA-MM-DD)" value={fecha} onChangeText={setFecha} editable={!cargando} maxLength={10} />
+          <TextField label="Motivo" value={motivo} onChangeText={setMotivo} editable={!cargando} />
+          <Button title="Bloquear Día" variant="destructive" disabled={cargando} onPress={() => {
+            if (!motivo.trim()) { setMensaje('Escribí un motivo para el bloqueo.'); return; }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !Number.isFinite(new Date(`${fecha}T12:00:00-03:00`).getTime())) { setMensaje('Ingresá una fecha válida.'); return; }
+            setConfirmar(true);
+          }} />
+        </Surface>
+        {usuario?.rol === 'administrador' && <Surface style={uiLayout.section}>
+          <Text variant="subtitle">Cambiar precio por hora</Text>
+          <Text numeric>Precio actual: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(espacio.precioPorHora)}</Text>
+          <TextField label="Nuevo precio" keyboardType="number-pad" value={precio} onChangeText={setPrecio} editable={!cargando} />
+          <Button title="Actualizar Precio" onPress={cambiarPrecio} disabled={cargando} />
+        </Surface>}
+      </>}
+      {confirmar && <DialogoAviso titulo="Bloquear día" mensaje="Se cancelarán las reservas afectadas."
+        detalle={`${espacio?.nombre} · ${fechaLegible(fecha)}`} destructivo accionPrincipal="Confirmar bloqueo" accionSecundaria="Volver" onConfirmar={bloquear} onCerrar={() => setConfirmar(false)} />}
+      {mensaje && <DialogoAviso titulo="Administración" mensaje={mensaje} accionPrincipal="Entendido" onConfirmar={() => setMensaje(null)} onCerrar={() => setMensaje(null)} />}
+    </ScrollScreen>
+  </KeyboardAvoidingView>;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#FAFAFA' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 26, fontWeight: 'bold', color: '#333', marginTop: 40, marginBottom: 5 },
-  subtitle: { fontSize: 16, color: '#666', marginBottom: 20 },
-  card: { backgroundColor: 'white', padding: 20, borderRadius: 12, marginBottom: 20, elevation: 3 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8, color: '#333' },
-  cardDesc: { fontSize: 14, color: '#666', marginBottom: 15 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 15 },
-  buttonRojo: { backgroundColor: '#C62828', padding: 15, borderRadius: 8, alignItems: 'center' },
-  buttonVerde: { backgroundColor: '#2E7D32', padding: 15, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
-});

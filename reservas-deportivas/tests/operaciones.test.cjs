@@ -59,6 +59,7 @@ test('logout elimina token y usuario antes de finalizar', async () => {
   const { authService } = cargar('src/services/auth.ts', {
     './api': {},
     './storage': { storage: { deleteItem: async (clave) => { eliminados.push(clave); } } },
+    '../utils/sesion': { tokenVigente: () => true },
   });
   await authService.logout();
   assert.deepEqual(eliminados, ['token', 'usuario']);
@@ -126,6 +127,8 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
   let cambiarEstado;
   const vibraciones = [];
   const Screen = cargar('app/scanner.tsx', {
+    '../src/components/ui': { ...require('./helpers/ui-environment.cjs').createUiEnvironment().ui, Button: 'Button' },
+    '../src/theme': require('./helpers/ui-environment.cjs').createUiEnvironment().theme,
     'react': React,
     'react/jsx-runtime': require('react/jsx-runtime'),
     'react-native': {
@@ -143,6 +146,7 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     '../src/context/AuthContext': { useAuth: () => ({ usuario, cargando: false }) },
     '../src/services/biometria': { autenticarPersonal: async () => true },
+    '../src/services/auth': { authService: { verificarPersonal: async () => true } },
     '../src/services/operaciones': {
       operacionesService: {
         obtenerEspacios: async () => [espacio],
@@ -201,7 +205,7 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
       await pantalla.root.findByType('CameraView').props.onBarcodeScanned({ data: 'QR-PRUEBA' });
     });
     assert.deepEqual(vibraciones, ['success', 'error']);
-    assert.equal(pantalla.root.findByProps({ accessibilityRole: 'alert' }).props.children, proximoError.message);
+    assert.ok(pantalla.root.findAllByType('NativeText').some(n => n.props.accessibilityRole === 'alert' && n.props.children === proximoError.message));
     assert.equal(pantalla.root.findAllByType('CameraView').length, 0);
   } finally {
     if (pantalla) await act(async () => { pantalla.unmount(); });

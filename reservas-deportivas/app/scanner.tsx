@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Button, FlatList, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Linking, StyleSheet, View } from 'react-native';
+import { Button, PressableSurface, Screen, StateView, Text, TextField, uiLayout } from '../src/components/ui';
+import { layout, radius, spacing, useTheme } from '../src/theme';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../src/context/AuthContext';
 import { autenticarPersonal } from '../src/services/biometria';
 import { operacionesService } from '../src/services/operaciones';
+import { authService } from '../src/services/auth';
 import type { Espacio } from '../src/tipos';
 
 export default function EscanerScreen() {
+  const { colors } = useTheme();
   const { usuario, cargando: cargandoSesion } = useAuth();
   const autorizado = usuario?.rol === 'encargado' || usuario?.rol === 'administrador';
   const [permission, requestPermission, getPermission] = useCameraPermissions();
@@ -21,6 +24,9 @@ export default function EscanerScreen() {
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [usarContrasena, setUsarContrasena] = useState(false);
+  const [contrasena, setContrasena] = useState('');
+  const [linterna, setLinterna] = useState(false);
   // El ref evita dos peticiones antes de que React aplique el siguiente render.
   const ocupado = useRef(false);
   const generacion = useRef(0);
@@ -77,10 +83,11 @@ export default function EscanerScreen() {
     setResultado(null);
     const actual = generacion.current;
     try {
-      const valido = await autenticarPersonal();
+      const valido = usarContrasena && usuario ? await authService.verificarPersonal(usuario.email, contrasena, usuario.id) : await autenticarPersonal();
       if (actual === generacion.current) {
         setAutenticado(valido);
         if (!valido) setError('Identidad no confirmada. Podés volver a intentar.');
+        if (valido) setContrasena('');
       }
     } catch (err: unknown) {
       if (actual === generacion.current) setError(err instanceof Error ? err.message : 'No se pudo verificar tu identidad.');
@@ -113,40 +120,47 @@ export default function EscanerScreen() {
     }
   };
 
-  if (cargandoSesion) return <ActivityIndicator accessibilityLabel="Cargando sesión" />;
+  if (cargandoSesion) return <Screen><StateView><ActivityIndicator color={colors.primary} accessibilityLabel="Cargando sesión" /></StateView></Screen>;
   if (!autorizado) {
-    return <View style={styles.panel}><Text>Acceso restringido a encargados y administradores.</Text></View>;
+    return <Screen><StateView><Text tone="muted">Acceso restringido a encargados y administradores.</Text></StateView></Screen>;
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+    <Screen>
       <View style={styles.panel}>
-        <Text style={styles.title}>Registrar ingreso</Text>
-        <Text>Elegí la cancha donde estás controlando el ingreso, no la indicada por el QR.</Text>
-        {espacio && <Text style={styles.title}>{espacio.nombre}</Text>}
-        {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-        {resultado && <Text accessibilityLiveRegion="polite">{resultado}</Text>}
+        <Text variant="title" accessibilityRole="header">Registrar ingreso</Text>
+        <Text tone="muted">Elegí la cancha donde estás controlando el ingreso, no la indicada por el QR.</Text>
+        {espacio && <Text variant="subtitle">{espacio.nombre}</Text>}
+        {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
+        {resultado && <Text selectable accessibilityLiveRegion="polite" tone="success">{resultado}</Text>}
       </View>
       {!espacio ? (
-        cargando ? <ActivityIndicator accessibilityLabel="Cargando canchas" /> : (
+        cargando ? <ActivityIndicator color={colors.primary} accessibilityLabel="Cargando canchas" /> : (
           <FlatList
+            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={uiLayout.listContent}
             data={espacios}
             keyExtractor={(item) => item.id}
-            ListEmptyComponent={<Text style={styles.panel}>No hay canchas disponibles.</Text>}
-            ListHeaderComponent={<Button title="Recargar canchas" onPress={cargarEspacios} />}
+            ListEmptyComponent={<StateView><Text tone="muted">No hay canchas disponibles.</Text></StateView>}
+            ListHeaderComponent={<Button variant="secondary" title="Recargar canchas" onPress={cargarEspacios} />}
             renderItem={({ item }) => (
-              <TouchableOpacity accessibilityRole="button" style={styles.option} onPress={() => { setEspacio(item); setError(null); }}>
-                <Text style={styles.title}>{item.nombre}</Text>
-                <Text>{item.complejo}</Text>
-              </TouchableOpacity>
+              <PressableSurface accessibilityRole="button" onPress={() => { setEspacio(item); setError(null); }}>
+                <Text variant="subtitle">{item.nombre}</Text>
+                <Text tone="muted">{item.complejo}</Text>
+              </PressableSurface>
             )}
           />
         )
       ) : (
         <>
           {!autenticado ? (
-            <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={procesando} onPress={habilitarEscaner} />
-          ) : !permission ? <ActivityIndicator accessibilityLabel="Consultando permiso de cámara" /> : !permission.granted ? (
+            <View style={styles.panel}>
+              {usarContrasena && <TextField label="Contraseña de tu cuenta" value={contrasena} onChangeText={setContrasena} secureTextEntry autoComplete="current-password" editable={!procesando} />}
+              <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={procesando || (usarContrasena && !contrasena)} onPress={habilitarEscaner} />
+              <Button variant="ghost" title={usarContrasena ? 'Usar huella o rostro' : 'Usar contraseña'} disabled={procesando}
+                onPress={() => { setUsarContrasena(v => !v); setContrasena(''); setError(null); }} />
+            </View>
+          ) : !permission ? <ActivityIndicator color={colors.primary} accessibilityLabel="Consultando permiso de cámara" /> : !permission.granted ? (
             <View style={styles.panel}>
               <Text>Necesitamos la cámara para leer el QR de la reserva.</Text>
               <Button title={permission.canAskAgain ? 'Permitir cámara' : 'Abrir ajustes'} onPress={() => {
@@ -158,29 +172,29 @@ export default function EscanerScreen() {
             <CameraView
               style={styles.camera}
               facing="back"
+              enableTorch={linterna}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleBarCodeScanned}
               onMountError={() => { setAutenticado(false); setError('No se pudo iniciar la cámara. Revisá los permisos y volvé a intentar.'); }}
             />
           )}
-          {procesando && <ActivityIndicator accessibilityLabel="Procesando ingreso" />}
-          <Button title="Cambiar cancha" disabled={procesando} onPress={() => {
+          {autenticado && <Button variant="secondary" title={linterna ? 'Apagar linterna' : 'Encender linterna'} onPress={() => setLinterna(v => !v)} />}
+          {procesando && <ActivityIndicator color={colors.primary} accessibilityLabel="Procesando ingreso" />}
+          <Button variant="ghost" style={styles.action} title="Cambiar cancha" disabled={procesando} onPress={() => {
             setAutenticado(false);
             setEspacio(null);
             setError(null);
             setResultado(null);
+            setContrasena(''); setLinterna(false);
           }} />
         </>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  panel: { padding: 16, gap: 12 },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#222' },
-  option: { minHeight: 48, padding: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#ccc' },
-  error: { color: '#B71C1C' },
-  camera: { flex: 1, minHeight: 160 },
+  panel: { padding: spacing.xl, gap: spacing.md },
+  action: { marginHorizontal: spacing.xl, marginBottom: spacing.sm },
+  camera: { flex: 1, minHeight: layout.cameraMinHeight, margin: spacing.xl, borderRadius: radius.card, overflow: 'hidden' },
 });
