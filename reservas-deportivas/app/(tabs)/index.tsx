@@ -1,6 +1,6 @@
 import { api } from '../../src/services/api';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, Alert, Platform, ActivityIndicator, Button, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Button, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router'; 
 import { obtenerGrillaDia } from '../../src/services/turnos';
 import { Turno } from '../../src/tipos';
@@ -8,20 +8,23 @@ import { useAuth } from '../../src/context/AuthContext';
 import { notificacionesService } from '../../src/services/notificaciones';
 import * as Network from 'expo-network';
 import { inicializarDB } from '../../src/services/db';
+import { DialogoAviso } from '../../src/components/DialogoAviso';
+import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 
-const mostrarAlerta = (titulo: string, mensaje: string) => {
-  if (Platform.OS === 'web') {
-    window.alert(`${titulo}\n\n${mensaje}`);
-  } else {
-    Alert.alert(titulo, mensaje);
-  }
-};
+interface AvisoDisponibilidad {
+  titulo: string;
+  mensaje?: string;
+  detalle?: string;
+  requiereIngreso?: boolean;
+}
 
 export default function TabOneScreen() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [sinRed, setSinRed] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<AvisoDisponibilidad | null>(null);
+  const mostrarAviso = (titulo: string, mensaje: string) => setAviso({ titulo, mensaje });
 
   const [dias, setDias] = useState<{ fecha: Date, diaSemana: string, diaNumero: string, fechaStr: string }[]>([]);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
@@ -90,16 +93,19 @@ export default function TabOneScreen() {
   const handleReservar = async (turno: Turno) => {
     if (turno.estado !== 'libre') return; 
     
-    if (!usuario) {
-      mostrarAlerta('Atención', 'Para reservar tenés que iniciar sesión.');
-      router.push('/login');
-      return;
-    }
-
     const ahora = new Date();
     const horaTurno = new Date(`${turno.fecha}T${turno.inicio}:00`);
     if (horaTurno < ahora) {
-      mostrarAlerta('Turno pasado', 'Este turno ya pasó, no se puede reservar.');
+      mostrarAviso('Este turno ya pasó', 'Elegí un horario futuro para hacer tu reserva.');
+      return;
+    }
+
+    if (!usuario) {
+      setAviso({
+        titulo: 'Ingresá para reservar',
+        detalle: `${turno.fecha.split('-').reverse().join('/')} · ${turno.inicio}–${turno.fin}`,
+        requiereIngreso: true,
+      });
       return;
     }
 
@@ -118,10 +124,10 @@ export default function TabOneScreen() {
       const fechaTurno = new Date(`${turno.fecha}T${turno.inicio}:00`);
       await notificacionesService.programarRecordatorio('Cancha 2 - Fútbol 5', fechaTurno);
       
-      mostrarAlerta('¡Reserva confirmada!', 'Tu reserva se guardó. Podés verla en "Mis Reservas".');
+      mostrarAviso('Reserva confirmada', 'Tu reserva se guardó. Podés verla en Mis Reservas.');
 
     } catch (error: any) {
-      mostrarAlerta('Error al reservar', error.message || 'No se pudo reservar el turno.');
+      mostrarAviso('No se pudo reservar', error.message || 'No se pudo reservar el turno.');
     }
   };
 
@@ -130,7 +136,7 @@ export default function TabOneScreen() {
       await logout();
       router.replace('/login');
     } catch {
-      mostrarAlerta('No se pudo cerrar sesión', 'Volvé a intentar para eliminar la sesión del dispositivo.');
+      mostrarAviso('No se pudo cerrar sesión', 'Volvé a intentar para eliminar la sesión del dispositivo.');
     }
   };
 
@@ -153,9 +159,11 @@ export default function TabOneScreen() {
       );
     }
 
+    const ahora = new Date();
     return (
       <FlatList
-        data={turnos}
+        key={fechaPrueba}
+        data={ordenarTurnosParaMostrar(turnos, ahora)}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -163,7 +171,7 @@ export default function TabOneScreen() {
         }
         renderItem={({ item }) => {
           const horaTurno = new Date(`${item.fecha}T${item.inicio}:00`);
-          const esPasado = horaTurno < new Date();
+          const esPasado = horaTurno < ahora;
           
           const precioFormateado = new Intl.NumberFormat('es-AR', {
             style: 'currency',
@@ -173,12 +181,17 @@ export default function TabOneScreen() {
           }).format(item.precio);
 
           return (
-            <TouchableOpacity onPress={() => handleReservar(item)} activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => handleReservar(item)} activeOpacity={0.7}
+              disabled={esPasado || item.estado !== 'libre'}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: esPasado || item.estado !== 'libre' }}
+              accessibilityLabel={`${item.inicio} a ${item.fin}. ${esPasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precioFormateado}` : item.estado}`}
+              accessibilityHint={!esPasado && item.estado === 'libre' ? 'Seleccionar horario para reservar' : undefined}>
               <View style={[styles.row, esPasado && { opacity: 0.5 }]}>
                 <View>
                   <Text style={styles.hourText}>{item.inicio} - {item.fin}</Text>
                   {item.motivoBloqueo && <Text style={styles.reasonText}>{item.motivoBloqueo}</Text>}
-                  {esPasado && <Text style={styles.reasonText}>⌛ Turno pasado</Text>}
+                  {esPasado && <Text style={styles.reasonText}>Turno pasado · No reservable</Text>}
                   
                   {item.estado === 'libre' && !esPasado && (
                     <Text style={styles.priceText}>{precioFormateado}</Text>
@@ -290,6 +303,18 @@ export default function TabOneScreen() {
       <View style={{ flex: 1 }}>
         {renderContenido()}
       </View>
+      {aviso && <DialogoAviso
+        titulo={aviso.titulo}
+        mensaje={aviso.mensaje}
+        detalle={aviso.detalle}
+        accionPrincipal={aviso.requiereIngreso ? 'Iniciar sesión' : 'Entendido'}
+        accionSecundaria={aviso.requiereIngreso ? 'Ahora no' : undefined}
+        onCerrar={() => setAviso(null)}
+        onConfirmar={() => {
+          setAviso(null);
+          if (aviso.requiereIngreso) router.push('/login');
+        }}
+      />}
     </View>
   );
 }

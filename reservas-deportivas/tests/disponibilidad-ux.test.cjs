@@ -1,0 +1,135 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ts = require('typescript');
+const React = require('react');
+const { create, act } = require('react-test-renderer');
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+function cargar(archivo, dependencias) {
+  const codigo = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', archivo), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  const modulo = { exports: {} };
+  new Function('require', 'module', 'exports', codigo)(nombre => {
+    if (Object.hasOwn(dependencias, nombre)) return dependencias[nombre];
+    if (['react', 'react/jsx-runtime'].includes(nombre)) return require(nombre);
+    throw new Error(`Dependencia sin controlar: ${nombre}`);
+  }, modulo, modulo.exports);
+  return modulo.exports;
+}
+
+const nativos = {
+  View: 'View', Text: 'Text', FlatList: 'FlatList', TouchableOpacity: 'TouchableOpacity',
+  ActivityIndicator: 'ActivityIndicator', Button: 'Button', ScrollView: 'ScrollView',
+  Pressable: 'Pressable', Modal: 'Modal', StyleSheet: { create: s => s },
+};
+const futuro = { id: 'turno-prueba', fecha: '2099-01-15', inicio: '20:00', fin: '21:00', estado: 'libre', precio: 12000 };
+
+async function montar() {
+  const navegaciones = [];
+  const router = { push: ruta => navegaciones.push(ruta) };
+  const pantalla = cargar('app/(tabs)/index.tsx', {
+    'react-native': nativos,
+    'expo-router': { useRouter: () => router, useFocusEffect: callback => React.useEffect(callback, [callback]) },
+    '../../src/services/api': { api: { post: () => assert.fail('El invitado no debe crear reservas') } },
+    '../../src/services/turnos': { obtenerGrillaDia: async () => [futuro] },
+    '../../src/context/AuthContext': { useAuth: () => ({ usuario: null, logout: async () => {} }) },
+    '../../src/services/notificaciones': { notificacionesService: {} },
+    'expo-network': { addNetworkStateListener: () => ({ remove() {} }) },
+    '../../src/services/db': { inicializarDB: async () => {} },
+    '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/utils/turnos': cargar('src/utils/turnos.ts', {}),
+  }).default;
+  let vista;
+  await act(async () => { vista = create(React.createElement(pantalla)); });
+  return { vista, navegaciones,
+    fila: turno => vista.root.findByType('FlatList').props.renderItem({ item: turno }),
+    cerrar: async () => { await act(async () => vista.unmount()); },
+  };
+}
+
+test('invitado elige un libre futuro: diálogo contextual sin alert ni redirección automática', async () => {
+  const caso = await montar();
+  try {
+    await act(async () => { await caso.fila(futuro).props.onPress(); });
+    const dialogo = caso.vista.root.findByType('DialogoAviso').props;
+    assert.equal(dialogo.titulo, 'Ingresá para reservar');
+    assert.equal(dialogo.detalle, '15/01/2099 · 20:00–21:00');
+    assert.equal(dialogo.accionPrincipal, 'Iniciar sesión');
+    assert.equal(dialogo.accionSecundaria, 'Ahora no');
+    assert.equal(dialogo.mensaje, undefined);
+    assert.deepEqual(caso.navegaciones, []);
+    const fuente = fs.readFileSync(path.join(__dirname, '../app/(tabs)/index.tsx'), 'utf8');
+    assert.ok(!fuente.includes('window.alert') && !fuente.includes('Alert.alert'));
+  } finally { await caso.cerrar(); }
+});
+
+test('ahora no cierra el diálogo y conserva la fecha elegida sin navegar', async () => {
+  const caso = await montar();
+  try {
+    const fechaAntes = caso.vista.root.findByType('ScrollView').props.children;
+    await act(async () => { await caso.fila(futuro).props.onPress(); });
+    await act(async () => { caso.vista.root.findByType('DialogoAviso').props.onCerrar(); });
+    assert.equal(caso.vista.root.findAllByType('DialogoAviso').length, 0);
+    assert.deepEqual(caso.navegaciones, []);
+    assert.deepEqual(caso.vista.root.findByType('ScrollView').props.children.map(n => n.key), fechaAntes.map(n => n.key));
+  } finally { await caso.cerrar(); }
+});
+
+test('iniciar sesión navega solo al confirmar, sin reservar automáticamente', async () => {
+  const caso = await montar();
+  try {
+    await act(async () => { await caso.fila(futuro).props.onPress(); });
+    await act(async () => { caso.vista.root.findByType('DialogoAviso').props.onConfirmar(); });
+    assert.deepEqual(caso.navegaciones, ['/login']);
+    assert.equal(caso.vista.root.findAllByType('DialogoAviso').length, 0);
+  } finally { await caso.cerrar(); }
+});
+
+test('turnos pasados y ocupados están deshabilitados y anuncian su estado', async () => {
+  const caso = await montar();
+  try {
+    const pasado = { ...futuro, fecha: '2000-01-15' };
+    const fila = caso.fila(pasado);
+    assert.equal(fila.props.disabled, true);
+    assert.equal(fila.props.accessibilityState.disabled, true);
+    assert.ok(fila.props.accessibilityLabel.includes('no reservable'));
+    assert.equal(caso.fila({ ...futuro, estado: 'reservado' }).props.disabled, true);
+    assert.equal(caso.fila(futuro).props.disabled, false);
+    // El handler revalida el horario aunque la vista haya quedado desactualizada.
+    await act(async () => { await fila.props.onPress(); });
+    const aviso = caso.vista.root.findByType('DialogoAviso').props;
+    assert.equal(aviso.accionPrincipal, 'Entendido');
+    assert.equal(aviso.accionSecundaria, undefined);
+    assert.deepEqual(caso.navegaciones, []);
+  } finally { await caso.cerrar(); }
+});
+
+test('diálogo tiene controles de 48 dp, cierre con Atrás y tema oscuro sin dependencias nuevas', async () => {
+  const { DialogoAviso } = cargar('src/components/DialogoAviso.tsx', {
+    'react-native': { ...nativos, Platform: { OS: 'web' }, useColorScheme: () => 'dark' },
+  });
+  let cerrados = 0;
+  let confirmados = 0;
+  let vista;
+  try {
+    await act(async () => { vista = create(React.createElement(DialogoAviso, {
+      titulo: 'Ingresá para reservar', mensaje: 'Mensaje', accionPrincipal: 'Iniciar sesión',
+      accionSecundaria: 'Ahora no', onCerrar: () => cerrados++, onConfirmar: () => confirmados++,
+    })); });
+    const modal = vista.root.findByType('Modal');
+    assert.equal(modal.props.animationType, 'none');
+    modal.props.onRequestClose();
+    assert.equal(cerrados, 1);
+    const acciones = vista.root.findAllByType('Pressable');
+    for (const accion of acciones) {
+      assert.equal(accion.props.accessibilityRole, 'button');
+      assert.equal(accion.props.style({ pressed: false })[0].minHeight, 48);
+    }
+    acciones[0].props.onPress();
+    assert.equal(confirmados, 1);
+    assert.equal(vista.root.findByProps({ accessibilityViewIsModal: true }).props.style[1].backgroundColor, '#19231d');
+  } finally { if (vista) await act(async () => vista.unmount()); }
+});
