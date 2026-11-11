@@ -1,29 +1,37 @@
 import { api } from './api';
 import { storage } from './storage';
 import { Usuario } from '../tipos';
+import { tokenVigente } from '../utils/sesion';
 
 interface LoginResponse {
   token: string;
   usuario: Usuario;
 }
 
+export interface DatosRegistro { nombre: string; email: string; telefono: string; contrasena: string }
+
+async function guardarSesion(data: LoginResponse): Promise<Usuario> {
+  try {
+    await storage.setItem('token', data.token);
+    await storage.setItem('usuario', JSON.stringify(data.usuario));
+    return data.usuario;
+  } catch (error) {
+    await storage.deleteItem('token').catch(() => undefined);
+    await storage.deleteItem('usuario').catch(() => undefined);
+    throw error;
+  }
+}
+
 export const authService = {
   async login(email: string, contrasena: string): Promise<Usuario> {
-    const data = await api.post<LoginResponse>('/auth/ingreso', { email, contrasena });
-    
-    await storage.setItem('token', data.token);
-    await storage.setItem('usuario', JSON.stringify(data.usuario));
-    
-    return data.usuario;
+    const data = await api.post<LoginResponse>('/auth/ingreso', { email: email.trim(), contrasena });
+    return guardarSesion(data);
   },
 
-  async registro(datos: any): Promise<Usuario> {
+  async registro(datos: DatosRegistro): Promise<Usuario> {
     const data = await api.post<LoginResponse>('/auth/registro', datos);
     
-    await storage.setItem('token', data.token);
-    await storage.setItem('usuario', JSON.stringify(data.usuario));
-    
-    return data.usuario;
+    return guardarSesion(data);
   },
 
   async logout() {
@@ -33,6 +41,17 @@ export const authService = {
 
   async obtenerUsuarioGuardado(): Promise<Usuario | null> {
     const userStr = await storage.getItem('usuario');
-    return userStr ? JSON.parse(userStr) : null;
-  }
+    try { return userStr ? JSON.parse(userStr) as Usuario : null; } catch { return null; }
+  },
+
+  async restaurarSesion(): Promise<Usuario | null> {
+    const token = await storage.getItem('token');
+    if (!token || !tokenVigente(token, Date.now())) return null;
+    return authService.obtenerUsuarioGuardado();
+  },
+
+  async verificarPersonal(email: string, contrasena: string, usuarioId: string): Promise<boolean> {
+    const data = await api.post<LoginResponse>('/auth/ingreso', { email, contrasena });
+    return data.usuario.id === usuarioId && (data.usuario.rol === 'encargado' || data.usuario.rol === 'administrador');
+  },
 };

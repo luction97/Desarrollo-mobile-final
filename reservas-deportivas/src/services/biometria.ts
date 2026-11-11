@@ -1,5 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
-import { Platform, Alert } from 'react-native';
+import { Platform } from 'react-native';
 
 // El acceso operativo no usa la simulación web del login.
 export async function autenticarPersonal(): Promise<boolean> {
@@ -21,24 +21,25 @@ export async function autenticarPersonal(): Promise<boolean> {
 }
 
 export async function autenticarConBiometria(): Promise<boolean> {
-  // Web no expone LocalAuthentication: solicita confirmación explícita del usuario.
-  if (Platform.OS === 'web') {
-    const confirmar = window.confirm('🔒 [Simulación Web] ¿Confirmás tu identidad con tu huella?');
-    return confirmar;
-  }
+  if (Platform.OS === 'web') return false;
 
   const tieneHardware = await LocalAuthentication.hasHardwareAsync();
   const estaEnrolado = await LocalAuthentication.isEnrolledAsync();
 
   if (!tieneHardware || !estaEnrolado) {
-    Alert.alert('No disponible', 'Tu dispositivo no tiene huella o rostro configurado.');
     return false;
   }
 
   const resultado = await LocalAuthentication.authenticateAsync({
     promptMessage: 'Ingresá con tu huella para continuar',
-    fallbackLabel: 'Usar contraseña',
+    cancelLabel: 'Usar contraseña',
+    disableDeviceFallback: true,
   });
 
   return resultado.success;
+}
+
+export async function biometriaDisponible(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  return await LocalAuthentication.hasHardwareAsync() && await LocalAuthentication.isEnrolledAsync();
 }

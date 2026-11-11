@@ -1,144 +1,73 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Button, Text, TextField } from '../src/components/ui';
+import { layout, spacing, useTheme } from '../src/theme';
 import { useAuth } from '../src/context/AuthContext';
-import { autenticarConBiometria } from '../src/services/biometria';
-import { authService } from '../src/services/auth';
-import { Usuario } from '../src/tipos';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { Ionicons } from '@expo/vector-icons'; 
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
+  const { login, desbloquear, usuarioGuardado, tieneBiometria, cargando: restaurando } = useAuth();
+  const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string }>();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
   const [cargando, setCargando] = useState(false);
-  const [errorMensaje, setErrorMensaje] = useState('');
-  
-  const [usuarioGuardado, setUsuarioGuardado] = useState<Usuario | null>(null);
-  const [tieneBiometria, setTieneBiometria] = useState(false);
+  const [error, setError] = useState('');
 
-  const { login } = useAuth();
-  const router = useRouter();
+  const continuar = () => {
+    if (params.volverA === 'reservas') router.replace('/(tabs)/two');
+    else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha } });
+  };
 
-  useEffect(() => {
-    authService.obtenerUsuarioGuardado().then(user => {
-      if (user) setUsuarioGuardado(user);
-    });
-
-    if (Platform.OS !== 'web') {
-      LocalAuthentication.hasHardwareAsync().then(has => {
-        if (has) {
-          LocalAuthentication.isEnrolledAsync().then(enrolled => {
-            if (enrolled) setTieneBiometria(true);
-          });
-        }
-      });
-    } else {
-      setTieneBiometria(true); 
-    }
-  }, []);
-
-  const handleLogin = async () => {
-    setErrorMensaje('');
-    if (!email || !contrasena) {
-      setErrorMensaje('Completá todos los campos');
-      return;
-    }
-    
+  const ingresar = async () => {
+    if (cargando) return;
+    setError('');
+    if (!email.trim() || !contrasena) { setError('Completá todos los campos'); return; }
     setCargando(true);
-    try {
-      await login(email, contrasena);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      setErrorMensaje(error.message || 'Error desconocido');
-    } finally {
-      setCargando(false);
-    }
+    try { await login(email, contrasena); continuar(); }
+    catch (e) { setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.'); }
+    finally { setCargando(false); }
   };
 
-  const handleBiometria = async () => {
-    const exito = await autenticarConBiometria();
-    if (exito && usuarioGuardado) {
-      router.replace('/(tabs)');
-    } else {
-      setErrorMensaje('Autenticación biométrica fallida o cancelada.');
-    }
+  const usarBiometria = async () => {
+    if (cargando) return;
+    setError(''); setCargando(true);
+    try { if (await desbloquear()) continuar(); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Usá tu contraseña para ingresar.'); }
+    finally { setCargando(false); }
   };
 
-  const handleLogoutCompleto = async () => {
-    await authService.logout();
-    setUsuarioGuardado(null);
-  };
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Iniciar Sesión</Text>
-      
-      {errorMensaje ? (
-        <Text style={{ color: 'red', marginBottom: 15, textAlign: 'center', fontWeight: 'bold' }}>
-          {errorMensaje}
-        </Text>
-      ) : null}
-
-      {usuarioGuardado && tieneBiometria ? (
-        <View style={styles.biometriaContainer}>
-          <Text style={styles.welcomeBack}>¡Hola de nuevo, {usuarioGuardado.nombre.split(' ')[0]}!</Text>
-          
-          <TouchableOpacity style={styles.biometriaButton} onPress={handleBiometria}>
-            <Ionicons name="finger-print" size={50} color="#2E7D32" />
-            <Text style={styles.biometriaText}>Ingresar con Huella / Rostro</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleLogoutCompleto}>
-            <Text style={styles.switchUserText}>Ingresar con otra cuenta</Text>
-          </TouchableOpacity>
+  return <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
+        <View style={styles.form}>
+          <Text variant="display" accessibilityRole="header">Iniciar Sesión</Text>
+          {error !== '' && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
+          {usuarioGuardado && tieneBiometria && <View style={styles.fields}>
+            <Text variant="subtitle">¡Hola de nuevo, {usuarioGuardado.nombre.split(' ')[0]}!</Text>
+            <Button variant="secondary" title="Ingresar con Huella / Rostro" onPress={usarBiometria} disabled={cargando || restaurando} />
+          </View>}
+          <View style={styles.fields}>
+            <TextField label="Email" placeholder="Email" value={email} onChangeText={setEmail}
+              autoCapitalize="none" keyboardType="email-address" autoComplete="email" editable={!cargando} />
+            <TextField label="Contraseña" placeholder="Contraseña" value={contrasena} onChangeText={setContrasena}
+              secureTextEntry autoComplete="current-password" editable={!cargando} onSubmitEditing={ingresar} />
+            <Button title={cargando ? 'Ingresando...' : 'Ingresar'} onPress={ingresar} disabled={cargando || restaurando} />
+          </View>
+          <Button variant="ghost" title="Crear cuenta" disabled={cargando}
+            onPress={() => router.push({ pathname: '/registro', params: { volverA: params.volverA, espacioId: params.espacioId, fecha: params.fecha } })} />
+          <Button variant="ghost" title="Seguir explorando" onPress={() => router.replace('/(tabs)')} />
         </View>
-      ) : (
-        <View>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-          
-          <TextInput
-            style={styles.input}
-            placeholder="Contraseña"
-            value={contrasena}
-            onChangeText={setContrasena}
-            secureTextEntry
-          />
-          
-          <Button 
-            title={cargando ? "Ingresando..." : "Ingresar"} 
-            onPress={handleLogin} 
-            disabled={cargando}
-          />
-        </View>
-      )}
-    </View>
-  );
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 5, marginBottom: 15 },
-  
-  biometriaContainer: { alignItems: 'center', marginTop: 20 },
-  welcomeBack: { fontSize: 18, fontWeight: 'bold', marginBottom: 30, color: '#333' },
-  biometriaButton: { 
-    backgroundColor: '#E8F5E9', 
-    padding: 30, 
-    borderRadius: 20, 
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: '#C8E6C9'
-  },
-  biometriaText: { fontSize: 16, fontWeight: 'bold', color: '#2E7D32', marginTop: 10 },
-  switchUserText: { color: '#1976D2', marginTop: 20, textDecorationLine: 'underline' }
+  container: { flex: 1 },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, paddingVertical: spacing.xxxl },
+  form: { width: '100%', maxWidth: layout.formWidth, alignSelf: 'center', gap: spacing.xxl },
+  fields: { gap: spacing.lg },
 });
