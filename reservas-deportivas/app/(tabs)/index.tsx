@@ -11,7 +11,8 @@ import { consultarGrilla } from '../../src/services/turnos';
 import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
 import { crearReserva } from '../../src/services/reservas';
 import preferencias from '../../src/services/preferencias';
-import { ZONA, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
+import { useHorarioActual } from '../../src/hooks/useHorarioActual';
+import { diasDeReserva, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { precioLegible } from '../../src/utils/dinero';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 import { permisosDe } from '../../src/utils/permisos';
@@ -21,12 +22,12 @@ import { catalogoDeEspacios } from '../../src/canchas/modelo';
 import { FavoritoToggle } from '../../src/components/favoritos';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
-interface Aviso { titulo: string; mensaje?: string; detalle?: string; ingreso?: boolean; verQr?: boolean }
+interface Aviso { titulo: string; mensaje?: string; detalle?: string; verQr?: boolean }
 
 export default function DisponibilidadScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ espacioId?: string; fecha?: string }>();
+  const params = useLocalSearchParams<{ espacioId?: string; fecha?: string; turnoId?: string; personas?: string }>();
   const { usuario, logout, cargando: cargandoSesion } = useAuth();
   const { puedeReservar } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
@@ -34,12 +35,12 @@ export default function DisponibilidadScreen() {
   const [espacioElegidoId, setEspacioId] = useState('');
   const [cargandoCatalogo, setCargandoCatalogo] = useState(true);
   const [intentoCatalogo, setIntentoCatalogo] = useState(0);
-  const [fecha, setFecha] = useState(fechaArgentina());
-  const [dias] = useState(() => Array.from({ length: 7 }, (_, i) => {
-    const dia = new Date(`${fechaArgentina()}T12:00:00-03:00`);
-    dia.setUTCDate(dia.getUTCDate() + i);
-    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: ZONA }).format(dia) };
-  }));
+  const ahora = useHorarioActual();
+  const hoy = fechaArgentina(ahora);
+  const dias = useMemo(() => diasDeReserva(hoy), [hoy]);
+  const [fechaElegida, setFecha] = useState(params.fecha ?? hoy);
+  const fecha = dias.some(d => d.fecha === fechaElegida) ? fechaElegida : hoy;
+  const [verAnteriores, setVerAnteriores] = useState(false);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,8 @@ export default function DisponibilidadScreen() {
   const [local, setLocal] = useState(false);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [seleccionado, setSeleccionado] = useState<Turno | null>(null);
+  const [personasIniciales, setPersonasIniciales] = useState(1);
+  const borradorRecuperado = useRef<string | null>(null);
   const [reservando, setReservando] = useState(false);
   const [errorReserva, setErrorReserva] = useState<string | null>(null);
   const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
@@ -95,6 +98,8 @@ export default function DisponibilidadScreen() {
     if (params.fecha && dias.some(d => d.fecha === params.fecha)) setFecha(params.fecha);
   }, [params.fecha, dias]);
 
+  useEffect(() => { setVerAnteriores(false); }, [fecha, espacioId]);
+
   useEffect(() => {
     let activo = true;
     void Network.getNetworkStateAsync().then(red => { if (activo) setSinRed(red.isConnected === false); }).catch(() => undefined);
@@ -103,15 +108,30 @@ export default function DisponibilidadScreen() {
   }, []);
 
   const cargarGrilla = useCallback(async () => {
-    if (!espacioId) { setTurnos([]); setLocal(false); setCargando(false); return; }
+    if (!espacioId) { generacion.current++; setTurnos([]); setLocal(false); setCargando(false); return; }
     const version = ++generacion.current;
     setCargando(true); setError(null);
     try {
       const resultado = await consultarGrilla(espacioId, fecha);
-      if (version === generacion.current) { setTurnos(resultado.datos); setLocal(resultado.local); }
+      if (version !== generacion.current) return;
+      setTurnos(resultado.datos);
+      setLocal(resultado.local);
+      if (usuario && params.turnoId && params.espacioId === espacioId && params.fecha === fecha
+        && borradorRecuperado.current !== params.turnoId && !resultado.local) {
+        borradorRecuperado.current = params.turnoId;
+        const turno = resultado.datos.find(t => t.id === params.turnoId);
+        if (puedeReservar && turno?.estado === 'libre' && instanteTurno(turno.fecha, turno.inicio) > new Date()) {
+          const cantidad = Number(params.personas);
+          setPersonasIniciales(Number.isInteger(cantidad) && cantidad > 0 ? cantidad : 1);
+          setErrorReserva(null);
+          setSeleccionado(turno);
+        } else if (puedeReservar) {
+          setAviso({ titulo: 'Elegí otro horario', mensaje: 'El turno que seleccionaste ya no está disponible.' });
+        }
+      }
     } catch (e) { if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la disponibilidad.'); }
     finally { if (version === generacion.current) setCargando(false); }
-  }, [espacioId, fecha]);
+  }, [espacioId, fecha, usuario?.id, puedeReservar, params.turnoId, params.espacioId, params.fecha, params.personas]);
 
   useFocusEffect(useCallback(() => {
     void cargarGrilla();
@@ -140,16 +160,28 @@ export default function DisponibilidadScreen() {
     if (instanteTurno(turno.fecha, turno.inicio) <= new Date()) {
       setAviso({ titulo: 'Este turno ya pasó', mensaje: 'Elegí un horario futuro para hacer tu reserva.' }); return;
     }
-    if (!usuario) {
-      setAviso({ titulo: 'Ingresá para reservar', detalle: `${fechaLegible(turno.fecha)} · ${turno.inicio}–${turno.fin}`, ingreso: true }); return;
-    }
-    if (!puedeReservar) return;
+    if (usuario && !puedeReservar) return;
     if (sinRed || local) { setAviso({ titulo: 'Conectate para reservar', mensaje: 'La disponibilidad guardada puede haber cambiado. Reintentá cuando tengas conexión.' }); return; }
-    setErrorReserva(null); setSeleccionado(turno);
+    setPersonasIniciales(1);
+    setErrorReserva(null);
+    setSeleccionado(turno);
   };
 
   const confirmar = async (cantidad: number) => {
-    if (!seleccionado || !espacio || !usuario || !puedeReservar || operando.current) return;
+    if (!seleccionado || !espacio || operando.current || seleccionado.espacioId !== espacioId) return;
+    if (sinRed || local) { setErrorReserva('Conectate a internet para reservar.'); return; }
+    if (instanteTurno(seleccionado.fecha, seleccionado.inicio) <= new Date()) {
+      setErrorReserva('Este turno ya pasó. Elegí otro horario.');
+      return;
+    }
+    if (!usuario) {
+      setSeleccionado(null);
+      router.push({ pathname: '/login', params: {
+        espacioId, fecha: seleccionado.fecha, turnoId: seleccionado.id, personas: String(cantidad),
+      } });
+      return;
+    }
+    if (!puedeReservar) return;
     operando.current = true; setReservando(true); setErrorReserva(null);
     try { const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
       setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
@@ -164,7 +196,9 @@ export default function DisponibilidadScreen() {
     catch { setAviso({ titulo: 'No se pudo cerrar sesión', mensaje: 'Volvé a intentar.' }); }
   };
 
-  const ahora = new Date();
+  const grilla = ordenarTurnosParaMostrar(turnos.filter(t => t.espacioId === espacioId && t.fecha === fecha));
+  const anteriores = fecha === hoy ? grilla.filter(t => instanteTurno(t.fecha, t.inicio) <= ahora) : [];
+  const visibles = [...grilla.slice(anteriores.length), ...(verAnteriores ? anteriores : [])];
   const complejosDisponibles = ['todos', ...new Set(espacios.map(e => e.complejo).filter(c => c && c.trim() !== '' && c !== '—' && c !== '-'))];
   const limpiarFiltros = () => { setSoloFavoritos(false); setFiltroDeporte('todos'); setFiltroComplejo('todos'); };
 
@@ -258,14 +292,17 @@ export default function DisponibilidadScreen() {
   </View>;
 
   return <Screen topInset>
-    <FlatList data={!espacio || cargando || error ? [] : ordenarTurnosParaMostrar(turnos.filter(t => t.espacioId === espacioId), ahora)} keyExtractor={t => t.id}
+    <FlatList data={!espacio || cargando || error ? [] : visibles} keyExtractor={t => t.id}
       contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
       ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
         : !espacio ? <StateView><Text tone="muted">{soloFavoritos && !usuario?.espaciosFavoritos.length
           ? 'Todavía no tenés favoritas. Tocá el corazón de una cancha para guardarla.'
           : 'No hay canchas con estos filtros.'}</Text><Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} /></StateView>
-        : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No hay turnos disponibles para este día.'}</Text></StateView>}
+        : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No quedan horarios para mostrar en esta fecha.'}</Text></StateView>}
+      ListFooterComponent={espacio && !cargando && !error && anteriores.length > 0
+        ? <Button variant="ghost" title={verAnteriores ? 'Ocultar anteriores' : 'Ver anteriores'}
+          onPress={() => setVerAnteriores(v => !v)} /> : null}
       renderItem={({ item }) => {
         const pasado = instanteTurno(item.fecha, item.inicio) <= ahora;
         const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion || (!!usuario && !puedeReservar);
@@ -283,14 +320,15 @@ export default function DisponibilidadScreen() {
           </View>
         </PressableSurface>;
       }} />
-    {seleccionado && espacio && <ReservaDialog turno={seleccionado} espacio={espacio}
+    {seleccionado && espacio?.id === seleccionado.espacioId && <ReservaDialog
+      key={seleccionado.id} turno={seleccionado} espacio={espacio}
+      personasIniciales={personasIniciales} requiereIngreso={!usuario}
       deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? 'Cancha deportiva'}
       cargando={reservando} error={errorReserva} onConfirmar={confirmar} onCerrar={() => setSeleccionado(null)} />}
     {aviso && <DialogoAviso titulo={aviso.titulo} mensaje={aviso.mensaje} detalle={aviso.detalle}
-      accionPrincipal={aviso.ingreso ? 'Iniciar sesión' : aviso.verQr ? 'Ver QR' : 'Entendido'} accionSecundaria={aviso.ingreso ? 'Ahora no' : undefined}
+      accionPrincipal={aviso.verQr ? 'Ver QR' : 'Entendido'}
       onCerrar={() => setAviso(null)} onConfirmar={() => {
         setAviso(null);
-        if (aviso.ingreso) router.push({ pathname: '/login', params: { espacioId, fecha } });
         if (aviso.verQr) router.push('/(tabs)/two');
       }} />}
   </Screen>;

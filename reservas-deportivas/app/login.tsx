@@ -9,7 +9,7 @@ import { useAuth } from '../src/context/AuthContext';
 export default function LoginScreen() {
   const { colors } = useTheme();
   const { login, desbloquear, usuarioGuardado, tieneBiometria, cargando: restaurando } = useAuth();
-  const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string }>();
+  const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string; turnoId?: string; personas?: string }>();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [contrasena, setContrasena] = useState('');
@@ -18,7 +18,7 @@ export default function LoginScreen() {
 
   const continuar = () => {
     if (params.volverA === 'reservas') router.replace('/(tabs)/two');
-    else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha } });
+    else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha, turnoId: params.turnoId, personas: params.personas } });
   };
 
   const ingresar = async () => {
@@ -59,7 +59,7 @@ export default function LoginScreen() {
             <Button title={cargando ? 'Ingresando...' : 'Ingresar'} onPress={ingresar} disabled={cargando || restaurando} />
           </View>
           <Button variant="ghost" title="Crear cuenta" disabled={cargando}
-            onPress={() => router.push({ pathname: '/registro', params: { volverA: params.volverA, espacioId: params.espacioId, fecha: params.fecha } })} />
+            onPress={() => router.push({ pathname: '/registro', params: { volverA: params.volverA, espacioId: params.espacioId, fecha: params.fecha, turnoId: params.turnoId, personas: params.personas } })} />
           <Button variant="ghost" title="Seguir explorando" onPress={() => router.replace('/(tabs)')} />
         </View>
       </ScrollView>

@@ -29,6 +29,7 @@ const nativos = {
   ActivityIndicator: 'ActivityIndicator', Button: 'Button', ScrollView: 'ScrollView', Image: 'Image',
   Pressable: 'Pressable', Modal: props => props.visible ? React.createElement('Modal', props, props.children) : null, StyleSheet: { create: s => s },
 };
+const ahora = new Date('2099-01-15T09:00:00-03:00');
 const futuro = { id: 'turno-prueba', espacioId: 'esp-02', fecha: '2099-01-15', inicio: '20:00', fin: '21:00', estado: 'libre', precio: 12000, motivoBloqueo: null };
 const espacio = {
   id: 'esp-02', nombre: 'Cancha 2', deporteId: 'dep-futbol5', complejo: 'Polideportivo',
@@ -38,23 +39,24 @@ const fechas = cargar('src/utils/fechas.ts', {});
 const modeloCanchas = cargar('src/canchas/modelo.ts', {});
 const imagenesCanchas = { fotoDeCancha: () => null };
 
-async function montar({ fallar = false, usuario = null, canchas = [espacio] } = {}) {
+async function montar({ fallar = false, usuario = null, canchas = [espacio], params = {}, estado = 'libre' } = {}) {
   const navegaciones = [];
+  const rutas = [];
   const consultas = [];
   const desplazamientos = [];
-  const router = { push: ruta => navegaciones.push(typeof ruta === 'string' ? ruta : ruta.pathname) };
+  const router = { push: ruta => { rutas.push(ruta); navegaciones.push(typeof ruta === 'string' ? ruta : ruta.pathname); } };
   const pantalla = cargar('app/(tabs)/index.tsx', {
     'react-native': { ...nativos, FlatList: props => React.createElement('FlatList', props,
       props.ListHeaderComponent, !props.data.length && props.ListEmptyComponent) },
     'expo-router': {
       useRouter: () => router,
       useFocusEffect: callback => React.useEffect(callback, [callback]),
-      useLocalSearchParams: () => ({}),
+      useLocalSearchParams: () => params,
     },
-    '../../src/services/turnos': { consultarGrilla: async (espacioId) => {
+    '../../src/services/turnos': { consultarGrilla: async (espacioId, fecha) => {
       consultas.push(espacioId);
       if (fallar) throw new Error('No se pudo consultar la disponibilidad.');
-      return { datos: [{ ...futuro, espacioId }], local: false };
+      return { datos: [{ ...futuro, espacioId, fecha, estado }], local: false };
     } },
     '../../src/services/espacios': {
       obtenerEspacios: async () => ({ datos: canchas, local: false }),
@@ -74,6 +76,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio] } = 
     '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
     '../../src/components/ReservaDialog': { ReservaDialog: 'ReservaDialog' },
     '../../src/utils/fechas': fechas,
+    '../../src/hooks/useHorarioActual': { useHorarioActual: () => ahora },
     '../../src/utils/dinero': cargar('src/utils/dinero.ts', {}),
     '../../src/utils/turnos': cargar('src/utils/turnos.ts', {}),
     '../../src/utils/permisos': cargar('src/utils/permisos.ts', {}),
@@ -84,7 +87,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio] } = 
     createNodeMock: elemento => elemento.type === 'ScrollView' && elemento.props.accessibilityLabel === 'Canchas disponibles'
       ? { scrollTo: opciones => desplazamientos.push(opciones) } : null,
   }); });
-  return { vista, navegaciones, consultas, desplazamientos,
+  return { vista, navegaciones, consultas, desplazamientos, rutas,
     cambiarUsuario: async nuevo => { usuario = nuevo; await act(async () => { vista.update(React.createElement(pantalla)); }); },
     recuperar: () => { fallar = false; },
     fila: turno => vista.root.findByType('FlatList').props.renderItem({ item: turno }),
@@ -92,19 +95,14 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio] } = 
   };
 }
 
-test('invitado elige un libre futuro: diálogo contextual sin alert ni redirección automática', async () => {
+test('invitado elige la cantidad antes de iniciar sesión', async () => {
   const caso = await montar();
   try {
-    await act(async () => { await caso.fila(futuro).props.onPress(); });
-    const dialogo = caso.vista.root.findByType('DialogoAviso').props;
-    assert.equal(dialogo.titulo, 'Ingresá para reservar');
-    assert.equal(dialogo.detalle, '15/01/2099 · 20:00–21:00');
-    assert.equal(dialogo.accionPrincipal, 'Iniciar sesión');
-    assert.equal(dialogo.accionSecundaria, 'Ahora no');
-    assert.equal(dialogo.mensaje, undefined);
+    await act(async () => { caso.fila(futuro).props.onPress(); });
+    const dialogo = caso.vista.root.findByType('ReservaDialog').props;
+    assert.equal(dialogo.requiereIngreso, true);
+    assert.equal(dialogo.turno.id, futuro.id);
     assert.deepEqual(caso.navegaciones, []);
-    const fuente = fs.readFileSync(path.join(__dirname, '../app/(tabs)/index.tsx'), 'utf8');
-    assert.ok(!fuente.includes('window.alert') && !fuente.includes('Alert.alert'));
   } finally { await caso.cerrar(); }
 });
 
@@ -266,25 +264,44 @@ test('error de disponibilidad conserva mensaje y Reintentar recupera la grilla',
   } finally { await caso.cerrar(); }
 });
 
-test('ahora no cierra el diálogo y conserva la fecha elegida sin navegar', async () => {
+test('cerrar la reserva conserva la grilla y la selección', async () => {
   const caso = await montar();
   try {
-    const grillaAntes = caso.vista.root.findByType('FlatList').props.data;
-    await act(async () => { await caso.fila(futuro).props.onPress(); });
-    await act(async () => { caso.vista.root.findByType('DialogoAviso').props.onCerrar(); });
-    assert.equal(caso.vista.root.findAllByType('DialogoAviso').length, 0);
+    const grilla = caso.vista.root.findByType('FlatList').props.data;
+    await act(async () => { caso.fila(futuro).props.onPress(); });
+    await act(async () => { caso.vista.root.findByType('ReservaDialog').props.onCerrar(); });
+    assert.equal(caso.vista.root.findAllByType('ReservaDialog').length, 0);
     assert.deepEqual(caso.navegaciones, []);
-    assert.deepEqual(caso.vista.root.findByType('FlatList').props.data, grillaAntes);
+    assert.deepEqual(caso.vista.root.findByType('FlatList').props.data, grilla);
   } finally { await caso.cerrar(); }
 });
 
-test('iniciar sesión navega solo al confirmar, sin reservar automáticamente', async () => {
+const intencion = { espacioId: espacio.id, fecha: futuro.fecha, turnoId: futuro.id, personas: '4' };
+
+test('confirmar como invitado lleva turno y personas al login sin reservar', async () => {
   const caso = await montar();
   try {
-    await act(async () => { await caso.fila(futuro).props.onPress(); });
-    await act(async () => { caso.vista.root.findByType('DialogoAviso').props.onConfirmar(); });
-    assert.deepEqual(caso.navegaciones, ['/login']);
-    assert.equal(caso.vista.root.findAllByType('DialogoAviso').length, 0);
+    await act(async () => { caso.fila(futuro).props.onPress(); });
+    await act(async () => { caso.vista.root.findByType('ReservaDialog').props.onConfirmar(4); });
+    assert.deepEqual(caso.rutas, [{ pathname: '/login', params: intencion }]);
+  } finally { await caso.cerrar(); }
+});
+
+test('volver con sesión recupera la cantidad y el turno si sigue libre', async () => {
+  const caso = await montar({ usuario: jugador, params: intencion });
+  try {
+    const dialogo = caso.vista.root.findByType('ReservaDialog').props;
+    assert.equal(dialogo.turno.id, futuro.id);
+    assert.equal(dialogo.personasIniciales, 4);
+    assert.deepEqual(caso.navegaciones, []);
+  } finally { await caso.cerrar(); }
+});
+
+test('volver con sesión no recupera un turno que ya se ocupó', async () => {
+  const caso = await montar({ usuario: jugador, params: intencion, estado: 'reservado' });
+  try {
+    assert.equal(caso.vista.root.findAllByType('ReservaDialog').length, 0);
+    assert.equal(caso.vista.root.findByType('DialogoAviso').props.titulo, 'Elegí otro horario');
   } finally { await caso.cerrar(); }
 });
 

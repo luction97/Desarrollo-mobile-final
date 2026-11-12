@@ -8,7 +8,7 @@ import { useAuth } from '../src/context/AuthContext';
 export default function RegistroScreen() {
   const { registro } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string }>();
+  const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string; turnoId?: string; personas?: string }>();
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -25,7 +25,7 @@ export default function RegistroScreen() {
     try {
       await registro({ nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim(), contrasena });
       if (params.volverA === 'reservas') router.replace('/(tabs)/two');
-      else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha } });
+      else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha, turnoId: params.turnoId, personas: params.personas } });
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo crear la cuenta.'); }
     finally { setCargando(false); }
   };

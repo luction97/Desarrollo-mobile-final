@@ -1,5 +1,14 @@
 export const ZONA = 'America/Argentina/Buenos_Aires';
 
+export function diasDeReserva(hoy: string) {
+  const formato = new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: ZONA });
+  return Array.from({ length: 7 }, (_, i) => {
+    const dia = new Date(`${hoy}T12:00:00-03:00`);
+    dia.setUTCDate(dia.getUTCDate() + i);
+    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : formato.format(dia) };
+  });
+}
+
 export function fechaArgentina(fecha = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).format(fecha);
 }

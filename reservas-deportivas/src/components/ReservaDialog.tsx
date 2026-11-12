@@ -10,15 +10,17 @@ interface Props {
   turno: Turno;
   espacio: Espacio;
   deporte: string;
+  personasIniciales?: number;
+  requiereIngreso?: boolean;
   cargando: boolean;
   error: string | null;
   onConfirmar: (cantidad: number) => void;
   onCerrar: () => void;
 }
 
-export function ReservaDialog({ turno, espacio, deporte, cargando, error, onConfirmar, onCerrar }: Props) {
+export function ReservaDialog({ turno, espacio, deporte, personasIniciales = 1, requiereIngreso, cargando, error, onConfirmar, onCerrar }: Props) {
   const { colors } = useTheme();
-  const [cantidad, setCantidad] = useState('1');
+  const [cantidad, setCantidad] = useState(() => String(personasIniciales));
   const numero = Number(cantidad);
   const valido = Number.isInteger(numero) && numero >= 1 && numero <= espacio.capacidad;
   return <Modal visible transparent animationType="none" accessibilityLabel="Confirmar reserva" onRequestClose={() => { if (!cargando) onCerrar(); }}>
@@ -41,7 +43,7 @@ export function ReservaDialog({ turno, espacio, deporte, cargando, error, onConf
           </View>
           <Text variant="label" tone="muted">Hasta {espacio.capacidad} personas</Text>
           {error && <Text accessibilityRole="alert" selectable tone="danger">{error}</Text>}
-          <Button title="Confirmar reserva" loading={cargando} disabled={!valido} onPress={() => onConfirmar(numero)} />
+          <Button title={requiereIngreso ? "Ingresar para reservar" : "Confirmar reserva"} loading={cargando} disabled={!valido} onPress={() => onConfirmar(numero)} />
           <Button title="Ahora no" variant="ghost" disabled={cargando} onPress={onCerrar} />
         </ScrollView>
       </Surface>
