@@ -1,66 +1,55 @@
 # Deporturnos — app móvil
 
-App para consultar canchas deportivas, ver su grilla horaria, reservar, registrar
-ingresos con QR y gestionar favoritos, bloqueos y reservas fijas.
-
-Backend (NestJS): `api-reservas-deportivas/`.
+App para consultar canchas, ver su grilla horaria, reservar, registrar ingresos con QR y
+gestionar favoritos, bloqueos y reservas fijas. Backend (NestJS): `api-reservas-deportivas/`.
 
 ## Requisitos
 
-- Node.js 24 y npm.
-- Expo Go instalado en el celular (Android o iOS).
-- Docker Desktop (para la API) y PC + celular en la **misma red WiFi**.
+Node.js 24 · npm · Docker Desktop · Expo Go en el celular · misma red WiFi.
 
-## Levantar el proyecto
-
-### 1. API
+## Instalación
 
 ```bash
+# API
 cd api-reservas-deportivas
 docker compose up
-```
 
-- API: <http://localhost:3000> · Salud: <http://localhost:3000/salud>
-
-### 2. App
-
-```bash
+# App (otra terminal)
 cd reservas-deportivas
 npm install
-cp .env.example .env    # con Expo Go: dejar EXPO_PUBLIC_API_URL VACÍA
+cp .env.example .env     # con Expo Go: dejá EXPO_PUBLIC_API_URL vacía
 npx expo start
 ```
 
-- Escanear el QR de Expo CLI con Expo Go.
-- Con Expo Go no se fija `localhost`: la app usa la IP de la PC del host de Metro.
-- Desde el celular: `http://<IP-de-la-PC>:3000/salud`.
+Escaneá el QR con Expo Go. API: <http://localhost:3000> · Salud: <http://localhost:3000/salud>
 
-### Verificar
+## Verificar
 
 ```bash
 curl http://localhost:3000/salud
 ```
 
-## Usuarios demo
+## Si no conecta
 
-| Email | Rol | Uso |
-|---|---|---|
-| `emiliano@mail.com` | jugador | Cuenta del PRD con cancelación tardía |
-| `lleno@demo.ar` | jugador | Tres reservas activas: la cuarta da el límite |
-| `nuevo@demo.ar` | jugador | Cuenta sin nada |
-| `marcelo@villaguay.demo.ar` | encargado | Agenda, ingresos, bloqueos |
-| `nahuel@villaguay.demo.ar` | administrador | Fijas, precios, todo |
+- Firewall de Windows: permitir `node.exe` (Metro/Expo) y **Docker Desktop**
+  (`com.docker.backend.exe`), que expone la API en el puerto 3000.
+- Celular y PC en la misma red; desde el teléfono no sirve `localhost`.
 
-Contraseña demo: `villaguay2026`.
+## Usuarios demo — contraseña `villaguay2026`
 
-## Validaciones
+| Email | Rol |
+|---|---|
+| `emiliano@mail.com` | jugador (con cancelación tardía) |
+| `lleno@demo.ar` | jugador (3 reservas activas) |
+| `nuevo@demo.ar` | jugador (cuenta vacía) |
+| `marcelo@villaguay.demo.ar` | encargado |
+| `nahuel@villaguay.demo.ar` | administrador |
+
+## Scripts
 
 ```bash
-npm run typecheck   # TypeScript strict
-npm test            # suite de tests
+npm run typecheck
+npm test
 ```
 
-## Notas
-
-- Expo Go no soporta push remota (SDK 53+); los recordatorios locales sí funcionan.
-- Para push remoto o APK: `eas build` con los perfiles de `eas.json`.
+Expo Go no soporta push remota (SDK 53+); los recordatorios locales sí.
