@@ -50,16 +50,18 @@ export default function MisReservasScreen() {
     setCargando(true);
     const guardadas = await reservasGuardadas(usuario.id).catch(() => null);
     if (version !== generacion.current) return;
-    setDatos(guardadas ?? []); setLocal(true); setCargando(false);
-    if (!guardadas) setError('No pudimos leer las reservas guardadas en este teléfono.');
+    // Se pintan las reservas guardadas para no dejar la pantalla vacía, pero el aviso
+    // de "sin conexión" aparece sólo si de verdad no se pudo actualizar con el servidor.
+    setDatos(guardadas ?? []); setCargando(false);
+    if (!guardadas) { setLocal(true); setError('No pudimos mostrar las reservas guardadas en el teléfono.'); }
     try {
-      if (sinRed) return;
+      if (sinRed) { setLocal(true); return; }
       const vigentes = () => version === generacion.current;
       const actuales = await sincronizarReservas(usuario.id, vigentes);
       if (!vigentes()) return;
       setDatos(actuales.datos);
       setLocal(!actuales.actualizada);
-      setError(actuales.guardadas ? null : 'No pudimos actualizar la copia sin conexión.');
+      setError(actuales.guardadas ? null : 'No pudimos actualizar las reservas guardadas en el teléfono.');
       if (actuales.cambios.length) {
         setMensaje(actuales.cambios.map(d => [
           d.espacio?.nombre ?? 'Cancha',
@@ -68,7 +70,10 @@ export default function MisReservasScreen() {
         ].filter(Boolean).join(' · ')).join('\n'));
       }
     } catch (e) {
-      if (version === generacion.current && !esErrorSesion(e)) setError(e instanceof Error ? e.message : 'No se pudieron actualizar las reservas.');
+      if (version === generacion.current && !esErrorSesion(e)) {
+        setLocal(true);
+        setError(e instanceof Error ? e.message : 'No se pudieron actualizar las reservas.');
+      }
     }
   }, [usuario?.id, puedeReservar, sinRed]);
 
@@ -99,7 +104,7 @@ export default function MisReservasScreen() {
       if (version !== generacion.current) return;
       setDatos(prev => prev.map(d => d.reserva.id === resultado.reserva.id ? { ...d, reserva: resultado.reserva } : d));
       setConfirmacion(null);
-      setMensaje(resultado.guardadaLocalmente ? 'La reserva fue cancelada.' : 'Reserva cancelada. No pudimos actualizar la copia del teléfono.');
+      setMensaje(resultado.guardadaLocalmente ? 'La reserva fue cancelada.' : 'Reserva cancelada. No pudimos actualizar las reservas guardadas en el teléfono.');
     } catch (e) {
       if (version === generacion.current) {
         setConfirmacion(null);
@@ -172,11 +177,11 @@ export default function MisReservasScreen() {
       {!pasadas && futuras > 0 && <Text variant="label" tone="muted">
         {futuras} {futuras === 1 ? 'reserva futura confirmada' : 'reservas futuras confirmadas'}
       </Text>}
-      {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Reservas guardadas · Conectate para actualizarlas</Text>}
+      {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Estás sin conexión: mostramos las reservas guardadas en el teléfono.</Text>}
       {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     </View>
     <FlatList data={visibles} keyExtractor={d => d.reserva.id} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
-      ListEmptyComponent={<StateView><Text tone="muted">{local ? 'No hay reservas guardadas en este teléfono.' : pasadas ? 'No tenés reservas pasadas.' : 'No tenés reservas próximas.'}</Text>
+      ListEmptyComponent={<StateView><Text tone="muted">{local ? 'No hay reservas guardadas en el teléfono.' : pasadas ? 'No tenés reservas pasadas.' : 'No tenés reservas próximas.'}</Text>
         <Button title="Ver disponibilidad" variant="secondary" onPress={() => router.push('/(tabs)')} /></StateView>}
       renderItem={({ item }) => <Surface style={styles.reserva}>
         <View style={uiLayout.row}>
@@ -208,7 +213,7 @@ export default function MisReservasScreen() {
             <Text variant="title" accessibilityRole="header">QR de ingreso</Text>
             <Text variant="subtitle">{qr.espacio?.nombre ?? 'Reserva confirmada'}</Text>
             {qr.turno && <Text>{fechaLegible(qr.turno.fecha)} · {qr.turno.inicio}–{qr.turno.fin}</Text>}
-            {local && <Text variant="label" tone="warning">QR guardado en este teléfono</Text>}
+            {local && <Text variant="label" tone="warning">QR guardado en el teléfono</Text>}
             <CodigoQr value={qr.reserva.codigoQr} />
             <Text selectable variant="label">Código: {qr.reserva.codigoQr}</Text>
             {!local && !sinRed && inicioQr && fechaRecordatorio(inicioQr, ahora) && <Button

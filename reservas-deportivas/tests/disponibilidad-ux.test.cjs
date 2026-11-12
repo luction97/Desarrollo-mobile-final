@@ -113,6 +113,15 @@ const layout = shared.theme.layout;
 const estilosSurface = n => Object.assign({}, ...[n.props.style].flat(3).filter(o => o && typeof o === 'object'));
 const estilos = n => Object.assign({}, ...[n.props.style].flat(3).filter(o => o && typeof o === 'object'));
 
+test('al entrar a la pantalla no se avisa sobre informacion guardada si el servidor responde', async () => {
+  const caso = await montar({ canchas: [espacio, otraCancha] });
+  try {
+    assert.equal(textoVisible(caso.vista).includes('información guardada'), false);
+    assert.equal(textoVisible(caso.vista).includes('Sin conexión'), false);
+    assert.ok(caso.vista.root.findByType('FlatList').props.data.length > 0);
+  } finally { await caso.cerrar(); }
+});
+
 test('deslizar cambia la cancha conservando el diseno de la ficha y actualiza los horarios', async () => {
   const caso = await montar({ canchas: [espacio, otraCancha] });
   try {

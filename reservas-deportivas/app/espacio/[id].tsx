@@ -175,8 +175,8 @@ function Detalle({ id }: { id: string }) {
         onPress={() => alternarDescarga('imagen', urlFoto, fotoDescargada)} />}
       {uriFoto && fotoFallida === uriFoto && <Button variant="ghost" size="sm"
         title="Reintentar foto" disabled={sinRed && !fotoDescargada} onPress={() => setFotoFallida(null)} />}
-      {local && <Text variant="label" tone="warning">Ficha guardada. Los datos pueden estar desactualizados.</Text>}
-      {error && <Button title="Actualizar ficha" variant="secondary" onPress={() => setIntento(n => n + 1)} />}
+      {local && <Text variant="label" tone="warning">Mostramos la última información guardada en el teléfono. Puede estar desactualizada.</Text>}
+      {error && <Button title="Reintentar" variant="secondary" onPress={() => setIntento(n => n + 1)} />}
 
       <View style={uiLayout.row}>
         <View style={uiLayout.grow}>

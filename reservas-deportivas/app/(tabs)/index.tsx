@@ -123,9 +123,9 @@ export default function DisponibilidadScreen() {
       if (!activo) return;
       aplicar(locales, favorito);
       if (deportesLocales) setDeportes(deportesLocales);
-      setCatalogoLocal(locales.length > 0);
       if (sinRed) {
-        if (!locales.length) setErrorCatalogo('Conectate para cargar el catálogo de canchas.');
+        setCatalogoLocal(locales.length > 0);
+        if (!locales.length) setErrorCatalogo('Conectate para ver las canchas disponibles.');
         setCargandoCatalogo(false);
         return;
       }
@@ -133,12 +133,13 @@ export default function DisponibilidadScreen() {
         const [resultado, listaDeportes] = await Promise.all([obtenerEspacios(), obtenerDeportes().catch(() => null)]);
         aplicar(resultado.datos, favorito);
         if (activo) {
+          // Sólo queda "sin conexión" si el servidor no respondió: mientras tanto no se avisa.
           setCatalogoLocal(resultado.local);
           if (listaDeportes) setDeportes(listaDeportes);
           else setErrorCatalogo('No pudimos actualizar los deportes.');
         }
       } catch (e) {
-        if (activo) setErrorCatalogo(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.');
+        if (activo) { setCatalogoLocal(true); setErrorCatalogo(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.'); }
       } finally {
         if (activo) setCargandoCatalogo(false);
       }
@@ -288,11 +289,12 @@ export default function DisponibilidadScreen() {
       {!usuario && <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
     {(sinRed || local || catalogoLocal) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">
-      {sinRed ? 'Sin conexión · Datos guardados' : 'Datos guardados · Pueden estar desactualizados'}
+      {sinRed ? 'Sin conexión: mostramos la última información guardada en el teléfono.'
+        : 'Mostramos la última información guardada en el teléfono. Puede estar desactualizada.'}
     </Text>}
     {errorCatalogo && <View style={uiLayout.row}>
       <Text style={uiLayout.grow} tone="danger" accessibilityRole="alert">{errorCatalogo}</Text>
-      <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
+      <Button size="sm" variant="secondary" title="Reintentar" onPress={() => setIntentoCatalogo(v => v + 1)} />
     </View>}
 
     {espacios.length > 0 && <View style={styles.barraFiltros}>
@@ -359,7 +361,7 @@ export default function DisponibilidadScreen() {
       </ScrollView>
       <View style={uiLayout.row}>
         <Text variant="title" accessibilityRole="header">Horarios</Text>
-        {!cargando && !error && <Text variant="label" tone="muted">{cantidadLibres} {cantidadLibres === 1 ? 'libre' : 'libres'}</Text>}
+        {!error && grilla.length > 0 && <Text variant="label" tone="muted">{cantidadLibres} {cantidadLibres === 1 ? 'libre' : 'libres'}</Text>}
       </View>
     </>}
     {turnosLiberados.length > 0 && <Text variant="label" tone="success" accessibilityLiveRegion="polite">
@@ -368,18 +370,18 @@ export default function DisponibilidadScreen() {
   </View>;
 
   return <Screen topInset>
-    <FlatList data={!espacio || cargando || error ? [] : visibles} keyExtractor={t => t.id}
+    <FlatList data={!espacio || error ? [] : visibles} keyExtractor={t => t.id}
       contentInsetAdjustmentBehavior="automatic" contentContainerStyle={[uiLayout.listContent, styles.listaTurnos]}
-      ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
+      ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || (cargando && !grilla.length) ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
         : !espacio && errorCatalogo ? null
         : !espacio ? <StateView>
-          <Text tone="muted">{!espacios.length ? 'No hay canchas disponibles en el catálogo.'
+          <Text tone="muted">{!espacios.length ? 'No hay canchas disponibles por ahora.'
             : soloFavoritos && !espaciosFavoritos?.length ? 'Todavía no tenés favoritas.' : 'No hay canchas con estos filtros.'}</Text>
           {espacios.length > 0 && <Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} />}
         </StateView>
         : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No quedan horarios para mostrar en esta fecha.'}</Text></StateView>}
-      ListFooterComponent={espacio && !cargando && !error && anteriores.length > 0
+      ListFooterComponent={espacio && !error && anteriores.length > 0
         ? <Button variant="ghost" title={verAnteriores ? 'Ocultar anteriores' : 'Ver anteriores'}
           onPress={() => setVerAnteriores(v => !v)} /> : null}
       renderItem={({ item }) => {

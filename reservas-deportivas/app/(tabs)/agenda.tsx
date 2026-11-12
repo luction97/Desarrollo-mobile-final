@@ -41,14 +41,14 @@ export default function AgendaScreen() {
   const operando = useRef(false);
   const generacion = useRef(0);
   const clave = [usuario?.id, fecha].join(':');
-  const agenda = datos?.clave === clave && !cargando && !error ? datos : null;
+  /** La agenda anterior se mantiene visible mientras se actualiza: no parpadea al volver a la pestaña. */
+  const agenda = datos?.clave === clave && !error ? datos : null;
 
   const cargar = useCallback(async () => {
     const version = ++generacion.current;
     if (!puedeGestionar) { setDatos(null); return; }
     setCargando(true);
     setError(null);
-    setDatos(null);
     setConfirmacion(null);
     try {
       const [turnos, reservas, catalogo] = await Promise.all([
