@@ -155,7 +155,7 @@ export default function DisponibilidadScreen() {
             <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
               {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
                 <PressableSurface key={dep} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
-                  <Text>{dep === 'todos' ? 'DEPORTE' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
+                  <Text>{dep === 'todos' ? 'Todos' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
                 </PressableSurface>
               ))}
             </View>
@@ -172,7 +172,7 @@ export default function DisponibilidadScreen() {
             <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
               {complejosDisponibles.map(comp => (
                 <PressableSurface key={comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
-                  <Text>{comp === 'todos' ? 'COMPLEJO' : comp}</Text>
+                  <Text>{comp === 'todos' ? 'Todos' : comp}</Text>
                 </PressableSurface>
               ))}
             </View>

@@ -41,10 +41,11 @@ const semillas = () => [
   espacio('esp-11', 'dep-gimnasio'),
 ];
 
-test('deja una cancha por deporte y excluye el gimnasio', () => {
+test('incluye todas las canchas activas y excluye el gimnasio', () => {
   const canchas = seleccionarCanchasDeEjemplo(semillas());
-  assert.deepEqual(canchas.map(c => c.id), ['esp-01', 'esp-04', 'esp-07', 'esp-09']);
-  assert.deepEqual(canchas.map(c => c.deporteId), ['dep-futbol5', 'dep-basquet', 'dep-voley', 'dep-tenis']);
+  assert.equal(canchas.length, 10);
+  assert.ok(!canchas.some(c => c.deporteId === 'dep-gimnasio'));
+  assert.deepEqual(canchas.map(c => c.id), ['esp-01','esp-02','esp-03','esp-04','esp-05','esp-06','esp-07','esp-08','esp-09','esp-10']);
 });
 
 test('fútbol 5 y fútbol 11 comparten la misma foto registrada', () => {
@@ -53,14 +54,14 @@ test('fútbol 5 y fútbol 11 comparten la misma foto registrada', () => {
   assert.equal(familiaDeDeporte('dep-gimnasio'), null);
 });
 
-test('elige la primera cancha activa por id y descarta las inactivas', () => {
+test('descarta las canchas inactivas y mantiene las activas', () => {
   const canchas = seleccionarCanchasDeEjemplo([
     espacio('esp-04', 'dep-basquet', false),
     espacio('esp-06', 'dep-basquet'),
     espacio('esp-05', 'dep-basquet'),
     espacio('esp-09', 'dep-tenis', false),
   ]);
-  assert.deepEqual(canchas.map(c => c.id), ['esp-05']);
+  assert.deepEqual(canchas.map(c => c.id), ['esp-05', 'esp-06']);
 });
 
 test('no modifica el arreglo original y tolera listas vacías', () => {
