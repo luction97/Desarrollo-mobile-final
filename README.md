@@ -65,7 +65,8 @@ Si preferís fijarla, editá `reservas-deportivas/.env`:
 | Celular físico | `http://<IPv4-de-la-PC>:3000` |
 
 `localhost` en el celular apunta al celular. La IPv4 de la PC sale de `ipconfig`. Cambiar el `.env`
-requiere reiniciar Metro.
+requiere reiniciar Metro. `npm start -- --tunnel` solo tuneliza Metro: la API sigue estando en la
+IP de la PC.
 
 ## Verificar
 
@@ -104,7 +105,7 @@ Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/REA
 | El emulador no llega al backend | Usar `10.0.2.2`, no `localhost` |
 | Expo Go informa SDK incompatible | Instalar el cliente de SDK 54; no cambiar el SDK del proyecto |
 | `ERR_PNPM_NO_LOCKFILE` en el frontend | Usar `npm ci`: su lockfile es `package-lock.json` |
-| Puerto 3000 u 8081 ocupado | Verificar si ya está activo ese servidor antes de iniciar otro |
+| Puerto 3000 u 8081 ocupado | Verificar si ya está activo ese servidor. Si el 3000 está ocupado: `PUERTO=3001 docker compose up` y fijá `EXPO_PUBLIC_API_URL=http://<IP-de-la-PC>:3001` (la app usa el 3000 por omisión) |
 | Metro muestra código viejo | Recargar la app; si persiste, `npm start -- --clear` |
 
 ## Estado de la entrega

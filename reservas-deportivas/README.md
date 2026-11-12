@@ -34,6 +34,8 @@ curl http://localhost:3000/salud
 - Firewall de Windows: permitir `node.exe` (Metro/Expo) y **Docker Desktop**
   (`com.docker.backend.exe`), que expone la API en el puerto 3000.
 - Celular y PC en la misma red; desde el teléfono no sirve `localhost`.
+- La app usa el puerto 3000 por omisión: si levantás la API en otro
+  (`PUERTO=3001 docker compose up`), fijá `EXPO_PUBLIC_API_URL=http://<IP-de-la-PC>:3001`.
 
 ## Usuarios demo — contraseña `villaguay2026`
 
