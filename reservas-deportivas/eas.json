@@ -14,14 +14,16 @@
       "environment": "preview",
       "node": "24.15.0",
       "env": {
-        "APP_VARIANT": "preview",
-        "EXPO_PUBLIC_API_URL": "http://192.168.0.249:3000"
+        "APP_VARIANT": "preview"
       },
       "android": {
         "buildType": "apk"
       }
     },
-    "production": {}
+    "production": {
+      "environment": "production",
+      "env": { "APP_VARIANT": "production" }
+    }
   },
   "submit": {
     "production": {}
