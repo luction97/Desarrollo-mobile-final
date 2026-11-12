@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
-import { Badge, Button, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
+import { Badge, Button, Chip, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { ReservaDialog } from '../../src/components/ReservaDialog';
-import { borders, layout, radius, spacing, useTheme } from '../../src/theme';
+import { borders, interaction, layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { consultarGrilla } from '../../src/services/turnos';
 import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
 import { crearReserva } from '../../src/services/reservas';
 import preferencias from '../../src/services/preferencias';
-import { fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
+import { ZONA, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { precioLegible } from '../../src/utils/dinero';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
+import { permisosDe } from '../../src/utils/permisos';
+import { etiquetasTurno } from '../../src/utils/etiquetas';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
 import { catalogoDeEspacios } from '../../src/canchas/modelo';
 import { FavoritoToggle } from '../../src/components/favoritos';
@@ -26,14 +28,17 @@ export default function DisponibilidadScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ espacioId?: string; fecha?: string }>();
   const { usuario, logout, cargando: cargandoSesion } = useAuth();
+  const { puedeReservar } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [deportes, setDeportes] = useState<Deporte[]>([]);
-  const [espacioId, setEspacioId] = useState('');
+  const [espacioElegidoId, setEspacioId] = useState('');
+  const [cargandoCatalogo, setCargandoCatalogo] = useState(true);
+  const [intentoCatalogo, setIntentoCatalogo] = useState(0);
   const [fecha, setFecha] = useState(fechaArgentina());
   const [dias] = useState(() => Array.from({ length: 7 }, (_, i) => {
     const dia = new Date(`${fechaArgentina()}T12:00:00-03:00`);
     dia.setUTCDate(dia.getUTCDate() + i);
-    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(dia) };
+    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: ZONA }).format(dia) };
   }));
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -46,11 +51,21 @@ export default function DisponibilidadScreen() {
   const [errorReserva, setErrorReserva] = useState<string | null>(null);
   const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
   const [filtroComplejo, setFiltroComplejo] = useState<string>('todos');
+  const [soloFavoritos, setSoloFavoritos] = useState(false);
   const [abiertoDeporte, setAbiertoDeporte] = useState(false);
   const [abiertoComplejo, setAbiertoComplejo] = useState(false);
   const operando = useRef(false);
   const generacion = useRef(0);
-  const espacio = espacios.find(e => e.id === espacioId) ?? null;
+  const espaciosFavoritos = usuario?.espaciosFavoritos;
+  const espaciosFiltrados = useMemo(() => espacios.filter(e =>
+    (filtroDeporte === 'todos' || e.deporteId === filtroDeporte) &&
+    (filtroComplejo === 'todos' || e.complejo === filtroComplejo) &&
+    (!soloFavoritos || !espaciosFavoritos || espaciosFavoritos.includes(e.id))),
+  [espacios, filtroDeporte, filtroComplejo, soloFavoritos, espaciosFavoritos]);
+  const espacio = espaciosFiltrados.find(e => e.id === espacioElegidoId) ?? espaciosFiltrados[0] ?? null;
+  const espacioId = espacio?.id ?? '';
+
+  useEffect(() => { setSoloFavoritos(false); }, [usuario?.id]);
 
   useEffect(() => {
     let activo = true;
@@ -58,21 +73,23 @@ export default function DisponibilidadScreen() {
       if (!activo) return;
       const canchas = catalogoDeEspacios(datos);
       setEspacios(canchas);
+      if (canchas.length) setCargandoCatalogo(false);
       setEspacioId(actual => canchas.some(e => e.id === params.espacioId) ? params.espacioId!
         : canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
     };
     const cargar = async () => {
+      setCargandoCatalogo(true); setError(null);
       const favorito = await preferencias.getItem('ultimoEspacio').catch(() => null);
       const locales = await obtenerEspaciosLocales().catch(() => []);
       aplicar(locales, favorito);
       try { const resultado = await obtenerEspacios(); aplicar(resultado.datos, favorito); }
-      catch (e) { if (activo && !locales.length) { setError(e instanceof Error ? e.message : 'No se pudo cargar el catálogo.'); setCargando(false); } }
+      catch (e) { if (activo && !locales.length) setError(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.'); }
       const listaDeportes = await obtenerDeportes();
-      if (activo) setDeportes(listaDeportes);
+      if (activo) { setDeportes(listaDeportes); setCargandoCatalogo(false); }
     };
     void cargar();
     return () => { activo = false; };
-  }, [params.espacioId]);
+  }, [params.espacioId, intentoCatalogo]);
 
   useEffect(() => {
     if (params.fecha && dias.some(d => d.fecha === params.fecha)) setFecha(params.fecha);
@@ -86,7 +103,7 @@ export default function DisponibilidadScreen() {
   }, []);
 
   const cargarGrilla = useCallback(async () => {
-    if (!espacioId) { setCargando(false); return; }
+    if (!espacioId) { setTurnos([]); setLocal(false); setCargando(false); return; }
     const version = ++generacion.current;
     setCargando(true); setError(null);
     try {
@@ -101,6 +118,23 @@ export default function DisponibilidadScreen() {
     return () => { generacion.current++; };
   }, [cargarGrilla, sinRed]));
 
+  const refCarrusel = useRef<ScrollView>(null);
+  const [anchoCarrusel, setAnchoCarrusel] = useState(0);
+  const paddingCarrusel = anchoCarrusel > 0 ? Math.max((anchoCarrusel - layout.courtCardWidth) / 2, 0) : 0;
+
+  const centrarCancha = useCallback((indice: number) => {
+    refCarrusel.current?.scrollTo({ x: indice * (layout.courtCardWidth + spacing.md), y: 0, animated: false });
+  }, []);
+
+  const centrarSobreSeleccion = useCallback(() => {
+    if (!espacio) return;
+    const indice = espaciosFiltrados.findIndex(e => e.id === espacioId);
+    if (indice < 0) return;
+    centrarCancha(indice);
+  }, [espacio, espacioId, espaciosFiltrados, centrarCancha]);
+
+  useEffect(() => { centrarSobreSeleccion(); }, [centrarSobreSeleccion]);
+
   const elegir = (turno: Turno) => {
     if (turno.estado !== 'libre' || cargandoSesion || operando.current) return;
     if (instanteTurno(turno.fecha, turno.inicio) <= new Date()) {
@@ -109,18 +143,18 @@ export default function DisponibilidadScreen() {
     if (!usuario) {
       setAviso({ titulo: 'Ingresá para reservar', detalle: `${fechaLegible(turno.fecha)} · ${turno.inicio}–${turno.fin}`, ingreso: true }); return;
     }
-    if (usuario.rol !== 'jugador') { setAviso({ titulo: 'Cuenta de personal', mensaje: 'Las reservas se realizan con una cuenta de jugador.' }); return; }
+    if (!puedeReservar) return;
     if (sinRed || local) { setAviso({ titulo: 'Conectate para reservar', mensaje: 'La disponibilidad guardada puede haber cambiado. Reintentá cuando tengas conexión.' }); return; }
     setErrorReserva(null); setSeleccionado(turno);
   };
 
   const confirmar = async (cantidad: number) => {
-    if (!seleccionado || !espacio || !usuario || operando.current) return;
+    if (!seleccionado || !espacio || !usuario || !puedeReservar || operando.current) return;
     operando.current = true; setReservando(true); setErrorReserva(null);
     try { const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
       setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
       setSeleccionado(null);
-      setAviso({ titulo: 'Reserva confirmada', mensaje: resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.' : 'No pudimos guardar el QR en este teléfono. Abrí Mis Reservas con conexión para guardarlo.', verQr: true });
+      setAviso({ titulo: 'Reserva confirmada', mensaje: resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.' : 'No pudimos guardar el QR en este teléfono. Abrí Mis reservas con conexión para guardarlo.', verQr: true });
     } catch (e) { setErrorReserva(e instanceof Error ? e.message : 'No se pudo reservar.'); }
     finally { operando.current = false; setReservando(false); }
   };
@@ -132,11 +166,7 @@ export default function DisponibilidadScreen() {
 
   const ahora = new Date();
   const complejosDisponibles = ['todos', ...new Set(espacios.map(e => e.complejo).filter(c => c && c.trim() !== '' && c !== '—' && c !== '-'))];
-  const espaciosFiltrados = espacios.filter(e => {
-    const cumpleDeporte = filtroDeporte === 'todos' || e.deporteId === filtroDeporte;
-    const cumpleComplejo = filtroComplejo === 'todos' || e.complejo === filtroComplejo;
-    return cumpleDeporte && cumpleComplejo;
-  });
+  const limpiarFiltros = () => { setSoloFavoritos(false); setFiltroDeporte('todos'); setFiltroComplejo('todos'); };
 
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
@@ -144,20 +174,20 @@ export default function DisponibilidadScreen() {
       {usuario ? <Button variant="ghost" size="sm" title="Salir" onPress={salir} />
         : <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
-    {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión con el servidor · Datos guardados</Text>}
+    {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión · Mostramos los horarios guardados</Text>}
 
     <View style={styles.filtrosRow}>
       <View style={styles.filtroCol}>
-        <PressableSurface style={[styles.desplegable, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => { setAbiertoDeporte(v => !v); setAbiertoComplejo(false); }}>
-          <Text numberOfLines={1}>{filtroDeporte === 'todos' ? 'DEPORTE' : deportes.find(d => d.id === filtroDeporte)?.nombre ?? filtroDeporte}</Text>
+        <PressableSurface accessibilityLabel="Filtrar por deporte" accessibilityState={{ expanded: abiertoDeporte }} style={styles.desplegable} onPress={() => { setAbiertoDeporte(v => !v); setAbiertoComplejo(false); }}>
+          <Text numberOfLines={1}>{filtroDeporte === 'todos' ? 'Deporte' : deportes.find(d => d.id === filtroDeporte)?.nombre ?? 'Otro deporte'}</Text>
           <Text tone="muted">▼</Text>
         </PressableSurface>
         <Modal visible={abiertoDeporte} transparent animationType="fade" onRequestClose={() => setAbiertoDeporte(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoDeporte(false)}>
             <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
               {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
-                <PressableSurface key={dep} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
-                  <Text>{dep === 'todos' ? 'Todos' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
+                <PressableSurface key={dep} accessibilityLabel={dep === 'todos' ? 'Todos los deportes' : deportes.find(d => d.id === dep)?.nombre ?? 'Otro deporte'} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
+                  <Text>{dep === 'todos' ? 'Todos los deportes' : deportes.find(d => d.id === dep)?.nombre ?? 'Otro deporte'}</Text>
                 </PressableSurface>
               ))}
             </View>
@@ -165,16 +195,16 @@ export default function DisponibilidadScreen() {
         </Modal>
       </View>
       <View style={styles.filtroCol}>
-        <PressableSurface style={[styles.desplegable, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => { setAbiertoComplejo(v => !v); setAbiertoDeporte(false); }}>
-          <Text numberOfLines={1}>{filtroComplejo === 'todos' ? 'COMPLEJO' : filtroComplejo}</Text>
+        <PressableSurface accessibilityLabel="Filtrar por complejo" accessibilityState={{ expanded: abiertoComplejo }} style={styles.desplegable} onPress={() => { setAbiertoComplejo(v => !v); setAbiertoDeporte(false); }}>
+          <Text numberOfLines={1}>{filtroComplejo === 'todos' ? 'Complejo' : filtroComplejo}</Text>
           <Text tone="muted">▼</Text>
         </PressableSurface>
         <Modal visible={abiertoComplejo} transparent animationType="fade" onRequestClose={() => setAbiertoComplejo(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoComplejo(false)}>
             <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
               {complejosDisponibles.map(comp => (
-                <PressableSurface key={comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
-                  <Text>{comp === 'todos' ? 'Todos' : comp}</Text>
+                <PressableSurface key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
+                  <Text>{comp === 'todos' ? 'Todos los complejos' : comp}</Text>
                 </PressableSurface>
               ))}
             </View>
@@ -183,49 +213,65 @@ export default function DisponibilidadScreen() {
       </View>
     </View>
 
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardsRow}>
+    <View style={uiLayout.row}>
+      <Text variant="label" tone="muted">Elegí una cancha</Text>
+      {usuario && <Chip selected={soloFavoritos} accessibilityLabel="Solo favoritos" onPress={() => setSoloFavoritos(v => !v)}>Solo favoritos</Chip>}
+    </View>
+
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.cardsRow, { paddingHorizontal: paddingCarrusel }]} accessibilityLabel="Canchas disponibles" onLayout={(evento: LayoutChangeEvent) => setAnchoCarrusel(evento.nativeEvent.layout.width)} onContentSizeChange={() => centrarSobreSeleccion()} ref={refCarrusel}>
       {espaciosFiltrados.map(e => {
         const foto = fotoDeCancha(e);
+        const elegida = e.id === espacioId;
         return (
-          <PressableSurface key={e.id} style={styles.card} onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); }}>
-            {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
-            <View style={styles.cardFavorito}>
+          <Surface key={e.id} variant="outlined" padding="none" style={[styles.card, {
+            borderColor: elegida ? colors.primary : colors.border,
+            backgroundColor: elegida ? colors.primaryContainer : colors.surface,
+          }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Ver horarios de ${e.nombre}`} accessibilityState={{ selected: elegida }}
+              style={({ pressed }) => ({ opacity: pressed ? interaction.pressedOpacity : 1 })}
+              onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); const indice = espaciosFiltrados.findIndex(c => c.id === e.id); centrarCancha(indice >= 0 ? indice : 0); }}>
+              {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
+              <View style={styles.cardInfo}>
+                <Text variant="subtitle" numberOfLines={2}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
+                <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? 'Cancha deportiva'}</Text>
+                <Text numeric variant="action" tone="primary">{precioLegible(e.precioPorHora)} / hora</Text>
+                <Text variant="label" tone={elegida ? 'primary' : 'muted'}>{elegida ? 'Seleccionada' : 'Ver horarios'}</Text>
+              </View>
+            </Pressable>
+            <View style={styles.cardAcciones}>
+              <Button size="sm" variant="ghost" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
               <FavoritoToggle espacioId={e.id} nombre={e.nombre} />
             </View>
-            <View style={styles.cardInfo}>
-              <Text variant="subtitle" numberOfLines={1}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
-              <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? e.deporteId}</Text>
-              <Text numeric variant="action" tone="primary">
-                {precioLegible(e.precioPorHora)} / hora
-              </Text>
-              <Button size="sm" variant="ghost" title="Detalle" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
-            </View>
-          </PressableSurface>
+          </Surface>
         );
       })}
     </ScrollView>
 
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
+    {espacio && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
       {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={`${d.nombre} ${fechaLegible(d.fecha)}`}
         onPress={() => setFecha(d.fecha)} style={styles.dia}>
         <Text variant="label" tone={d.fecha === fecha ? 'primary' : 'muted'}>{d.nombre}</Text>
         <Text numeric variant="title">{d.fecha.slice(-2)}</Text>
       </PressableSurface>)}
-    </ScrollView>
+    </ScrollView>}
+    {espacio && <Text variant="subtitle" accessibilityRole="header" accessibilityLiveRegion="polite">Horarios de {espacio.nombre}</Text>}
   </View>;
 
   return <Screen topInset>
-    <FlatList data={cargando || error ? [] : ordenarTurnosParaMostrar(turnos, ahora)} keyExtractor={t => t.id}
-      key={`${espacioId}:${fecha}`} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
-      ListHeaderComponent={cabecera} ListEmptyComponent={cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando disponibilidad...</Text></StateView>
-        : error ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={cargarGrilla} /></StateView>
+    <FlatList data={!espacio || cargando || error ? [] : ordenarTurnosParaMostrar(turnos.filter(t => t.espacioId === espacioId), ahora)} keyExtractor={t => t.id}
+      contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
+      ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
+        : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
+        : !espacio ? <StateView><Text tone="muted">{soloFavoritos && !usuario?.espaciosFavoritos.length
+          ? 'Todavía no tenés favoritas. Tocá el corazón de una cancha para guardarla.'
+          : 'No hay canchas con estos filtros.'}</Text><Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} /></StateView>
         : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No hay turnos disponibles para este día.'}</Text></StateView>}
       renderItem={({ item }) => {
         const pasado = instanteTurno(item.fecha, item.inicio) <= ahora;
-        const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion;
+        const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion || (!!usuario && !puedeReservar);
         const precio = precioLegible(item.precio);
         return <PressableSurface onPress={() => elegir(item)} disabled={deshabilitado} accessibilityState={{ disabled: deshabilitado }}
-          accessibilityLabel={`${item.inicio} a ${item.fin}. ${pasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precio}` : item.estado}`}>
+          accessibilityLabel={`${item.inicio} a ${item.fin}. ${pasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precio}` : etiquetasTurno[item.estado]}`}>
           <View style={uiLayout.row}>
             <View style={uiLayout.grow}>
               <Text numeric variant="action" tone={pasado ? 'muted' : 'text'}>{item.inicio} - {item.fin}</Text>
@@ -233,12 +279,12 @@ export default function DisponibilidadScreen() {
               {pasado && <Text variant="label" tone="muted">Turno pasado · No reservable</Text>}
               {item.estado === 'libre' && !pasado && <Text numeric variant="label" tone="primary">{precio}</Text>}
             </View>
-            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{item.estado.toUpperCase()}</Badge>
+            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{etiquetasTurno[item.estado]}</Badge>
           </View>
         </PressableSurface>;
       }} />
     {seleccionado && espacio && <ReservaDialog turno={seleccionado} espacio={espacio}
-      deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? espacio.deporteId.replace('dep-', '')}
+      deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? 'Cancha deportiva'}
       cargando={reservando} error={errorReserva} onConfirmar={confirmar} onCerrar={() => setSeleccionado(null)} />}
     {aviso && <DialogoAviso titulo={aviso.titulo} mensaje={aviso.mensaje} detalle={aviso.detalle}
       accionPrincipal={aviso.ingreso ? 'Iniciar sesión' : aviso.verQr ? 'Ver QR' : 'Entendido'} accionSecundaria={aviso.ingreso ? 'Ahora no' : undefined}
@@ -259,8 +305,8 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, justifyContent: 'flex-start', paddingTop: spacing.xl },
   opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
-  card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
-  cardFavorito: { position: 'absolute', top: spacing.sm, right: spacing.sm },
+  card: { width: layout.courtCardWidth, overflow: 'hidden', borderWidth: borders.focus },
+  cardAcciones: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xs, paddingBottom: spacing.xs },
   cardImage: { width: '100%', height: 120, resizeMode: 'cover' },
   cardInfo: { padding: spacing.md, gap: spacing.xs },
   horizontal: { gap: spacing.sm },

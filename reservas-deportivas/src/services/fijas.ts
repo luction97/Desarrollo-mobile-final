@@ -16,8 +16,8 @@ export interface DatosFija {
 function validar(datos: DatosFija): string | null {
   if (!datos.espacioId) return 'Seleccioná una cancha.';
   if (!datos.titular.trim()) return 'Escribí el titular de la reserva fija.';
-  if (errorDeFecha(datos.desde)) return 'Ingresá una fecha desde válida (AAAA-MM-DD).';
-  if (datos.hasta && errorDeFecha(datos.hasta)) return 'Ingresá una fecha hasta válida (AAAA-MM-DD).';
+  if (errorDeFecha(datos.desde)) return 'Revisá la fecha desde. Escribila con año, mes y día.';
+  if (datos.hasta && errorDeFecha(datos.hasta)) return 'Revisá la fecha hasta. Escribila con año, mes y día.';
   if (datos.hasta && datos.hasta < datos.desde) return 'La fecha hasta debe ser posterior o igual a la fecha desde.';
   return errorDeRangoHorario(datos.inicio, datos.fin);
 }

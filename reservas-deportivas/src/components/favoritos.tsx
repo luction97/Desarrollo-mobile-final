@@ -6,7 +6,7 @@ import * as Network from 'expo-network';
 import { DialogoAviso } from './DialogoAviso';
 import { useAuth } from '../context/AuthContext';
 import { favoritosService } from '../services/favoritos';
-import { borders, spacing, useTheme } from '../theme';
+import { interaction, spacing, useTheme } from '../theme';
 
 interface AvisoFavorito { titulo: string; mensaje?: string }
 
@@ -18,7 +18,7 @@ interface FavoritoToggleProps {
 
 /**
  * Corazón que agrega o quita el espacio de los favoritos del usuario en sesión.
- * Aplica el cambio al contexto en forma optimista y lo revierte si el servidor lo rechaza.
+ * Al quitar espera la confirmación para que el filtro de favoritos no oculte errores.
  */
 export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
   const { colors } = useTheme();
@@ -30,7 +30,7 @@ export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
   const alternar = async () => {
     if (ocupado) return;
     if (!usuario) {
-      setAviso({ titulo: 'Ingresá para marcar favoritos', mensaje: 'Tus favoritos quedan asociados a tu cuenta.' });
+      setAviso({ titulo: 'Ingresá para marcar favoritos' });
       return;
     }
     setOcupado(true);
@@ -38,19 +38,20 @@ export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
     const favoritos = favorito
       ? favoritosAnteriores.filter(id => id !== espacioId)
       : [...favoritosAnteriores, espacioId];
-    actualizarUsuario({ ...usuario, espaciosFavoritos: favoritos });
+    if (!favorito) actualizarUsuario({ ...usuario, espaciosFavoritos: favoritos });
     try {
       const red = await Network.getNetworkStateAsync();
       if (red.isConnected === false) throw new Error('Conectate para actualizar tus favoritos.');
       if (favorito) {
         await favoritosService.quitar(espacioId);
+        actualizarUsuario({ ...usuario, espaciosFavoritos: favoritos });
       } else {
         const actualizado = await favoritosService.agregar(espacioId);
         actualizarUsuario(actualizado);
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       }
     } catch (e) {
-      actualizarUsuario({ ...usuario, espaciosFavoritos: favoritosAnteriores });
+      if (!favorito) actualizarUsuario({ ...usuario, espaciosFavoritos: favoritosAnteriores });
       setAviso({
         titulo: 'No se pudo actualizar el favorito',
         mensaje: e instanceof Error ? e.message : 'Probá de nuevo.',
@@ -61,10 +62,10 @@ export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
   };
 
   return <View>
-    <Pressable accessibilityRole="button" onPress={() => void alternar()} disabled={ocupado}
-      accessibilityLabel={favorito ? `Quitar ${nombre ?? 'el espacio'} de favoritos` : `Marcar ${nombre ?? 'el espacio'} como favorito`}
-      accessibilityState={{ disabled: ocupado, checked: favorito }}
-      style={[styles.boton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <Pressable accessibilityRole="button" onPress={() => alternar()} disabled={ocupado}
+      accessibilityLabel={favorito ? `Quitar ${nombre ?? 'esta cancha'} de favoritos` : `Agregar ${nombre ?? 'esta cancha'} a favoritos`}
+      accessibilityState={{ disabled: ocupado, selected: favorito, busy: ocupado }}
+      style={({ pressed }) => [styles.boton, { opacity: pressed || ocupado ? interaction.pressedOpacity : 1 }]}>
       <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={spacing.xxl}
         color={favorito ? colors.danger : colors.muted} />
     </Pressable>
@@ -78,7 +79,5 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: borders.thin,
-    borderRadius: spacing.xxl,
   },
 });

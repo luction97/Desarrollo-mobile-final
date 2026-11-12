@@ -11,10 +11,13 @@ import { cancelarReserva, esErrorSesion, reservasGuardadas, sincronizarReservas 
 import type { ReservaGuardada } from '../../src/modelos/reservas';
 import { precioLegible } from '../../src/utils/dinero';
 import { fechaLegible, instanteTurno } from '../../src/utils/fechas';
+import { permisosDe } from '../../src/utils/permisos';
+import { etiquetasReserva } from '../../src/utils/etiquetas';
 
 export default function MisReservasScreen() {
   const { colors } = useTheme();
   const { usuario, cargando: cargandoSesion } = useAuth();
+  const { puedeReservar } = permisosDe(usuario);
   const router = useRouter();
   const [datos, setDatos] = useState<ReservaGuardada[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -28,7 +31,7 @@ export default function MisReservasScreen() {
   const ocupado = useRef(false);
 
   const cargar = useCallback(async () => {
-    if (!usuario) { setDatos([]); setCargando(false); return; }
+    if (!usuario || !puedeReservar) { setDatos([]); setCargando(false); return; }
     const version = ++generacion.current;
     setError(null);
     setCargando(true);
@@ -43,7 +46,7 @@ export default function MisReservasScreen() {
     } catch (e) {
       if (version === generacion.current && !esErrorSesion(e)) setError(e instanceof Error ? e.message : 'No se pudieron actualizar las reservas.');
     }
-  }, [usuario?.id]);
+  }, [usuario?.id, puedeReservar]);
 
   useFocusEffect(useCallback(() => {
     void cargar();
@@ -51,7 +54,7 @@ export default function MisReservasScreen() {
   }, [cargar]));
 
   const cancelar = async () => {
-    if (!confirmacion || ocupado.current) return;
+    if (!puedeReservar || !confirmacion || ocupado.current) return;
     ocupado.current = true; setCancelando(true);
     try {
       const resultado = await cancelarReserva(confirmacion);
@@ -67,6 +70,10 @@ export default function MisReservasScreen() {
     <Text variant="title">Tus reservas y códigos QR</Text>
     <Button title="Iniciar sesión" onPress={() => router.push({ pathname: '/login', params: { volverA: 'reservas' } })} />
   </StateView></Screen>;
+  if (!puedeReservar) return <Screen topInset><StateView>
+    <Text>Consultá las reservas del complejo en la agenda.</Text>
+    <Button title="Ver agenda" onPress={() => router.replace('/agenda')} />
+  </StateView></Screen>;
 
   const ahora = new Date();
   const esProxima = (d: ReservaGuardada) => d.reserva.estado === 'confirmada' &&
@@ -76,13 +83,13 @@ export default function MisReservasScreen() {
 
   return <Screen topInset>
     <View style={uiLayout.inset}>
-      <Text variant="title" accessibilityRole="header">Mis Reservas</Text>
+      <Text variant="title" accessibilityRole="header">Mis reservas</Text>
       <View style={uiLayout.row}>
         <Chip selected={!pasadas} onPress={() => setPasadas(false)}>Próximas</Chip>
         <Chip selected={pasadas} onPress={() => setPasadas(true)}>Pasadas</Chip>
         <Button size="sm" variant="ghost" title="Actualizar" onPress={cargar} />
       </View>
-      {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Copia del teléfono · El estado puede haber cambiado</Text>}
+      {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Reservas guardadas · Conectate para actualizarlas</Text>}
       {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     </View>
     <FlatList data={visibles} keyExtractor={d => d.reserva.id} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
@@ -94,7 +101,7 @@ export default function MisReservasScreen() {
             <Text variant="subtitle">{item.espacio?.nombre ?? 'Espacio no disponible'}</Text>
             <Text tone="muted">{item.espacio?.complejo}</Text>
           </View>
-          <Badge variant={item.reserva.estado === 'confirmada' ? 'success' : 'neutral'}>{item.reserva.estado.toUpperCase()}</Badge>
+          <Badge variant={item.reserva.estado === 'confirmada' ? 'success' : 'neutral'}>{etiquetasReserva[item.reserva.estado]}</Badge>
         </View>
         {item.turno && <>
           <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
@@ -104,13 +111,13 @@ export default function MisReservasScreen() {
         <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>
         <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
         {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
-          ? <Button title="Cancelar Reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />
+          ? <Button title="Cancelar reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />
           : <Text tone="muted">Para cancelar, avisá al encargado.</Text>)}
         {item.espacio && <Button title="Cómo llegar" variant="secondary" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.espacio!.id } })} />}
       </Surface>} />
-    {confirmacion && !cancelando && <DialogoAviso titulo="Cancelar Reserva" mensaje="¿Querés cancelar este turno?" accionPrincipal="Cancelar reserva" accionSecundaria="Volver"
+    {confirmacion && !cancelando && <DialogoAviso titulo="Cancelar reserva" mensaje="¿Querés cancelar este turno?" accionPrincipal="Cancelar reserva" accionSecundaria="Volver"
       destructivo onCerrar={() => setConfirmacion(null)} onConfirmar={cancelar} />}
     {cancelando && <StateView><ActivityIndicator color={colors.primary} /></StateView>}
-    {mensaje && <DialogoAviso titulo="Mis Reservas" mensaje={mensaje} accionPrincipal="Entendido" onCerrar={() => setMensaje(null)} onConfirmar={() => setMensaje(null)} />}
+    {mensaje && <DialogoAviso titulo="Mis reservas" mensaje={mensaje} accionPrincipal="Entendido" onCerrar={() => setMensaje(null)} onConfirmar={() => setMensaje(null)} />}
   </Screen>;
 }

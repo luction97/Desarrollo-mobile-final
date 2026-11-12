@@ -137,6 +137,8 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
     '../src/context/AuthContext': { useAuth: () => ({ usuario, cargando: false }) },
     '../src/services/biometria': { autenticarPersonal: async () => true },
     '../src/services/auth': { authService: { verificarPersonal: async () => true } },
+    '../src/utils/permisos': cargar('src/utils/permisos.ts', {}),
+    '../src/utils/fechas': cargar('src/utils/fechas.ts', {}),
     '../src/services/espacios': { obtenerEspacios: async () => ({ datos: [espacio] }) },
     '../src/services/operaciones': {
       operacionesService: {

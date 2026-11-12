@@ -11,11 +11,13 @@ import { obtenerEspacios } from '../src/services/espacios';
 import { operacionesService } from '../src/services/operaciones';
 import { authService } from '../src/services/auth';
 import type { Espacio } from '../src/tipos';
+import { permisosDe } from '../src/utils/permisos';
+import { ZONA } from '../src/utils/fechas';
 
 export default function EscanerScreen() {
   const { colors } = useTheme();
   const { usuario, cargando: cargandoSesion } = useAuth();
-  const autorizado = usuario?.rol === 'encargado' || usuario?.rol === 'administrador';
+  const { puedeGestionar: autorizado } = permisosDe(usuario);
   const [permission, requestPermission, getPermission] = useCameraPermissions();
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [espacio, setEspacio] = useState<Espacio | null>(null);
@@ -107,7 +109,8 @@ export default function EscanerScreen() {
     try {
       const reserva = await operacionesService.registrarIngreso(data, espacio.id);
       if (actual !== generacion.current) return;
-      setResultado(`Ingreso registrado en ${espacio.nombre}. Estado: ${reserva.estado}. Hora: ${reserva.ingresoEn ?? 'no informada'}.`);
+      const hora = reserva.ingresoEn ? new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, hour: '2-digit', minute: '2-digit' }).format(new Date(reserva.ingresoEn)) : null;
+      setResultado(`Ingreso registrado en ${espacio.nombre}${hora ? ` a las ${hora}` : ''}.`);
       // La háptica es auxiliar: su fallo no transforma un ingreso válido en error.
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch (err: unknown) {
@@ -130,7 +133,7 @@ export default function EscanerScreen() {
     <Screen>
       <View style={styles.panel}>
         <Text variant="title" accessibilityRole="header">Registrar ingreso</Text>
-        <Text tone="muted">Elegí la cancha donde estás controlando el ingreso, no la indicada por el QR.</Text>
+        <Text tone="muted">Elegí la cancha donde estás recibiendo a los jugadores.</Text>
         {espacio && <Text variant="subtitle">{espacio.nombre}</Text>}
         {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
         {resultado && <Text selectable accessibilityLiveRegion="polite" tone="success">{resultado}</Text>}

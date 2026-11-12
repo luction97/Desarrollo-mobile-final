@@ -152,6 +152,13 @@ test('corazón: sin sesión no llama a la API y sugiere ingresar', async () => {
   let vista;
   try {
     await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02', nombre: 'Cancha 2' })); });
+    const boton = vista.root.findByType('Pressable');
+    const estilo = Object.assign({}, ...boton.props.style({ pressed: false }));
+    assert.equal(estilo.borderWidth, undefined);
+    assert.equal(estilo.borderRadius, undefined);
+    assert.equal(estilo.backgroundColor, undefined);
+    assert.ok(estilo.padding * 2 + vista.root.findByType('Ionicons').props.size >= 48);
+    assert.ok(boton.props.style({ pressed: true }).at(-1).opacity < 1);
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
     assert.equal(peticiones, 0);
     const dialogo = vista.root.findByType('DialogoAviso').props;
@@ -182,7 +189,7 @@ test('corazón: marca con cambio optimista, aplica el usuario del servidor y avi
   let vista;
   try {
     await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02' })); });
-    assert.equal(vista.root.findByType('Pressable').props.accessibilityLabel, 'Marcar el espacio como favorito');
+    assert.equal(vista.root.findByType('Pressable').props.accessibilityLabel, 'Agregar esta cancha a favoritos');
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
     assert.deepEqual(actualizaciones, [['esp-01', 'esp-02'], ['esp-01', 'esp-02']]);
     assert.deepEqual(vibraciones, ['success']);
@@ -220,7 +227,7 @@ test('corazón: si el servidor rechaza, revierte y muestra el error', async () =
   }
 });
 
-test('corazón: quitar favorito revierte si falla la red', async () => {
+test('corazón: quitar favorito conserva la selección y muestra el error si falla la red', async () => {
   const entorno = createUiEnvironment();
   const actualizaciones = [];
   const usuarioBase = { id: 'usr-207', espaciosFavoritos: ['esp-02'] };
@@ -240,11 +247,36 @@ test('corazón: quitar favorito revierte si falla la red', async () => {
   try {
     await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02' })); });
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
-    // Cambio optimista a lista vacía, revertido al estado anterior por el error de red.
-    assert.deepEqual(actualizaciones, [[], ['esp-02']]);
+    // No desaparece del filtro Solo favoritos antes de confirmar el cambio.
+    assert.deepEqual(actualizaciones, []);
     const dialogo = vista.root.findByType('DialogoAviso').props;
     assert.equal(dialogo.mensaje, 'Conectate para actualizar tus favoritos.');
   } finally {
     if (vista) await act(async () => vista.unmount());
   }
+});
+
+test('corazón: quitar espera al servidor antes de desaparecer de Solo favoritos', async () => {
+  const entorno = createUiEnvironment();
+  const actualizaciones = [];
+  let confirmar;
+  const pendiente = new Promise(resolve => { confirmar = resolve; });
+  const { FavoritoToggle } = cargar('src/components/favoritos.tsx', {
+    'react-native': { Pressable: 'Pressable', View: 'View', StyleSheet: { create: s => s } },
+    '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
+    'expo-haptics': {}, 'expo-network': { getNetworkStateAsync: async () => ({ isConnected: true }) },
+    './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../context/AuthContext': { useAuth: () => ({ usuario: { espaciosFavoritos: ['esp-02'] }, actualizarUsuario: u => actualizaciones.push(u.espaciosFavoritos) }) },
+    '../services/favoritos': { favoritosService: { quitar: () => pendiente } }, '../theme': entorno.theme,
+  });
+  let vista;
+  try {
+    await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02' })); });
+    let operacion;
+    await act(async () => { operacion = vista.root.findByType('Pressable').props.onPress(); });
+    assert.deepEqual(actualizaciones, []);
+    assert.equal(vista.root.findByType('Pressable').props.accessibilityState.busy, true);
+    await act(async () => { confirmar(); await operacion; });
+    assert.deepEqual(actualizaciones, [[]]);
+  } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });

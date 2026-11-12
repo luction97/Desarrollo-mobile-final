@@ -6,7 +6,7 @@ const ts = require('typescript');
 function cargarModulo(archivo, dependencias) {
   const fuente = fs.readFileSync(path.join(__dirname, '..', '..', archivo), 'utf8');
   const { outputText } = ts.transpileModule(fuente, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   });
   const modulo = { exports: {} };
   new Function('require', 'module', 'exports', outputText)((nombre) => {

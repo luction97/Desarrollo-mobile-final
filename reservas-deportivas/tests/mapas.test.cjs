@@ -129,7 +129,7 @@ test('permiso denegado mantiene mapa/datos y Cómo llegar; la ubicación solo se
     await act(async () => { await boton('Mostrar mi ubicación').props.onPress(); });
     assert.equal(solicitudes, 1);
     assert.equal(vista.root.findAllByType('VisorMapa').length, 1);
-    assert.ok(JSON.stringify(vista.toJSON()).includes('Ubicación no autorizada'));
+    assert.ok(JSON.stringify(vista.toJSON()).includes('No permitiste usar tu ubicación'));
     assert.ok(JSON.stringify(vista.toJSON()).includes('Sin conexión'));
     assert.ok(boton('Abrir ajustes'));
     await act(async () => { await boton('Cómo llegar').props.onPress(); });
@@ -183,7 +183,31 @@ test('sin handler geo usa respaldo web; si ambos fallan conserva coordenadas y c
     assert.ok(abiertos[1].startsWith('https://www.openstreetmap.org/'));
     fallarTodo = true;
     await act(async () => { await boton().props.onPress(); });
-    assert.ok(JSON.stringify(vista.toJSON()).includes('No se pudo abrir una aplicación de mapas'));
+    assert.ok(JSON.stringify(vista.toJSON()).includes('No pudimos abrir el mapa'));
     assert.ok(JSON.stringify(vista.toJSON()).includes('-31.860000'));
   } finally { if (vista) await act(async () => vista.unmount()); }
+});
+
+test('mapa sin texto técnico permanente; mantiene privacidad y créditos accesibles', async () => {
+  const { Mapa } = cargar('src/components/Mapa.tsx', {
+    'react-native': { View: 'View', StyleSheet: { create: s => s }, Platform: { OS: 'android' }, Linking: {} },
+    'expo-location': {}, 'expo-network': { useNetworkState: () => ({ isConnected: true }) },
+    '../mapa/documento': { crearDocumentoMapa: () => '<html/>' }, '../mapa/modelo': modelo,
+    './mapa/VisorMapa': { VisorMapa: 'VisorMapa' },
+  });
+  let vista;
+  try {
+    await act(async () => { vista = create(React.createElement(Mapa, { puntos: [p] })); });
+    await act(async () => { vista.root.findByType('VisorMapa').props.onMensaje(JSON.stringify({ tipo: 'estado', estado: 'disponible' })); });
+    const texto = () => vista.root.findAllByType('NativeText').flatMap(n => n.props.children).join(' ');
+    assert.ok(!texto().includes('cartografía'));
+    assert.ok(!texto().includes('-31.860000'));
+    assert.ok(!texto().includes('Cargando mapa'));
+    const acerca = () => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === 'Acerca del mapa');
+    assert.equal(acerca().props.accessibilityState.expanded, false);
+    await act(async () => { acerca().props.onPress(); });
+    assert.equal(acerca().props.accessibilityState.expanded, true);
+    assert.ok(texto().includes('Deporturnos no la guarda'));
+    assert.ok(texto().includes('Créditos y licencia'));
+  } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });

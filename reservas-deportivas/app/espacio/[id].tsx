@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Image, ActivityIndicator, Platform, Linking } from 'react-native';
-import { Button, Chip, ScrollScreen, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
+import { View, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
+import { Badge, Button, ScrollScreen, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
 import { borders, layout, radius, spacing, useTheme } from '../../src/theme';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -10,16 +10,20 @@ import { Espacio } from '../../src/tipos';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Mapa } from '../../src/components/Mapa';
-import { PuntoMapa, enlacesDestino, puntosDeEspacios } from '../../src/mapa/modelo';
+import { PuntoMapa, puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales, obtenerPuntosLocales } from '../../src/services/mapas';
 import { FavoritoToggle } from '../../src/components/favoritos';
 import { precioLegible } from '../../src/utils/dinero';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
+import { useAuth } from '../../src/context/AuthContext';
+import { permisosDe } from '../../src/utils/permisos';
 
 export default function EspacioDetalleScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { usuario } = useAuth();
+  const { puedeActualizarFoto } = permisosDe(usuario);
   const [espacio, setEspacio] = useState<Espacio | null>(null);
   
   const [errorCarga, setErrorCarga] = useState(false);
@@ -47,7 +51,7 @@ export default function EspacioDetalleScreen() {
         setPuntos(ubicaciones);
         
         setEspacio(data);
-        const foto = await obtenerFoto(data.id);
+        const foto = puedeActualizarFoto ? await obtenerFoto(data.id) : null;
         const video = data.videoUrl ? await obtenerVideo(data.id, data.videoUrl) : null;
         if (activo) { setFotoLocal(foto); setVideoLocal(video); }
       } catch {
@@ -56,7 +60,7 @@ export default function EspacioDetalleScreen() {
     };
     cargarEspacio();
     return () => { activo = false; };
-  }, [id]);
+  }, [id, puedeActualizarFoto]);
 
   const fuenteVideo = videoLocal || espacio?.videoUrl || null;
   const fuenteActual = useRef<string | null>(null);
@@ -73,18 +77,18 @@ export default function EspacioDetalleScreen() {
   }, [fuenteVideo, player]);
 
   const elegirFoto = async (camara: boolean) => {
-    if (!espacio || guardando) return;
+    if (!puedeActualizarFoto || !espacio || guardando) return;
     setGuardando(true); setAviso(null);
     try {
       if (camara) {
         const permiso = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permiso.granted) { setAviso('Cámara no autorizada. Podés elegir una foto de la galería.'); return; }
+        if (!permiso.granted) { setAviso('Permití usar la cámara o elegí una foto de la galería.'); return; }
       }
       const result = await (camara ? ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 })
         : ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 }));
       if (!result.canceled) {
         setFotoLocal(await guardarFoto(espacio.id, result.assets[0].uri));
-        setAviso(Platform.OS === 'web' ? 'Foto visible durante esta sesión web.' : 'Foto guardada en el teléfono.');
+        setAviso(Platform.OS === 'web' ? 'Foto guardada hasta que cierres esta página.' : 'Foto guardada en este teléfono.');
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       }
     } catch { setAviso('No se pudo guardar la foto. Volvé a intentar.'); }
@@ -101,19 +105,17 @@ export default function EspacioDetalleScreen() {
 
   if (!espacio) {
     if (errorCarga) return <ScrollScreen>
-      <Text variant="subtitle" tone="danger">No se pudo cargar la ficha del espacio.</Text>
-      <Text tone="muted">Si existen coordenadas guardadas, podés consultarlas sin acceder al servidor.</Text>
+      <Text variant="subtitle" tone="danger">No pudimos cargar la cancha.</Text>
       <Mapa puntos={puntos} />
     </ScrollScreen>;
     if (puntos.length) return <ScrollScreen>
-      <ActivityIndicator accessibilityLabel="Consultando ficha del espacio" color={colors.primary} />
-      <Text>Consultando ficha. Ubicación guardada:</Text>
+      <ActivityIndicator accessibilityLabel="Cargando cancha" color={colors.primary} />
       <Mapa puntos={puntos} />
     </ScrollScreen>;
     return (
       <Screen><StateView>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text tone="muted">Cargando espacio...</Text>
+        <Text tone="muted">Cargando cancha...</Text>
       </StateView></Screen>
     );
   }
@@ -129,7 +131,6 @@ export default function EspacioDetalleScreen() {
           <View style={uiLayout.grow}>
             <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>
             <Text tone="muted">{espacio.complejo}</Text>
-            <Text variant="label" tone="muted">{espacio.deporteId.replace('dep-', '').toUpperCase()}</Text>
           </View>
           <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
         </View>
@@ -140,51 +141,38 @@ export default function EspacioDetalleScreen() {
         <Text variant="label" tone="muted">Se paga en el lugar</Text>
 
         <View style={styles.chipsRow}>
-          <Chip selected={false}>{espacio.superficie}</Chip>
-          <Chip selected={false}>{espacio.techado ? 'Techado' : 'Al aire libre'}</Chip>
-          <Chip selected={false}>{espacio.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Chip>
-          <Chip selected={false}>{`Capacidad ${espacio.capacidad}`}</Chip>
+          <Badge>{espacio.superficie}</Badge>
+          <Badge>{espacio.techado ? 'Techado' : 'Al aire libre'}</Badge>
+          <Badge>{espacio.iluminacion ? 'Con iluminación' : 'Sin iluminación'}</Badge>
+          <Badge>{`Hasta ${espacio.capacidad} personas`}</Badge>
         </View>
 
-        <View style={uiLayout.row}>
-          <Button title="Ver disponibilidad" onPress={() => router.push({ pathname: '/(tabs)', params: { espacioId: espacio.id } })} />
-          <Button variant="secondary" title="Cómo llegar" onPress={() => {
-            // La lógica de enlaces por plataforma vive en el módulo de mapa (única fuente).
-            const punto = { id: espacio.id, nombre: espacio.nombre, latitud: espacio.coordenadas?.latitud, longitud: espacio.coordenadas?.longitud };
-            const [destino] = enlacesDestino(punto, Platform.OS);
-            if (destino) void Linking.openURL(destino);
-          }} />
-        </View>
+        <Button title="Ver horarios" onPress={() => router.push({ pathname: '/(tabs)', params: { espacioId: espacio.id } })} />
 
         <Text>{espacio.reglas}</Text>
 
         <Text variant="subtitle" style={styles.sectionTitle}>Ubicación</Text>
         <Mapa puntos={puntos} />
 
-        <Text variant="subtitle" style={styles.sectionTitle}>Estado actual de la cancha</Text>
-        <Button variant="secondary" title="Tomar foto del estado" disabled={guardando} onPress={() => elegirFoto(true)} />
-        <Button variant="ghost" title="Elegir foto de la galería" disabled={guardando} onPress={() => elegirFoto(false)} />
+        {puedeActualizarFoto && <View style={uiLayout.section}>
+          <Text variant="subtitle" style={styles.sectionTitle}>Registro del estado de la cancha</Text>
+          <Text variant="label" tone="muted">La foto queda solo en este teléfono; no se publica para los jugadores.</Text>
+          <Button variant="secondary" title="Tomar foto" disabled={guardando} onPress={() => elegirFoto(true)} />
+          <Button variant="ghost" title="Elegir de la galería" disabled={guardando} onPress={() => elegirFoto(false)} />
+          {fotoLocal && <Image source={{ uri: fotoLocal }} style={styles.photo} accessibilityLabel={`Foto guardada de ${espacio.nombre}`} />}
+        </View>}
         {aviso && <Text accessibilityLiveRegion="polite">{aviso}</Text>}
 
-        {fotoLocal && (
-          <View style={uiLayout.section}>
-            <Text tone="muted">Foto guardada en el dispositivo:</Text>
-            <Image source={{ uri: fotoLocal }} style={styles.photo} />
-          </View>
-        )}
-
-        <Text variant="subtitle" style={styles.sectionTitle}>Recorrido en video</Text>
-        {espacio.videoUrl ? (
+        {espacio.videoUrl && <>
+          <Text variant="subtitle" style={styles.sectionTitle}>Conocé la cancha</Text>
           <View style={uiLayout.section}>
             <View style={[styles.videoContainer, { backgroundColor: colors.media }]}>
               <VideoView style={styles.video} player={player} allowsFullscreen nativeControls />
             </View>
-            {videoLocal ? <Text tone="success">Video disponible sin datos</Text>
-              : <Button variant="secondary" title="Guardar video sin datos" loading={guardando} onPress={descargarVideo} />}
+            {videoLocal ? <Text tone="success">Video guardado para ver sin conexión</Text>
+              : <Button variant="secondary" title="Guardar video" loading={guardando} onPress={descargarVideo} />}
           </View>
-        ) : (
-          <Text tone="muted">Sin video.</Text>
-        )}
+        </>}
       </View>
     </ScrollScreen>
   );

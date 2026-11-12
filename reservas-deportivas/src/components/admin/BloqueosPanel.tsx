@@ -124,11 +124,11 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
         onPress={() => alternar(e.id)}>{e.nombre}</Chip>)}
     </ScrollView>
 
-    <TextField label="Fecha (AAAA-MM-DD)" value={fecha} onChangeText={setFecha} editable={!ocupado} maxLength={10} />
+    <TextField label="Fecha (año-mes-día)" value={fecha} onChangeText={setFecha} editable={!ocupado} maxLength={10} />
     <TextField label="Motivo" value={motivo} onChangeText={setMotivo} editable={!ocupado} />
     <View style={uiLayout.row}>
       <Chip selected={diaEntero} disabled={ocupado} onPress={() => setDiaEntero(true)}>Día entero</Chip>
-      <Chip selected={!diaEntero} disabled={ocupado} onPress={() => setDiaEntero(false)}>Rango horario</Chip>
+      <Chip selected={!diaEntero} disabled={ocupado} onPress={() => setDiaEntero(false)}>Por horario</Chip>
     </View>
     {!diaEntero && <View style={uiLayout.row}>
       <View style={uiLayout.grow}>
@@ -166,4 +166,3 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}
   </Surface>;
 }
-

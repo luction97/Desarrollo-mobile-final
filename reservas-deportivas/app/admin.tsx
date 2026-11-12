@@ -9,6 +9,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
 import { obtenerEspacios } from '../src/services/espacios';
 import { precioLegible } from '../src/utils/dinero';
+import { permisosDe } from '../src/utils/permisos';
 import { spacing, useTheme } from '../src/theme';
 import type { Espacio } from '../src/tipos';
 
@@ -16,8 +17,7 @@ export default function AdminScreen() {
   const { usuario } = useAuth();
   const { colors } = useTheme();
   const router = useRouter();
-  const autorizado = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
-  const esAdmin = usuario?.rol === 'administrador';
+  const { puedeGestionar: autorizado, puedeAdministrar: esAdmin } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [espacioId, setEspacioId] = useState('');
   const [cargandoEspacios, setCargandoEspacios] = useState(false);
@@ -58,8 +58,8 @@ export default function AdminScreen() {
   };
 
   if (!autorizado) return <Screen><StateView>
-    <Text>Acceso restringido al personal.</Text>
-    <Button title="Iniciar sesión" onPress={() => router.push('/login')} />
+    <Text>Esta sección es para el personal del complejo.</Text>
+    <Button title={usuario ? 'Volver a las canchas' : 'Iniciar sesión'} onPress={() => router.push(usuario ? '/(tabs)' : '/login')} />
   </StateView></Screen>;
 
   return <KeyboardAvoidingView style={uiLayout.grow} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

@@ -104,7 +104,7 @@ async function requestSobre<T>(method: string, endpoint: string, data?: unknown)
       // Sin response = red caída: probá la siguiente base.
     }
   }
-  throw new ApiError('ERROR_DE_RED', 'No se pudo conectar con el servidor.');
+  throw new ApiError('ERROR_DE_RED', 'No pudimos conectarnos. Revisá tu conexión y volvé a intentar.');
 }
 
 async function requestApi<T>(method: string, endpoint: string, data?: unknown): Promise<T> {

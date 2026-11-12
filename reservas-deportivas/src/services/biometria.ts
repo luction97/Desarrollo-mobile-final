@@ -4,12 +4,12 @@ import { Platform } from 'react-native';
 // El acceso operativo no usa la simulación web del login.
 export async function autenticarPersonal(): Promise<boolean> {
   if (Platform.OS === 'web') {
-    throw new Error('El escaneo requiere un dispositivo móvil con biometría configurada.');
+    throw new Error('Usá un dispositivo móvil para leer el QR. Podés confirmar tu identidad con tu contraseña.');
   }
   const disponible = await LocalAuthentication.hasHardwareAsync();
   const enrolado = disponible && await LocalAuthentication.isEnrolledAsync();
   if (!enrolado) {
-    throw new Error('Configurá huella o rostro en el dispositivo para habilitar el escáner. Face ID requiere un development build en iOS.');
+    throw new Error('Configurá huella o rostro en el teléfono, o elegí Usar contraseña.');
   }
   const resultado = await LocalAuthentication.authenticateAsync({
     promptMessage: 'Confirmá tu identidad para registrar ingresos',

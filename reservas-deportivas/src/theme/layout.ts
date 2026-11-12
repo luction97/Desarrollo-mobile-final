@@ -9,4 +9,5 @@ export const layout = {
   tabBarMinHeight: 64,
   codeSize: 200,
   compactCodeSize: 120,
+  courtCardWidth: 220,
 } as const;

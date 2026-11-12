@@ -9,6 +9,8 @@ import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
 import { obtenerEspacios } from '../src/services/espacios';
 import { ZONA, fechaArgentina, fechaLegible } from '../src/utils/fechas';
+import { permisosDe } from '../src/utils/permisos';
+import { etiquetasReserva } from '../src/utils/etiquetas';
 import type { Reserva, Usuario } from '../src/tipos';
 
 function datosDelQr(codigoQr: string) {
@@ -24,7 +26,7 @@ export default function AgendaScreen() {
   const { colors } = useTheme();
   const { usuario } = useAuth();
   const router = useRouter();
-  const autorizado = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
+  const { puedeGestionar: autorizado } = permisosDe(usuario);
   const [fecha, setFecha] = useState(fechaArgentina());
   const [dias] = useState(() => Array.from({ length: 7 }, (_, i) => {
     const dia = new Date(`${fechaArgentina()}T12:00:00-03:00`);
@@ -41,6 +43,7 @@ export default function AgendaScreen() {
   const [marcando, setMarcando] = useState(false);
 
   const cargar = useCallback(async () => {
+    if (!autorizado) { setReservas([]); setTitulares({}); setCargando(false); return; }
     setCargando(true); setError(null);
     try {
       const lista = await operacionesService.listarReservasDelDia(fecha);
@@ -58,12 +61,12 @@ export default function AgendaScreen() {
     } finally {
       setCargando(false);
     }
-  }, [fecha]);
+  }, [fecha, autorizado]);
 
   useFocusEffect(useCallback(() => { void cargar(); }, [cargar]));
 
   const marcarAusente = async () => {
-    if (!confirmacion || marcando) return;
+    if (!autorizado || !confirmacion || marcando) return;
     setMarcando(true);
     try {
       const reserva = await operacionesService.marcarAusente(confirmacion.id);
@@ -81,8 +84,8 @@ export default function AgendaScreen() {
   };
 
   if (!autorizado) return <Screen><StateView>
-    <Text>Acceso restringido al personal.</Text>
-    <Button title="Iniciar sesión" onPress={() => router.push('/login')} />
+    <Text>Esta sección es para el personal del complejo.</Text>
+    <Button title={usuario ? 'Volver a las canchas' : 'Iniciar sesión'} onPress={() => router.push(usuario ? '/(tabs)' : '/login')} />
   </StateView></Screen>;
 
   return <Screen topInset>
@@ -109,11 +112,11 @@ export default function AgendaScreen() {
                 <Text variant="subtitle">{espacios[item.espacioId] ?? 'Espacio no disponible'}</Text>
                 {datos && <Text numeric variant="label" tone="primary">{datos.fecha} · {datos.hora}</Text>}
               </View>
-              <Badge variant={item.estado === 'confirmada' ? 'success' : 'neutral'}>{item.estado.toUpperCase()}</Badge>
+              <Badge variant={item.estado === 'confirmada' ? 'success' : 'neutral'}>{etiquetasReserva[item.estado]}</Badge>
             </View>
             {titular && <View>
               <Text variant="label">{titular.nombre} · {titular.telefono}</Text>
-              <Text variant="label" tone="muted">Ausencias: {titular.ausencias} · Cancelaciones tardías: {titular.cancelacionesTardias}</Text>
+              <Text variant="label" tone="muted">Ausencias: {titular.ausencias} · Cancelaciones fuera de plazo: {titular.cancelacionesTardias}</Text>
             </View>}
             <CodigoQr size="sm" value={item.codigoQr} />
             <Text selectable variant="label" tone="muted">Código: {item.codigoQr}</Text>

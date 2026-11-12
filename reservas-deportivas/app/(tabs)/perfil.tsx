@@ -1,15 +1,16 @@
 import { View, StyleSheet } from 'react-native';
 import { Button, Screen, Surface, Text, uiLayout } from '../../src/components/ui';
-import { layout, radius, spacing, useTheme } from '../../src/theme';
+import { radius, spacing } from '../../src/theme';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
+import { permisosDe } from '../../src/utils/permisos';
+import { etiquetasRol } from '../../src/utils/etiquetas';
 
 export default function PerfilScreen() {
-  const { colors } = useTheme();
   const router = useRouter();
   const { usuario, logout, cargando } = useAuth();
 
-  const esPersonal = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
+  const { puedeGestionar, puedeReservar } = permisosDe(usuario);
 
   return (
     <Screen topInset>
@@ -27,14 +28,14 @@ export default function PerfilScreen() {
             <Surface style={styles.card}>
               <Text variant="subtitle">{usuario.nombre}</Text>
               <Text tone="muted">{usuario.email}</Text>
-              <Text variant="label" tone="muted">Rol: {usuario.rol}</Text>
+              <Text variant="label" tone="muted">{etiquetasRol[usuario.rol]}</Text>
               <Button variant="ghost" title="Cerrar sesión" onPress={() => void logout()} loading={cargando} />
             </Surface>
-            <Surface style={styles.card}>
+            {puedeReservar && <Surface style={styles.card}>
               <Text variant="subtitle">Tu historial</Text>
               <View style={uiLayout.row}>
                 <View style={uiLayout.grow}>
-                  <Text variant="label" tone="muted">Cancelaciones tardías</Text>
+                  <Text variant="label" tone="muted">Cancelaciones fuera de plazo</Text>
                   <Text variant="title" numeric>{usuario.cancelacionesTardias}</Text>
                 </View>
                 <View style={uiLayout.grow}>
@@ -42,13 +43,13 @@ export default function PerfilScreen() {
                   <Text variant="title" numeric>{usuario.ausencias}</Text>
                 </View>
               </View>
-            </Surface>
-            {esPersonal && (
+            </Surface>}
+            {puedeGestionar && (
               <Surface style={styles.card}>
                 <Text variant="subtitle">Gestión</Text>
                 <Button variant="secondary" title="Agenda del día" onPress={() => router.push('/agenda')} />
                 <Button variant="secondary" title="Escanear QR" onPress={() => router.push('/scanner')} />
-                <Button variant="secondary" title="Administración" onPress={() => router.push('/admin')} />
+                <Button variant="secondary" title="Gestionar canchas" onPress={() => router.push('/admin')} />
               </Surface>
             )}
           </>

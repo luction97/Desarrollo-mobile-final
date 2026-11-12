@@ -8,7 +8,7 @@ export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves'
 /** Valida una fecha "AAAA-MM-DD" de calendario real. Devuelve el mensaje de error o null. */
 export function errorDeFecha(fecha: string): string | null {
   if (!FECHA_PATRON.test(fecha) || !Number.isFinite(new Date(`${fecha}T12:00:00-03:00`).getTime())) {
-    return 'Ingresá una fecha válida (AAAA-MM-DD).';
+    return 'Ingresá una fecha válida con año, mes y día, por ejemplo 2026-11-14.';
   }
   return null;
 }

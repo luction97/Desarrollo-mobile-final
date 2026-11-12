@@ -63,10 +63,10 @@ function RootLayoutNav() {
             name="scanner" 
             options={{ title: 'Escanear QR' }}
           />
-          <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
+          <Stack.Screen name="espacio/[id]" options={{ title: 'La cancha' }} />
           
-          <Stack.Screen name="admin" options={{ title: 'Panel Admin' }} />
-          <Stack.Screen name="agenda" options={{ title: 'Agenda y Ausentes' }} />
+          <Stack.Screen name="admin" options={{ title: 'Gestión del complejo' }} />
+          <Stack.Screen name="agenda" options={{ title: 'Agenda del día' }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

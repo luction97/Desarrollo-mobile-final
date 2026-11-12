@@ -143,7 +143,7 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       </View>
       <View style={uiLayout.row}>
         <View style={uiLayout.grow}>
-          <TextField label="Desde (AAAA-MM-DD)" value={formulario.desde} onChangeText={desde => setFormulario(f => ({ ...f, desde }))}
+          <TextField label="Desde (año-mes-día)" value={formulario.desde} onChangeText={desde => setFormulario(f => ({ ...f, desde }))}
             editable={!ocupado} maxLength={10} placeholder="2026-03-01" />
         </View>
         <View style={uiLayout.grow}>
@@ -152,16 +152,15 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
         </View>
       </View>
       <View style={uiLayout.row}>
-        <Button title={editandoId ? 'Guardar cambios' : 'Crear fija'} disabled={ocupado} loading={ocupado} onPress={() => void guardar()} />
+        <Button title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'} disabled={ocupado} loading={ocupado} onPress={() => void guardar()} />
         {editandoId && <Button variant="ghost" title="Cancelar edición" disabled={ocupado} onPress={() => { setEditandoId(null); setFormulario(FORMULARIO_VACIO); }} />}
       </View>
     </>}
 
-    {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="La fija deja de ocupar la grilla. Las reservas ya creadas no cambian."
+    {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="Este horario vuelve a estar disponible. Las reservas ya confirmadas no cambian."
       detalle={`${aBajar.titular} · ${DIAS_SEMANA[aBajar.dia]} ${aBajar.inicio}–${aBajar.fin}`} destructivo
       accionPrincipal="Dar de baja" accionSecundaria="Volver" onConfirmar={darDeBaja} onCerrar={() => setABajar(null)} />}
     {aviso && <DialogoAviso titulo="Reservas fijas" mensaje={aviso} accionPrincipal="Entendido"
       onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}
   </Surface>;
 }
-
