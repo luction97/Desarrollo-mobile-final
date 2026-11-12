@@ -238,7 +238,6 @@ export default function DisponibilidadScreen() {
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
       <View style={uiLayout.grow}>
-        <Text variant="caption" tone="primary">Deporturnos · Villaguay</Text>
         <Text variant="display" accessibilityRole="header">Canchas</Text>
       </View>
       <Button variant="ghost" size="sm" title="Mapa" accessibilityLabel="Mapa de complejos" onPress={() => router.push('/mapa')} />
@@ -253,33 +252,34 @@ export default function DisponibilidadScreen() {
     </View>}
 
     {espacio && <Surface padding="none" style={styles.seleccion}>
-      <PressableSurface onPress={() => setCatalogoAbierto(true)}
-        accessibilityLabel={'Cambiar cancha. Actual: ' + espacio.nombre}
-        style={styles.cambiarCancha}>
-        {fotoSeleccionada && <Image source={fotoSeleccionada} style={styles.miniatura} accessible={false} />}
-        <View style={uiLayout.grow}>
-          <Text variant="label">{espacio.nombre}</Text>
-          <Text variant="caption" tone="muted">{deporteDe(espacio.deporteId)} · {precioLegible(espacio.precioPorHora)}/h</Text>
+      {fotoSeleccionada && <Image source={fotoSeleccionada} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
+      <View style={styles.resumenCancha}>
+        <View style={uiLayout.row}>
+          <View style={uiLayout.grow}>
+            <Text variant="title" accessibilityRole="header">{espacio.nombre}</Text>
+            <Text variant="label" tone="muted">{espacio.complejo && espacio.complejo !== '—' ? espacio.complejo + ' · ' : ''}{precioLegible(espacio.precioPorHora)}/h</Text>
+          </View>
+          <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
         </View>
-        <Text variant="caption" tone="primary">Cambiar</Text>
-        <Ionicons name="chevron-down" size={spacing.lg} color={colors.primary} />
-      </PressableSurface>
-      <View style={[uiLayout.row, styles.accionesCancha]}>
-        <Button variant="ghost" size="sm" title="Ver ficha" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />
-        <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
+        <View style={styles.accionesCancha}>
+          <Button style={uiLayout.grow} variant="secondary" title="Ver detalles"
+            onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />
+          <Button style={uiLayout.grow} variant="ghost" title="Cambiar cancha"
+            accessibilityLabel={'Cambiar cancha. Actual: ' + espacio.nombre} onPress={() => setCatalogoAbierto(true)} />
+        </View>
       </View>
     </Surface>}
     {espacio && <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Días disponibles">
         {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={d.nombre + ' ' + fechaLegible(d.fecha)}
           onPress={() => setFecha(d.fecha)} style={styles.dia}>
-          <Text variant="caption" tone={d.fecha === fecha ? 'primary' : 'muted'}>{d.nombre}</Text>
-          <Text numeric variant="subtitle">{d.fecha.slice(-2)}</Text>
+          <Text variant="label" tone={d.fecha === fecha ? 'primary' : 'muted'}>{d.nombre}</Text>
+          <Text numeric variant="title">{d.fecha.slice(-2)}</Text>
         </PressableSurface>)}
       </ScrollView>
       <View style={uiLayout.row}>
-        <Text variant="subtitle" accessibilityRole="header">Horarios</Text>
-        {!cargando && !error && <Text variant="caption" tone="muted">{cantidadLibres} {cantidadLibres === 1 ? 'libre' : 'libres'}</Text>}
+        <Text variant="title" accessibilityRole="header">Horarios</Text>
+        {!cargando && !error && <Text variant="label" tone="muted">{cantidadLibres} {cantidadLibres === 1 ? 'libre' : 'libres'}</Text>}
       </View>
     </>}
     {turnosLiberados.length > 0 && <Text variant="label" tone="success" accessibilityLiveRegion="polite">
@@ -310,10 +310,10 @@ export default function DisponibilidadScreen() {
           <View style={uiLayout.row}>
             <View style={uiLayout.grow}>
               <Text numeric variant="action" tone={pasado ? 'muted' : 'text'}>{item.inicio}–{item.fin}</Text>
-              {item.motivoBloqueo && <Text variant="caption" tone="muted">{item.motivoBloqueo}</Text>}
-              {!pasado && item.estado === 'libre' && <Text numeric variant="caption" tone="muted">{precio}</Text>}
+              {item.motivoBloqueo && <Text variant="label" tone="muted">{item.motivoBloqueo}</Text>}
+              {!pasado && item.estado === 'libre' && <Text numeric variant="label" tone="muted">{precio}</Text>}
             </View>
-            <Badge size="sm" variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{estado}</Badge>
+            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{estado}</Badge>
             {!deshabilitado && <Ionicons name="chevron-forward" size={spacing.lg} color={colors.primary} />}
           </View>
         </PressableSurface>;
@@ -388,7 +388,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm,
   },
   miniatura: { width: layout.courtThumbnail, height: layout.courtThumbnail, borderRadius: radius.input },
-  accionesCancha: { paddingHorizontal: spacing.sm },
+  fotoPrincipal: { width: '100%', aspectRatio: layout.mediaRatio, maxHeight: layout.mapHeight },
+  resumenCancha: { padding: spacing.md, gap: spacing.sm },
+  accionesCancha: { flexDirection: 'row', gap: spacing.sm },
   horizontal: { gap: spacing.xs },
   dia: {
     ...controlSizes.sm, minWidth: layout.dayWidth, alignItems: 'center',

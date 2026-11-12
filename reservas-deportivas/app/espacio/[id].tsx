@@ -163,10 +163,9 @@ function Detalle({ id }: { id: string }) {
       : null}
     <View style={styles.content}>
       {(galeria.length > 1 || (portada && galeria.length > 0)) && <View style={uiLayout.row}>
-        <Button variant="ghost" size="sm" title="Anterior" accessibilityLabel="Foto anterior"
+        <Button variant="ghost" size="sm" title="‹" accessibilityLabel="Foto anterior"
           disabled={guardando || posicion <= (portada ? -1 : 0)} onPress={() => setIndice(posicion - 1)} />
-        <Text variant="label" style={uiLayout.grow}>{posicion < 0 ? 'Portada' : 'Foto ' + (posicion + 1) + ' de ' + galeria.length}</Text>
-        <Button variant="ghost" size="sm" title="Siguiente" accessibilityLabel="Foto siguiente"
+        <Button variant="ghost" size="sm" title="›" accessibilityLabel="Foto siguiente"
           disabled={guardando || posicion >= galeria.length - 1} onPress={() => setIndice(posicion + 1)} />
       </View>}
       {urlFoto && Platform.OS !== 'web' && <Button variant="ghost" size="sm"
