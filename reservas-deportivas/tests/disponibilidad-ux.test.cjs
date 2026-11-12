@@ -109,27 +109,21 @@ const jugador = { id: 'usr-prueba', nombre: 'Jugador', rol: 'jugador', espaciosF
 const boton = (vista, nombre) => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === nombre);
 const textoVisible = vista => vista.root.findAllByType('NativeText').flatMap(n => n.props.children).flat(Infinity).filter(v => typeof v === 'string').join(' ');
 const carrusel = vista => vista.root.findAllByType('ScrollView').find(n => n.props.accessibilityLabel === 'Carrusel de canchas');
-const layout = shared.theme.layout;
-const estilos = n => Object.assign({}, ...[n.props.style({ pressed: false })].flat(3).filter(o => o && typeof o === 'object'));
-const anchoTarjetaDe = ancho => Math.min(Math.max(ancho * 0.46, layout.courtCardMinWidth), layout.courtCardMaxWidth);
+const estilosSurface = n => Object.assign({}, ...[n.props.style].flat(3).filter(o => o && typeof o === 'object'));
 
-test('deslizar cambia la cancha, mantiene el tamaño fijo de la tarjeta y actualiza el detalle', async () => {
+test('deslizar cambia la cancha conservando el diseno de la ficha y actualiza los horarios', async () => {
   const caso = await montar({ canchas: [espacio, otraCancha] });
   try {
     const lista = caso.vista.root.findByType('FlatList');
     const marco = caso.vista.root.findByProps({ testID: 'marco-canchas' });
     await act(async () => { marco.props.onLayout({ nativeEvent: { layout: { width: 335 } } }); });
-    const ancho = anchoTarjetaDe(335);
-    const tarjeta = () => caso.vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel?.startsWith('Cancha 2,'));
-    assert.ok(tarjeta());
-    assert.equal(estilos(tarjeta()).height, layout.courtCardHeight);
-    assert.equal(Math.round(estilos(tarjeta()).width), Math.round(ancho));
-    await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: ancho + layout.courtCardGap } } }); });
+    const paginas = caso.vista.root.findAllByType(shared.ui.Surface).filter(n => estilosSurface(n).width === 335);
+    assert.equal(paginas.length, 2);
+    assert.equal(caso.vista.root.findAllByType('Pressable').filter(n => n.props.accessibilityLabel === 'Ver detalles').length, 2);
+    await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 335 } } }); });
     assert.equal(lista, caso.vista.root.findByType('FlatList'));
     assert.equal(lista.props.data[0].espacioId, otraCancha.id);
     assert.ok(textoVisible(caso.vista).includes('Seleccionada · 2 de 2'));
-    assert.ok(textoVisible(caso.vista).includes('Cancha 3'));
-    assert.ok(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Ver detalles'));
     assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel?.startsWith('Cambiar cancha')), false);
     assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Cancha anterior'), false);
     assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Cancha siguiente'), false);

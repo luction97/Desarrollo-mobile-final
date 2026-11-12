@@ -76,15 +76,9 @@ export default function DisponibilidadScreen() {
   [espacios, filtroDeporte, filtroComplejo, soloFavoritos, espaciosFavoritos]);
   const indiceCancha = Math.max(0, espaciosFiltrados.findIndex(e => e.id === espacioElegidoId));
   const espacio = espaciosFiltrados[indiceCancha] ?? null;
-  /** Ancho de la tarjeta del carrusel: se adapta al ancho disponible con topes fijos. */
-  const anchoTarjeta = Math.min(
-    Math.max(anchoContenedor * 0.46, layout.courtCardMinWidth),
-    layout.courtCardMaxWidth,
-  );
-  const paso = anchoTarjeta + layout.courtCardGap;
   const indiceDesdeOffset = (x: number) => {
-    if (!espaciosFiltrados.length) return 0;
-    return Math.min(Math.max(Math.round(x / paso), 0), espaciosFiltrados.length - 1);
+    if (!espaciosFiltrados.length || !anchoContenedor) return 0;
+    return Math.min(Math.max(Math.round(x / anchoContenedor), 0), espaciosFiltrados.length - 1);
   };
   const seleccionarCancha = (indice: number, manual = false) => {
     const elegida = espaciosFiltrados[indice];
@@ -99,9 +93,9 @@ export default function DisponibilidadScreen() {
     if (!anchoContenedor) return;
     // El deslizamiento del usuario manda: no se vuelve a posicionar el carrusel.
     if (seleccionManual.current) { seleccionManual.current = false; return; }
-    carrusel.current?.scrollTo({ x: indiceCancha * paso, animated: false });
+    carrusel.current?.scrollTo({ x: indiceCancha * anchoContenedor, animated: false });
     return () => clearTimeout(reposo.current);
-  }, [anchoContenedor, espaciosFiltrados, indiceCancha, paso]);
+  }, [anchoContenedor, espaciosFiltrados, indiceCancha]);
   const espacioId = espacio?.id ?? '';
 
   useEffect(() => { setSoloFavoritos(false); setEspacioId(''); }, [usuario?.id]);
@@ -271,7 +265,6 @@ export default function DisponibilidadScreen() {
     filtroComplejo !== 'todos' ? filtroComplejo : null,
     soloFavoritos ? 'Favoritas' : null,
   ].filter(Boolean) as string[];
-  const fotoSeleccionada = espacio ? fotoDeCancha(espacio) : null;
   const seleccionFiltros = useMemo(() => ({ deporte: filtroDeporte, complejo: filtroComplejo }),
     [filtroDeporte, filtroComplejo]);
   const alternarFavoritos = () => {
@@ -315,10 +308,9 @@ export default function DisponibilidadScreen() {
     {filtrosActivos.length > 0 && <Text variant="caption" tone="muted" numberOfLines={1}>{filtrosActivos.join(' · ')}</Text>}
     {espacio && <View style={styles.canchas}>
       <View onLayout={evento => setAnchoContenedor(evento.nativeEvent.layout.width)} testID="marco-canchas">
-        <ScrollView ref={carrusel} horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carrusel} accessibilityLabel="Carrusel de canchas"
-          snapToInterval={paso} snapToAlignment="start" decelerationRate="fast"
-          scrollEventThrottle={32}
+        <ScrollView ref={carrusel} horizontal pagingEnabled directionalLockEnabled
+          showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carrusel}
+          accessibilityLabel="Carrusel de canchas" scrollEventThrottle={32}
           onScroll={evento => {
             const x = evento.nativeEvent.contentOffset.x;
             clearTimeout(reposo.current);
@@ -328,38 +320,31 @@ export default function DisponibilidadScreen() {
             clearTimeout(reposo.current);
             seleccionarCancha(indiceDesdeOffset(evento.nativeEvent.contentOffset.x), true);
           }}>
-          {(anchoContenedor ? espaciosFiltrados : [espacio]).map((e, indice) => {
+          {(anchoContenedor ? espaciosFiltrados : [espacio]).map(e => {
             const foto = fotoDeCancha(e);
             const elegida = e.id === espacio.id;
             const complejo = e.complejo && e.complejo !== '—' ? e.complejo : deporteDe(e.deporteId);
-            return <PressableSurface key={e.id} selected={elegida}
-              accessibilityLabel={`${nombreCorto(e)}, ${complejo}, ${precioLegible(e.precioPorHora)} por hora${elegida ? ', seleccionada' : ''}`}
-              onPress={() => seleccionarCancha(indice)} style={[styles.tarjetaCancha, { width: anchoTarjeta }]}>
-              {foto && <Image source={foto} style={styles.miniaturaCancha} resizeMode="cover" accessible={false} />}
-              <View style={styles.datosCancha}>
-                <Text variant="label" numberOfLines={2}>{nombreCorto(e)}</Text>
-                <Text variant="caption" tone="primary">{precioLegible(e.precioPorHora)}/h</Text>
+            return <Surface key={e.id} padding="none" variant="outlined"
+              accessibilityState={{ selected: elegida }}
+              style={[styles.detalle, { width: anchoContenedor || undefined, borderColor: elegida ? colors.primary : colors.border }]}>
+              {foto && <Image source={foto} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
+              <View style={styles.resumenCancha}>
+                <View style={uiLayout.row}>
+                  <View style={uiLayout.grow}>
+                    <Text variant="title" accessibilityRole="header">{nombreCorto(e)}</Text>
+                    <Text variant="label" tone="muted">{complejo} · {precioLegible(e.precioPorHora)}/h</Text>
+                    <Text variant="label" tone="muted">{deporteDe(e.deporteId)} · {e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
+                  </View>
+                  <FavoritoToggle espacioId={e.id} nombre={e.nombre} />
+                </View>
+                <Button variant="secondary" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
               </View>
-            </PressableSurface>;
+            </Surface>;
           })}
         </ScrollView>
       </View>
       <Text variant="caption" tone="muted" accessibilityLiveRegion="polite">{`Seleccionada · ${indiceCancha + 1} de ${espaciosFiltrados.length}`}</Text>
     </View>}
-    {espacio && <Surface padding="none" variant="outlined" style={styles.detalle}>
-      {fotoSeleccionada && <Image source={fotoSeleccionada} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
-      <View style={styles.resumenCancha}>
-        <View style={uiLayout.row}>
-          <View style={uiLayout.grow}>
-            <Text variant="title" accessibilityRole="header">{nombreCorto(espacio)}</Text>
-            <Text variant="label" tone="muted">{espacio.complejo && espacio.complejo !== '—' ? espacio.complejo + ' · ' : ''}{precioLegible(espacio.precioPorHora)}/h</Text>
-            <Text variant="label" tone="muted">{deporteDe(espacio.deporteId)} · {espacio.superficie} · {espacio.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
-          </View>
-          <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
-        </View>
-        <Button variant="secondary" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />
-      </View>
-    </Surface>}
     {espacio && <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Días disponibles">
         {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={d.nombre + ' ' + fechaLegible(d.fecha)}
@@ -445,13 +430,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderCurve: borders.curve,
   },
   canchas: { gap: spacing.xs },
-  carrusel: { gap: layout.courtCardGap, paddingVertical: spacing.xs },
-  tarjetaCancha: {
-    padding: 0, height: layout.courtCardHeight, overflow: 'hidden',
-    borderRadius: radius.card, borderCurve: borders.curve,
-  },
-  miniaturaCancha: { width: '100%', height: layout.courtCardImageHeight },
-  datosCancha: { flex: 1, padding: spacing.sm, gap: 2 },
+  carrusel: { paddingVertical: spacing.xs },
   detalle: { overflow: 'hidden' },
   fotoPrincipal: { width: '100%', aspectRatio: 1.6, maxHeight: layout.mapHeight },
   resumenCancha: { padding: spacing.md, gap: spacing.sm },
