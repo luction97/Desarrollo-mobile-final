@@ -63,8 +63,10 @@ export async function sincronizarReservas(usuarioId: string, vigente = () => tru
     api.listarTodo<Reserva>('/yo/reservas?cuando=pasadas'),
   ]);
   const anteriores = await reservasGuardadas(usuarioId);
-  let espacios = await obtenerEspaciosLocales();
-  try { espacios = (await obtenerEspacios()).datos; } catch { /* El QR no depende de descargar el catálogo. */ }
+  let espacios = await obtenerEspaciosLocales().catch(() => []);
+  if (!espacios.length) {
+    try { espacios = (await obtenerEspacios()).datos; } catch { /* El QR no depende del catálogo. */ }
+  }
   const propias = new Map([...proximas, ...pasadas].filter(r => r.usuarioId === usuarioId).map(r => [r.id, r]));
   const datos = [...propias.values()].map(r => {
     const anterior = anteriores.find(a => a.reserva.id === r.id);
@@ -73,10 +75,16 @@ export async function sincronizarReservas(usuarioId: string, vigente = () => tru
       ? { ...anterior, reserva: r, espacio }
       : presentarReserva(r, espacio);
   });
-  const guardadas = vigente() && await guardar(usuarioId, datos, desdeRevision);
-  if (!guardadas) return { datos: await reservasGuardadas(usuarioId), cambios: [], actualizada: false };
+  const guardadas = vigente() && await guardar(usuarioId, datos, desdeRevision).catch(() => null);
+  if (guardadas === false) return { datos: await reservasGuardadas(usuarioId), cambios: [], actualizada: false, guardadas: true };
   const cambios = datos.filter(d => d.reserva.estado === 'cancelada' &&
     anteriores.some(a => a.reserva.id === d.reserva.id && a.reserva.estado === 'confirmada'));
+  for (const anterior of anteriores) {
+    if (!vigente() || revision !== desdeRevision) break;
+    if (anterior.reserva.estado === 'confirmada' && !propias.has(anterior.reserva.id)) {
+      await notificacionesService.cancelarRecordatorio(anterior.reserva.id).catch(() => undefined);
+    }
+  }
   for (const d of datos) {
     if (!vigente() || revision !== desdeRevision) break;
     if (d.reserva.estado === 'confirmada' && d.turno) {
@@ -88,7 +96,7 @@ export async function sincronizarReservas(usuarioId: string, vigente = () => tru
       await notificacionesService.cancelarRecordatorio(d.reserva.id).catch(() => undefined);
     }
   }
-  return { datos, cambios, actualizada: true };
+  return { datos, cambios, actualizada: true, guardadas: guardadas === true };
 }
 
 export async function cancelarReserva(dato: ReservaGuardada) {

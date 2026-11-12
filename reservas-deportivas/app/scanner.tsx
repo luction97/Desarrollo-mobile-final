@@ -209,5 +209,5 @@ const styles = StyleSheet.create({
   escaneo: { flexGrow: 1, paddingBottom: spacing.lg },
   panel: { padding: spacing.xl, gap: spacing.md },
   action: { marginHorizontal: spacing.xl, marginBottom: spacing.sm },
-  camera: { flex: 1, minHeight: layout.cameraMinHeight, margin: spacing.xl, borderRadius: radius.card, overflow: 'hidden' },
+  camera: { flexGrow: 1, minHeight: layout.cameraMinHeight, aspectRatio: 1, margin: spacing.xl, borderRadius: radius.card, overflow: 'hidden' },
 });

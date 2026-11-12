@@ -209,6 +209,18 @@ test('sincronizar recupera un recordatorio faltante y conserva el existente sin 
   assert.ok(!caso.llamadas.some(([nombre]) => nombre === 'solicitar'));
 });
 
+test('una cancelación detectada al actualizar se informa una sola vez', async () => {
+  const caso = entorno();
+  const cancelada = { ...reserva, estado: 'cancelada' };
+  const reservas = cargarReservas(caso, {
+    datos: [guardada],
+    api: { listarTodo: async ruta => ruta.endsWith('pasadas') ? [cancelada] : [] },
+  });
+  assert.equal((await reservas.sincronizarReservas(usuario.id)).cambios[0].reserva.id, reserva.id);
+  assert.deepEqual((await reservas.sincronizarReservas(usuario.id)).cambios, []);
+  assert.equal((await reservas.reservasGuardadas(usuario.id))[0].reserva.estado, 'cancelada');
+});
+
 test('reabrir con reservas confirmadas futuras prepara el handler sin reprogramar ni pedir permisos', async () => {
   const caso = entorno();
   const reservas = cargarReservas(caso, { datos: [guardada] });

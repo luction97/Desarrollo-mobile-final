@@ -74,8 +74,8 @@ interface Sobre<T> {
 }
 
 async function requestSobre<T>(method: string, endpoint: string, data?: unknown): Promise<Sobre<T>> {
-  // La base elegida va primero; si no responde, se prueban las otras.
-  const orden = [baseActual, ...CANDIDATOS_BASE.filter((base) => base !== baseActual)];
+  // Las lecturas pueden buscar la API de desarrollo; las escrituras se envían una vez.
+  const orden = method === 'GET' ? [baseActual, ...CANDIDATOS_BASE.filter(base => base !== baseActual)] : [baseActual];
   for (const base of orden) {
     const url = `${base}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
     try {

@@ -46,8 +46,10 @@ async function montarDetalle(rol) {
     'expo': { useEvent: () => ({ status: 'readyToPlay' }) },
     '../../src/hooks/useSinRed': { useSinRed: () => false },
     '../../src/services/archivos': { subirFoto: async uri => { llamadas.push(uri); return { url: 'https://ejemplo.test/archivo' }; } },
+    '../../src/services/api': { ApiError: class ApiError extends Error {} },
     'expo-video': { useVideoPlayer: () => player, VideoView: 'VideoView' },
     'expo-image-picker': {
+      UIImagePickerPreferredAssetRepresentationMode: { Compatible: 'compatible' },
       requestCameraPermissionsAsync: async () => { llamadas.push('permiso'); return { granted: true }; },
       launchCameraAsync: foto, launchImageLibraryAsync: foto,
     },

@@ -48,6 +48,7 @@ export default function MisReservasScreen() {
       if (!vigentes()) return;
       setDatos(actuales.datos);
       setLocal(!actuales.actualizada);
+      if (!actuales.guardadas) setError('No pudimos actualizar la copia sin conexión.');
       if (actuales.cambios.length) {
         setMensaje(actuales.cambios.map(d => [
           d.espacio?.nombre ?? 'Cancha',
@@ -70,6 +71,11 @@ export default function MisReservasScreen() {
 
   const cancelar = async () => {
     if (!puedeReservar || !confirmacion || ocupado.current || local || sinRed) return;
+    if (Date.now() > Date.parse(confirmacion.reserva.cancelableHasta)) {
+      setConfirmacion(null);
+      setMensaje('El plazo para cancelar terminó. Contactá al encargado.');
+      return;
+    }
     ocupado.current = true; setCancelando(true);
     try {
       const resultado = await cancelarReserva(confirmacion);
@@ -92,6 +98,8 @@ export default function MisReservasScreen() {
 
   const esProxima = (d: ReservaGuardada) => d.reserva.estado === 'confirmada' &&
     (!d.turno || new Date(instanteTurno(d.turno.fecha, d.turno.inicio).getTime() + 60 * 60 * 1000) > ahora);
+  const futuras = datos.filter(d => d.reserva.usuarioId === usuario.id && d.reserva.estado === 'confirmada' &&
+    d.turno && instanteTurno(d.turno.fecha, d.turno.inicio) > ahora).length;
   const visibles = datos.filter(d => d.reserva.usuarioId === usuario.id && (pasadas ? !esProxima(d) : esProxima(d))).sort((a, b) =>
     (pasadas ? -1 : 1) * a.reserva.cancelableHasta.localeCompare(b.reserva.cancelableHasta));
 
@@ -103,6 +111,9 @@ export default function MisReservasScreen() {
         <Chip selected={pasadas} onPress={() => setPasadas(true)}>Pasadas</Chip>
         <Button size="sm" variant="ghost" title="Actualizar" onPress={cargar} />
       </View>
+      {!pasadas && futuras > 0 && <Text variant="label" tone="muted">
+        {futuras} {futuras === 1 ? 'reserva futura confirmada' : 'reservas futuras confirmadas'}
+      </Text>}
       {local && <Text variant="label" tone="warning" accessibilityLiveRegion="polite">Reservas guardadas · Conectate para actualizarlas</Text>}
       {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     </View>
@@ -126,7 +137,7 @@ export default function MisReservasScreen() {
         <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
         {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
           ? <Button title="Cancelar reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />
-          : <Text tone="muted">Para cancelar, avisá al encargado.</Text>)}
+          : <Text tone="muted">Contactá al encargado para cancelar.</Text>)}
         {item.espacio && <Button title="Cómo llegar" variant="secondary" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.espacio!.id } })} />}
       </Surface>} />
     {confirmacion && !cancelando && <DialogoAviso titulo="Cancelar reserva" mensaje="¿Querés cancelar este turno?" accionPrincipal="Cancelar reserva" accionSecundaria="Volver"

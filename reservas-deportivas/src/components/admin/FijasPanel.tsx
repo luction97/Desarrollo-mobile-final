@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
@@ -32,16 +32,20 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [aBajar, setABajar] = useState<ReservaFija | null>(null);
+  const generacion = useRef(0);
+  const operando = useRef(false);
 
   const cargar = useCallback(async () => {
+    const version = ++generacion.current;
     if (!espacioId) { setFijas([]); setCargando(false); return; }
     setCargando(true); setError(null);
     try {
-      setFijas(await fijasService.listar(espacioId));
+      const lista = await fijasService.listar(espacioId);
+      if (version === generacion.current) setFijas(lista);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar las reservas fijas.');
+      if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudieron cargar las reservas fijas.');
     } finally {
-      setCargando(false);
+      if (version === generacion.current) setCargando(false);
     }
   }, [espacioId]);
 
@@ -49,6 +53,7 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
     setEditandoId(null);
     setFormulario(FORMULARIO_VACIO);
     void cargar();
+    return () => { generacion.current++; };
   }, [cargar]);
 
   const editar = (fija: ReservaFija) => {
@@ -57,7 +62,9 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
   };
 
   const guardar = async () => {
-    if (ocupado || !espacioId) return;
+    if (!editable || operando.current || !espacioId || cargando || error) return;
+    if (editandoId && !fijas.some(fija => fija.id === editandoId && fija.espacioId === espacioId)) return;
+    operando.current = true;
     setOcupado(true);
     const datos: DatosFija = {
       espacioId,
@@ -83,11 +90,13 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       setAviso(e instanceof Error ? e.message : 'No se pudo guardar la reserva fija.');
     } finally {
       setOcupado(false);
+      operando.current = false;
     }
   };
 
   const darDeBaja = async () => {
-    if (!aBajar || ocupado) return;
+    if (!editable || !aBajar || operando.current || aBajar.espacioId !== espacioId || cargando || error) return;
+    operando.current = true;
     setOcupado(true);
     try {
       await fijasService.darDeBaja(aBajar.id);
@@ -99,6 +108,7 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       setAviso(e instanceof Error ? e.message : 'No se pudo dar de baja la reserva fija.');
     } finally {
       setOcupado(false);
+      operando.current = false;
     }
   };
 
@@ -111,7 +121,7 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       <Button title="Reintentar" variant="secondary" onPress={cargar} />
     </>}
     {!cargando && !error && !fijas.length && <Text tone="muted">Sin reservas fijas activas en esta cancha.</Text>}
-    {fijas.map(fija => <View key={fija.id} style={[uiLayout.fila, { borderColor: colors.border }]}>
+    {!cargando && !error && fijas.map(fija => <View key={fija.id} style={[uiLayout.fila, { borderColor: colors.border }]}>
       <View style={uiLayout.grow}>
         <Text variant="subtitle">{fija.titular}</Text>
         <Text numeric variant="label" tone="primary">{DIAS_SEMANA[fija.dia]} · {fija.inicio}–{fija.fin}</Text>
@@ -152,12 +162,12 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
         </View>
       </View>
       <View style={uiLayout.row}>
-        <Button title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'} disabled={ocupado} loading={ocupado} onPress={() => void guardar()} />
+        <Button title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'} disabled={ocupado || cargando || !!error} loading={ocupado} onPress={() => void guardar()} />
         {editandoId && <Button variant="ghost" title="Cancelar edición" disabled={ocupado} onPress={() => { setEditandoId(null); setFormulario(FORMULARIO_VACIO); }} />}
       </View>
     </>}
 
-    {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="Este horario vuelve a estar disponible. Las reservas ya confirmadas no cambian."
+    {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="La serie dejará de ocupar esos horarios. Los demás bloqueos y reservas se conservan."
       detalle={`${aBajar.titular} · ${DIAS_SEMANA[aBajar.dia]} ${aBajar.inicio}–${aBajar.fin}`} destructivo
       accionPrincipal="Dar de baja" accionSecundaria="Volver" onConfirmar={darDeBaja} onCerrar={() => setABajar(null)} />}
     {aviso && <DialogoAviso titulo="Reservas fijas" mensaje={aviso} accionPrincipal="Entendido"

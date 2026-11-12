@@ -13,6 +13,7 @@ import { useSinRed } from '../../src/hooks/useSinRed';
 import { obtenerEspacio, obtenerEspacioLocal } from '../../src/services/espacios';
 import { borrarDescarga, borrarFoto, guardarDescarga, guardarFoto, obtenerDescarga, obtenerFoto } from '../../src/services/medios';
 import { subirFoto } from '../../src/services/archivos';
+import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales } from '../../src/services/mapas';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
@@ -64,6 +65,7 @@ function Detalle({ id }: { id: string }) {
         setLocal(respuesta.local);
         if (!respuesta.local) void guardarPuntosLocales(puntosDeEspacios([respuesta.datos]));
       } catch (e) {
+        if (activo && e instanceof ApiError && e.codigo === 'ESPACIO_NO_ENCONTRADO') setEspacio(null);
         if (activo) setError(e instanceof Error ? e.message : 'No pudimos cargar la cancha.');
       }
     }
@@ -115,7 +117,8 @@ function Detalle({ id }: { id: string }) {
       const permiso = await ImagePicker.requestCameraPermissionsAsync();
       if (!permiso.granted) { setAviso('Permití usar la cámara o elegí una foto de la galería.'); return; }
     }
-    const opciones: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7 };
+    const opciones: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7,
+      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible };
     const foto = await (camara ? ImagePicker.launchCameraAsync(opciones) : ImagePicker.launchImageLibraryAsync(opciones));
     if (foto.canceled) return;
     setFotoLocal(await guardarFoto(id, foto.assets[0].uri));

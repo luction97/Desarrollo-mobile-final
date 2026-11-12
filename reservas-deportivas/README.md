@@ -39,6 +39,14 @@ API: <http://localhost:3000> · Salud: <http://localhost:3000/salud>
 curl http://localhost:3000/salud
 ```
 
+## URL de entrega
+
+Definí `EXPO_PUBLIC_API_URL` como variable de texto plano en el entorno EAS
+`preview` o `production` correspondiente. Usá la URL base pública HTTPS de la
+API de cátedra, accesible desde otra red. La configuración de Expo valida el
+formato al cargar el perfil. Comprobá la conexión real en un teléfono durante
+la etapa de aceptación.
+
 ## Si no conecta
 
 - Firewall de Windows: permitir `node.exe` (Metro/Expo) y **Docker Desktop**

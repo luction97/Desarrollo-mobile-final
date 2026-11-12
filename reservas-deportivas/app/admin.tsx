@@ -7,7 +7,7 @@ import { BloqueosPanel } from '../src/components/admin/BloqueosPanel';
 import { FijasPanel } from '../src/components/admin/FijasPanel';
 import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
-import { obtenerEspacios } from '../src/services/espacios';
+import { guardarEspacioActualizado, obtenerEspacios } from '../src/services/espacios';
 import { precioLegible } from '../src/utils/dinero';
 import { permisosDe } from '../src/utils/permisos';
 import { spacing, useTheme } from '../src/theme';
@@ -49,6 +49,7 @@ export default function AdminScreen() {
     try {
       const actualizado = await operacionesService.cambiarPrecio(espacio.id, Number(precio));
       setEspacios(datos => datos.map(e => e.id === actualizado.id ? actualizado : e));
+      await guardarEspacioActualizado(actualizado).catch(() => undefined);
       setPrecio(''); setMensaje('Precio actualizado.');
     } catch (e) {
       setMensaje(e instanceof Error ? e.message : 'No se pudo cambiar el precio.');

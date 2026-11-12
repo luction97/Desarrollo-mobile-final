@@ -80,7 +80,7 @@ export default function DisponibilidadScreen() {
       const canchas = catalogoDeEspacios(datos);
       setEspacios(canchas);
       if (canchas.length) setCargandoCatalogo(false);
-      setEspacioId(actual => canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
+      setEspacioId(actual => actual || canchas.find(e => e.id === favorito)?.id || '');
     };
     const cargar = async () => {
       setCargandoCatalogo(true); setErrorCatalogo(null);
@@ -339,9 +339,11 @@ export default function DisponibilidadScreen() {
       ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
         : !espacio && errorCatalogo ? null
-        : !espacio ? <StateView><Text tone="muted">{soloFavoritos && !usuario?.espaciosFavoritos.length
+        : !espacio ? <StateView><Text tone="muted">{!espacios.length ? 'No hay canchas disponibles en el catálogo.'
+          : soloFavoritos && !usuario?.espaciosFavoritos.length
           ? 'Todavía no tenés favoritas. Tocá el corazón de una cancha para guardarla.'
-          : 'No hay canchas con estos filtros.'}</Text><Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} /></StateView>
+          : 'No hay canchas con estos filtros.'}</Text>{espacios.length > 0 &&
+            <Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} />}</StateView>
         : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No quedan horarios para mostrar en esta fecha.'}</Text></StateView>}
       ListFooterComponent={espacio && !cargando && !error && anteriores.length > 0
         ? <Button variant="ghost" title={verAnteriores ? 'Ocultar anteriores' : 'Ver anteriores'}
