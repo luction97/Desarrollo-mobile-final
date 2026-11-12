@@ -92,9 +92,12 @@ export function Mapa({ puntos }: { puntos: PuntoMapa[] }) {
     </Text>}
     {(estado === 'error' || sinRed) && <Accion titulo="Reintentar mapa" onPress={() => setIntento(n => n + 1)} />}
     {mensaje && <Text tone="muted" variant="label" accessibilityLiveRegion="polite">{mensaje}</Text>}
-    <Accion titulo={buscando ? 'Obteniendo ubicación…' : 'Mostrar mi ubicación'} onPress={() => void localizar()} disabled={buscando} />
+    <Accion titulo={buscando ? 'Obteniendo ubicación…' : ubicacion ? 'Ocultar mi ubicación' : 'Mostrar mi ubicación'}
+      onPress={() => {
+        if (ubicacion) { setUbicacion(null); setMensaje(null); return; }
+        void localizar();
+      }} disabled={buscando} />
     {ajustes && <Accion titulo="Abrir ajustes de ubicación" onPress={() => { void Linking.openSettings().catch(() => setMensaje('Abrí los permisos desde los ajustes del dispositivo.')); }} />}
-    {ubicacion && <Accion titulo="Ocultar mi ubicación" onPress={() => { setUbicacion(null); setMensaje(null); }} />}
     {ordenados.map((p, indice) => <Surface variant="outlined" key={p.id} style={[styles.punto, seleccion === p.id && { borderColor: colors.primary, borderWidth: borders.focus }]}>
       <Text variant="action">{p.nombre}</Text>
       {ubicacion && <>

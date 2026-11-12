@@ -71,6 +71,7 @@ async function montarDetalle(rol) {
     '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
     '../../src/utils/dinero': dinero,
     '../../src/canchas/imagenes': { fotoDeDeporte: () => null, portadaDeEjemplo: () => null },
+    '../../src/canchas/modelo': cargar('src/canchas/modelo.ts', {}),
   }).default;
   let vista;
   await act(async () => { vista = create(React.createElement(Pantalla)); });

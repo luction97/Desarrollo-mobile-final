@@ -17,6 +17,7 @@ import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales } from '../../src/services/mapas';
 import { fotoDeDeporte, portadaDeEjemplo } from '../../src/canchas/imagenes';
+import { nombreCorto } from '../../src/canchas/modelo';
 import { precioLegible } from '../../src/utils/dinero';
 import { permisosDe } from '../../src/utils/permisos';
 import type { Espacio } from '../../src/tipos';
@@ -179,7 +180,7 @@ function Detalle({ id }: { id: string }) {
 
       <View style={uiLayout.row}>
         <View style={uiLayout.grow}>
-          <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>
+          <Text variant="display" accessibilityRole="header">{nombreCorto(espacio)}</Text>
           <Text tone="muted">{espacio.complejo}</Text>
         </View>
         <FavoritoToggle espacioId={id} nombre={espacio.nombre} />

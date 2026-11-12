@@ -23,3 +23,12 @@ export function familiaDeDeporte(deporteId: string): FamiliaDeporte | null {
 export function catalogoDeEspacios(espacios: Espacio[]): Espacio[] {
   return [...espacios].filter(e => e.activo).sort((a, b) => a.id.localeCompare(b.id));
 }
+
+/**
+ * Nombre para mostrar: sin el sufijo del deporte ("Cancha 1 - Fútbol 5" → "Cancha 1"),
+ * porque el deporte ya figura aparte en la descripción de la cancha.
+ */
+export function nombreCorto(espacio: Pick<Espacio, 'nombre'>): string {
+  const [base] = espacio.nombre.split(/\s+[-–—]\s+/);
+  return base?.trim() || espacio.nombre;
+}

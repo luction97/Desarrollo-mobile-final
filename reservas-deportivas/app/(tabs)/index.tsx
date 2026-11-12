@@ -3,8 +3,9 @@ import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
-import { Badge, Button, Chip, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
+import { Badge, Button, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
+import { FiltrosCancha } from '../../src/components/FiltrosCancha';
 import { ReservaDialog } from '../../src/components/ReservaDialog';
 import { borders, controlSizes, layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
@@ -20,7 +21,7 @@ import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 import { permisosDe } from '../../src/utils/permisos';
 import { etiquetasTurno } from '../../src/utils/etiquetas';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
-import { catalogoDeEspacios } from '../../src/canchas/modelo';
+import { catalogoDeEspacios, nombreCorto } from '../../src/canchas/modelo';
 import { FavoritoToggle } from '../../src/components/favoritos';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
@@ -271,6 +272,15 @@ export default function DisponibilidadScreen() {
     soloFavoritos ? 'Favoritas' : null,
   ].filter(Boolean) as string[];
   const fotoSeleccionada = espacio ? fotoDeCancha(espacio) : null;
+  const seleccionFiltros = useMemo(() => ({ deporte: filtroDeporte, complejo: filtroComplejo }),
+    [filtroDeporte, filtroComplejo]);
+  const alternarFavoritos = () => {
+    if (!usuario) {
+      setAviso({ titulo: 'Ingresá para ver tus favoritas', mensaje: 'Necesitás una sesión para filtrar por tus canchas favoritas.' });
+      return;
+    }
+    setSoloFavoritos(v => !v);
+  };
 
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
@@ -288,37 +298,21 @@ export default function DisponibilidadScreen() {
       <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
     </View>}
 
-    {espacios.length > 0 && <View style={styles.filtros}>
-      <View style={styles.filaFiltros}>
-        <PressableSurface onPress={() => setFiltrosAbiertos(v => !v)}
-          accessibilityLabel={filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
-          accessibilityState={{ expanded: filtrosAbiertos }} style={styles.botonFiltros}>
-          <Ionicons name="options-outline" size={spacing.lg} color={colors.primary} />
-          <Text variant="label" tone="primary">Filtros</Text>
-          {filtrosActivos.length > 0 && <Badge size="sm" variant="neutral">{String(filtrosActivos.length)}</Badge>}
-          <Ionicons name={filtrosAbiertos ? 'chevron-up' : 'chevron-down'} size={spacing.lg} color={colors.primary} />
-        </PressableSurface>
-        {filtrosActivos.length > 0 && <Button variant="ghost" size="sm" title="Limpiar" onPress={limpiarFiltros} />}
-      </View>
-      {filtrosActivos.length > 0 && <Text variant="caption" tone="muted" numberOfLines={1}>{filtrosActivos.join(' · ')}</Text>}
-      {filtrosAbiertos && <Surface variant="outlined" style={styles.panelFiltros}>
-        <Text variant="label" tone="muted">Deporte</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por deporte">
-          <Chip accessibilityLabel="Todos los deportes" selected={filtroDeporte === 'todos'} onPress={() => setFiltroDeporte('todos')}>Todos</Chip>
-          {deportesDisponibles.map(id =>
-            <Chip key={id} accessibilityLabel={deporteDe(id)} selected={id === filtroDeporte}
-              onPress={() => setFiltroDeporte(id)}>{deporteDe(id)}</Chip>)}
-        </ScrollView>
-        <Text variant="label" tone="muted">Complejo</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por complejo">
-          {complejosDisponibles.map(comp => <Chip key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp}
-            selected={comp === filtroComplejo} onPress={() => setFiltroComplejo(comp)}>
-            {comp === 'todos' ? 'Todos los complejos' : comp}
-          </Chip>)}
-        </ScrollView>
-        {usuario && <Chip accessibilityLabel="Solo favoritos" selected={soloFavoritos} onPress={() => setSoloFavoritos(v => !v)}>Solo favoritos</Chip>}
-      </Surface>}
+    {espacios.length > 0 && <View style={styles.barraFiltros}>
+      <PressableSurface onPress={() => setFiltrosAbiertos(true)}
+        accessibilityLabel="Filtros" accessibilityState={{ expanded: filtrosAbiertos }} style={styles.botonHerramienta}>
+        <Ionicons name="options-outline" size={spacing.lg} color={colors.primary} />
+        <Text variant="label" tone="primary">Filtros</Text>
+        {filtrosActivos.length > 0 && <Badge size="sm" variant="neutral">{String(filtrosActivos.length)}</Badge>}
+      </PressableSurface>
+      <PressableSurface onPress={alternarFavoritos} selected={soloFavoritos}
+        accessibilityLabel="Favoritos" accessibilityState={{ selected: soloFavoritos }} style={styles.botonHerramienta}>
+        <Ionicons name={soloFavoritos ? 'heart' : 'heart-outline'} size={spacing.lg}
+          color={soloFavoritos ? colors.primary : colors.muted} />
+        <Text variant="label" tone={soloFavoritos ? 'primary' : 'muted'}>Favoritos</Text>
+      </PressableSurface>
     </View>}
+    {filtrosActivos.length > 0 && <Text variant="caption" tone="muted" numberOfLines={1}>{filtrosActivos.join(' · ')}</Text>}
     {espacio && <View style={styles.canchas}>
       <View onLayout={evento => setAnchoContenedor(evento.nativeEvent.layout.width)} testID="marco-canchas">
         <ScrollView ref={carrusel} horizontal showsHorizontalScrollIndicator={false}
@@ -339,11 +333,11 @@ export default function DisponibilidadScreen() {
             const elegida = e.id === espacio.id;
             const complejo = e.complejo && e.complejo !== '—' ? e.complejo : deporteDe(e.deporteId);
             return <PressableSurface key={e.id} selected={elegida}
-              accessibilityLabel={`${e.nombre}, ${complejo}, ${precioLegible(e.precioPorHora)} por hora${elegida ? ', seleccionada' : ''}`}
+              accessibilityLabel={`${nombreCorto(e)}, ${complejo}, ${precioLegible(e.precioPorHora)} por hora${elegida ? ', seleccionada' : ''}`}
               onPress={() => seleccionarCancha(indice)} style={[styles.tarjetaCancha, { width: anchoTarjeta }]}>
               {foto && <Image source={foto} style={styles.miniaturaCancha} resizeMode="cover" accessible={false} />}
               <View style={styles.datosCancha}>
-                <Text variant="label" numberOfLines={2}>{e.nombre}</Text>
+                <Text variant="label" numberOfLines={2}>{nombreCorto(e)}</Text>
                 <Text variant="caption" tone="primary">{precioLegible(e.precioPorHora)}/h</Text>
               </View>
             </PressableSurface>;
@@ -357,7 +351,7 @@ export default function DisponibilidadScreen() {
       <View style={styles.resumenCancha}>
         <View style={uiLayout.row}>
           <View style={uiLayout.grow}>
-            <Text variant="title" accessibilityRole="header">{espacio.nombre}</Text>
+            <Text variant="title" accessibilityRole="header">{nombreCorto(espacio)}</Text>
             <Text variant="label" tone="muted">{espacio.complejo && espacio.complejo !== '—' ? espacio.complejo + ' · ' : ''}{precioLegible(espacio.precioPorHora)}/h</Text>
             <Text variant="label" tone="muted">{deporteDe(espacio.deporteId)} · {espacio.superficie} · {espacio.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
           </View>
@@ -431,19 +425,25 @@ export default function DisponibilidadScreen() {
         setAviso(null);
         if (aviso.reservaId) router.push({ pathname: '/(tabs)/two', params: { reservaId: aviso.reservaId } });
       }} />}
+    <FiltrosCancha
+      visible={filtrosAbiertos}
+      deportes={deportesDisponibles.map(id => ({ id, nombre: deporteDe(id) }))}
+      complejos={complejosDisponibles}
+      canchas={espacios}
+      seleccion={seleccionFiltros}
+      onAplicar={aplicado => { setFiltroDeporte(aplicado.deporte); setFiltroComplejo(aplicado.complejo); }}
+      onCerrar={() => setFiltrosAbiertos(false)} />
   </Screen>;
 }
 
 const styles = StyleSheet.create({
   cabecera: { paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.md },
-  filtros: { gap: spacing.sm },
-  filaFiltros: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  botonFiltros: {
+  barraFiltros: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+  botonHerramienta: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     borderRadius: radius.input, borderCurve: borders.curve,
   },
-  panelFiltros: { gap: spacing.sm, padding: spacing.md },
   canchas: { gap: spacing.xs },
   carrusel: { gap: layout.courtCardGap, paddingVertical: spacing.xs },
   tarjetaCancha: {

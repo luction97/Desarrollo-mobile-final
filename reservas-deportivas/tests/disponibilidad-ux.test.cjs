@@ -38,6 +38,7 @@ const espacio = {
 const fechas = cargar('src/utils/fechas.ts', {});
 const modeloCanchas = cargar('src/canchas/modelo.ts', {});
 const imagenesCanchas = { fotoDeCancha: () => null, portadaDeEjemplo: () => null };
+const filtrosCancha = cargar('src/components/FiltrosCancha.tsx', { 'react-native': nativos });
 
 async function montar({ fallar = false, usuario = null, canchas = [espacio], params = {}, estado = 'libre' } = {}) {
   const navegaciones = [];
@@ -65,6 +66,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
       obtenerDeportes: async () => [{ id: 'dep-futbol5', nombre: 'Fútbol 5' }, { id: 'dep-tenis', nombre: 'Tenis' }],
     },
     '../../src/canchas/modelo': modeloCanchas,
+    '../../src/components/FiltrosCancha': filtrosCancha,
     '../../src/canchas/imagenes': imagenesCanchas,
     '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
     '../../src/services/api': { ApiError: class ApiError extends Error {} },
@@ -138,32 +140,34 @@ test('deslizar cambia la cancha, mantiene el tamaño fijo de la tarjeta y actual
   } finally { await caso.cerrar(); }
 });
 
-test('los filtros se despliegan, actualizan carrusel y horarios y permiten recuperar el vacío', async () => {
+test('los filtros se aplican desde la hoja y el boton de favoritos filtra la sesion', async () => {
   const caso = await montar({ usuario: jugador, canchas: [espacio, otraCancha] });
   try {
-    assert.equal(boton(caso.vista, 'Solo favoritos'), undefined);
-    await act(async () => { boton(caso.vista, 'Mostrar filtros').props.onPress(); });
-    assert.ok(boton(caso.vista, 'Solo favoritos'));
-    await act(async () => { boton(caso.vista, 'Solo favoritos').props.onPress(); });
+    await act(async () => { boton(caso.vista, 'Favoritos').props.onPress(); });
     assert.equal(caso.consultas.at(-1), otraCancha.id);
+    await act(async () => { boton(caso.vista, 'Filtros').props.onPress(); });
     await act(async () => { boton(caso.vista, 'Fútbol 5').props.onPress(); });
+    await act(async () => { boton(caso.vista, 'Ver 1 cancha').props.onPress(); });
     assert.equal(carrusel(caso.vista), undefined);
     assert.deepEqual(caso.vista.root.findByType('FlatList').props.data, []);
     assert.ok(textoVisible(caso.vista).includes('No hay canchas con estos filtros'));
     await act(async () => { boton(caso.vista, 'Ver todas las canchas').props.onPress(); });
+    await act(async () => { boton(caso.vista, 'Filtros').props.onPress(); });
     await act(async () => { boton(caso.vista, 'Club').props.onPress(); });
+    await act(async () => { boton(caso.vista, 'Ver 1 cancha').props.onPress(); });
     assert.equal(caso.consultas.at(-1), otraCancha.id);
   } finally { await caso.cerrar(); }
 });
 
-test('cerrar sesión quita el filtro privado y vuelve a la primera cancha', async () => {
+test('cerrar sesión quita el filtro privado y avisa si se piden favoritas sin sesión', async () => {
   const caso = await montar({ usuario: jugador, canchas: [espacio, otraCancha] });
   try {
-    await act(async () => { boton(caso.vista, 'Mostrar filtros').props.onPress(); });
-    await act(async () => { boton(caso.vista, 'Solo favoritos').props.onPress(); });
+    await act(async () => { boton(caso.vista, 'Favoritos').props.onPress(); });
     await caso.cambiarUsuario(null);
-    assert.equal(boton(caso.vista, 'Solo favoritos'), undefined);
     assert.ok(textoVisible(caso.vista).includes('Seleccionada · 1 de 2'));
+    await act(async () => { boton(caso.vista, 'Favoritos').props.onPress(); });
+    const aviso = caso.vista.root.findByType('DialogoAviso').props;
+    assert.equal(aviso.titulo, 'Ingresá para ver tus favoritas');
   } finally { await caso.cerrar(); }
 });
 
