@@ -15,8 +15,11 @@ cátedra: su código y su contrato no se modifican.
 ## Requisitos
 
 - **Node.js 24.15.0** (ver `reservas-deportivas/.nvmrc`) con npm, para la app.
-- **Docker Desktop**, para la API.
+- **Docker Desktop instalado y abierto**, para la API.
 - **Expo Go compatible con SDK 54** en el celular, y PC + celular en la **misma red Wi-Fi**.
+
+Instalá Node.js 24.15.0 desde [nodejs.org](https://nodejs.org/) si todavía no lo tenés. Si usás
+`nvm`, podés seleccionar esa versión así:
 
 ```powershell
 nvm install 24.15.0
@@ -26,20 +29,25 @@ node --version
 
 ## Levantar el proyecto
 
-Dos terminales, desde la raíz del repositorio.
+Se necesitan **dos terminales**. Abrilas en la raíz del repositorio y seguí el orden: primero la
+API y, cuando esté lista, la app.
 
-### Terminal 1 — API (Docker)
+### 1. Terminal de la API
 
 ```powershell
 cd api-reservas-deportivas
 docker compose up
 ```
 
-- API: <http://localhost:3000> · Salud: <http://localhost:3000/salud> · Docs: <http://localhost:3000/docs>
-- Levanta sola el esquema y carga los datos de demo. No hace falta `pnpm install` ni `.env` del backend.
-- Apagar: `Ctrl+C` o `docker compose down`. Resetear datos: `docker compose down -v` y volver a `up`.
+Esperá a que termine de iniciar y comprobá <http://localhost:3000/salud>. La API crea el esquema y
+carga los datos de demo. **Dejá esta terminal abierta** mientras usás la app. No hace falta instalar
+pnpm ni crear un `.env` para el backend.
 
-### Terminal 2 — app
+API: <http://localhost:3000> · Salud: <http://localhost:3000/salud> · Documentación: <http://localhost:3000/docs>
+
+### 2. Terminal de la app
+
+Abrí otra terminal nueva en la raíz del repositorio; no cierres la terminal de la API.
 
 ```powershell
 cd reservas-deportivas
@@ -48,8 +56,8 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm start
 ```
 
-Metro muestra un QR: escanearlo con Expo Go. `npm ci` respeta el lockfile y solo hace falta la
-primera vez.
+`npm ci` instala las dependencias según el lockfile. Metro muestra un QR: escanealo con Expo Go
+compatible con el SDK del proyecto. Para apagar los servicios, detené cada terminal con `Ctrl+C`.
 
 ## URL de la API
 
@@ -68,6 +76,19 @@ Si preferís fijarla, editá `reservas-deportivas/.env`:
 requiere reiniciar Metro. `npm start -- --tunnel` solo tuneliza Metro: la API sigue estando en la
 IP de la PC.
 
+### Puerto 3000 ocupado
+
+En la terminal de la API (dentro de `api-reservas-deportivas`), usá el puerto 3001:
+
+```powershell
+$env:PUERTO = "3001"
+docker compose up
+```
+
+En `reservas-deportivas/.env`, fijá `EXPO_PUBLIC_API_URL` con el host correspondiente de la tabla
+anterior y el puerto `3001` (por ejemplo, `http://<IPv4-de-la-PC>:3001` para un celular). Reiniciá
+Metro para que tome el cambio.
+
 ## Verificar
 
 ```powershell
@@ -80,7 +101,9 @@ curl http://localhost:3000/salud
   (`com.docker.backend.exe`), que expone la API en el puerto 3000. No desactivar el firewall completo.
 - Celular y PC en la misma red; confirmá desde el navegador del celular
   `http://<IPv4-de-la-PC>:3000/salud`.
-- Expo Go de otro SDK no abre este proyecto: usá el cliente de SDK 54 de [expo.dev/go](https://expo.dev/go).
+- Expo Go debe ser compatible con SDK 54. En Android podés obtener versiones anteriores desde
+  [expo.dev/go](https://expo.dev/go); en iOS, si la versión de App Store no es compatible, usá un
+  development build.
 
 ## Comandos
 
@@ -103,9 +126,10 @@ Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/REA
 |---|---|
 | El celular no llega a la API | Misma red, IP correcta, firewall para `node.exe` y Docker Desktop |
 | El emulador no llega al backend | Usar `10.0.2.2`, no `localhost` |
-| Expo Go informa SDK incompatible | Instalar el cliente de SDK 54; no cambiar el SDK del proyecto |
+| Expo Go informa SDK incompatible | En Android, obtener Expo Go SDK 54 desde `expo.dev/go`; en iOS, usar un development build si la versión de App Store no es compatible |
 | `ERR_PNPM_NO_LOCKFILE` en el frontend | Usar `npm ci`: su lockfile es `package-lock.json` |
-| Puerto 3000 u 8081 ocupado | Verificar si ya está activo ese servidor. Si el 3000 está ocupado: `PUERTO=3001 docker compose up` y fijá `EXPO_PUBLIC_API_URL=http://<IP-de-la-PC>:3001` (la app usa el 3000 por omisión) |
+| Puerto 3000 ocupado | Seguí los pasos de [puerto alternativo](#puerto-3000-ocupado). |
+| Puerto 8081 ocupado | Verificá si Metro ya está activo; si no, cerrá el proceso que ocupa el puerto antes de iniciar Expo. |
 | Metro muestra código viejo | Recargar la app; si persiste, `npm start -- --clear` |
 
 ## Estado de la entrega
