@@ -37,7 +37,7 @@ const espacio = {
 };
 const fechas = cargar('src/utils/fechas.ts', {});
 const modeloCanchas = cargar('src/canchas/modelo.ts', {});
-const imagenesCanchas = { fotoDeCancha: () => null, portadaDeEjemplo: () => null };
+const imagenesCanchas = { fotoDeCancha: () => ({ uri: 'https://ejemplo.test/cancha.jpg' }), portadaDeEjemplo: () => null };
 const filtrosCancha = cargar('src/components/FiltrosCancha.tsx', { 'react-native': nativos });
 
 async function montar({ fallar = false, usuario = null, canchas = [espacio], params = {}, estado = 'libre' } = {}) {
@@ -109,7 +109,9 @@ const jugador = { id: 'usr-prueba', nombre: 'Jugador', rol: 'jugador', espaciosF
 const boton = (vista, nombre) => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === nombre);
 const textoVisible = vista => vista.root.findAllByType('NativeText').flatMap(n => n.props.children).flat(Infinity).filter(v => typeof v === 'string').join(' ');
 const carrusel = vista => vista.root.findAllByType('ScrollView').find(n => n.props.accessibilityLabel === 'Carrusel de canchas');
+const layout = shared.theme.layout;
 const estilosSurface = n => Object.assign({}, ...[n.props.style].flat(3).filter(o => o && typeof o === 'object'));
+const estilos = n => Object.assign({}, ...[n.props.style].flat(3).filter(o => o && typeof o === 'object'));
 
 test('deslizar cambia la cancha conservando el diseno de la ficha y actualiza los horarios', async () => {
   const caso = await montar({ canchas: [espacio, otraCancha] });
@@ -120,6 +122,10 @@ test('deslizar cambia la cancha conservando el diseno de la ficha y actualiza lo
     const paginas = caso.vista.root.findAllByType(shared.ui.Surface).filter(n => estilosSurface(n).width === 335);
     assert.equal(paginas.length, 2);
     assert.equal(caso.vista.root.findAllByType('Pressable').filter(n => n.props.accessibilityLabel === 'Ver detalles').length, 2);
+    const imagen = caso.vista.root.findAllByType('Image')[0];
+    assert.equal(estilos(imagen).height, Math.round(335 / layout.courtPhotoRatio));
+    assert.equal(estilos(imagen).aspectRatio, undefined);
+    assert.equal(carrusel(caso.vista).props.contentContainerStyle.alignItems, 'flex-start');
     await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 335 } } }); });
     assert.equal(lista, caso.vista.root.findByType('FlatList'));
     assert.equal(lista.props.data[0].espacioId, otraCancha.id);

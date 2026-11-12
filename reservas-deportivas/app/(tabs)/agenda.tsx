@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, ScrollView, View } from 'react-native';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { spacing, useTheme } from '../../src/theme';
@@ -115,13 +115,13 @@ export default function AgendaScreen() {
         <Button size="sm" title="Escanear QR" onPress={() => router.push('/scanner')} />
       </View>
       <Button variant="ghost" size="sm" title="Gestionar canchas" onPress={() => router.push('/admin')} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {dias.map(d => <Chip key={d.fecha} selected={d.fecha === fecha} disabled={ocupado}
           accessibilityLabel={fechaLegible(d.fecha)} onPress={() => setDia(d.fecha)}>
           {`${d.nombre} ${d.fecha.slice(-2)}`}
         </Chip>)}
       </ScrollView>
-      {agenda && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+      {agenda && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         <Chip selected={!filtro} onPress={() => setFiltro('')}>Todas las canchas</Chip>
         {agenda.espacios.map(e => <Chip key={e.id} selected={filtro === e.id} onPress={() => setFiltro(e.id)}>{e.nombre}</Chip>)}
       </ScrollView>}
@@ -174,3 +174,8 @@ export default function AgendaScreen() {
       onConfirmar={() => setMensaje(null)} onCerrar={() => setMensaje(null)} />}
   </Screen>;
 }
+
+const styles = StyleSheet.create({
+  /** Las tiras de chips no se estiran en vertical: mantienen su alto natural. */
+  chips: { gap: spacing.sm, alignItems: 'flex-start' },
+});

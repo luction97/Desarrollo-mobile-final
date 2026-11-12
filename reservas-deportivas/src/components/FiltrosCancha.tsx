@@ -82,5 +82,5 @@ const styles = StyleSheet.create({
     borderCurve: borders.curve, gap: spacing.md, paddingBottom: spacing.xl,
   },
   opciones: { gap: spacing.sm, paddingBottom: spacing.md },
-  horizontal: { gap: spacing.xs },
+  horizontal: { gap: spacing.xs, alignItems: 'flex-start' },
 });

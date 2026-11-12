@@ -80,6 +80,10 @@ export default function DisponibilidadScreen() {
     if (!espaciosFiltrados.length || !anchoContenedor) return 0;
     return Math.min(Math.max(Math.round(x / anchoContenedor), 0), espaciosFiltrados.length - 1);
   };
+  /** Alto de la foto: se calcula con el ancho medido para que la ficha tenga siempre la misma altura. */
+  const altoFoto = anchoContenedor
+    ? Math.min(Math.round(anchoContenedor / layout.courtPhotoRatio), layout.mapHeight)
+    : layout.courtPhotoMinHeight;
   const seleccionarCancha = (indice: number, manual = false) => {
     const elegida = espaciosFiltrados[indice];
     if (!elegida || elegida.id === espacio?.id) return;
@@ -309,7 +313,7 @@ export default function DisponibilidadScreen() {
     {espacio && <View style={styles.canchas}>
       <View onLayout={evento => setAnchoContenedor(evento.nativeEvent.layout.width)} testID="marco-canchas">
         <ScrollView ref={carrusel} horizontal pagingEnabled directionalLockEnabled
-          showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carrusel}
+          showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carrusel} style={styles.carruselFila}
           accessibilityLabel="Carrusel de canchas" scrollEventThrottle={32}
           onScroll={evento => {
             const x = evento.nativeEvent.contentOffset.x;
@@ -327,7 +331,7 @@ export default function DisponibilidadScreen() {
             return <Surface key={e.id} padding="none" variant="outlined"
               accessibilityState={{ selected: elegida }}
               style={[styles.detalle, { width: anchoContenedor || undefined, borderColor: elegida ? colors.primary : colors.border }]}>
-              {foto && <Image source={foto} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
+              {foto && <Image source={foto} style={[styles.fotoPrincipal, { height: altoFoto }]} resizeMode="cover" accessible={false} />}
               <View style={styles.resumenCancha}>
                 <View style={uiLayout.row}>
                   <View style={uiLayout.grow}>
@@ -430,15 +434,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderCurve: borders.curve,
   },
   canchas: { gap: spacing.xs },
-  carrusel: { paddingVertical: spacing.xs },
-  detalle: { overflow: 'hidden' },
-  fotoPrincipal: { width: '100%', aspectRatio: 1.6, maxHeight: layout.mapHeight },
+  carrusel: { alignItems: 'flex-start', paddingVertical: spacing.xs },
+  carruselFila: { flexGrow: 0, flexShrink: 0 },
+  detalle: { overflow: 'hidden', alignSelf: 'flex-start' },
+  fotoPrincipal: { width: '100%' },
   resumenCancha: { padding: spacing.md, gap: spacing.sm },
-  horizontal: { gap: spacing.xs },
+  horizontal: { gap: spacing.xs, alignItems: 'flex-start' },
   dia: {
     ...controlSizes.sm, minWidth: layout.dayWidth, alignItems: 'center',
     borderRadius: radius.input, borderCurve: borders.curve,
   },
   listaTurnos: { gap: spacing.xs },
-  filaTurno: { ...controlSizes.sm, opacity: 1, borderRadius: radius.input },
+  filaTurno: { ...controlSizes.sm, borderRadius: radius.input },
 });
