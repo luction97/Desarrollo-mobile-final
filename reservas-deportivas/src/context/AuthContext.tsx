@@ -5,6 +5,7 @@ import type { DatosRegistro } from '../services/auth';
 import { autenticarConBiometria, biometriaDisponible } from '../services/biometria';
 import { escucharSesionInvalidada } from '../services/sesionEventos';
 import { notificacionesService } from '../services/notificaciones';
+import { prepararRecordatoriosGuardados } from '../services/reservas';
 import { AppState } from 'react-native';
 
 interface AuthContextType {
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTieneBiometria(biometria);
       setUsuarioGuardado(user);
       setUsuario(biometria ? null : user);
+      if (user) void prepararRecordatoriosGuardados(user.id).catch(() => undefined);
     }).catch(() => { if (activo) { setUsuario(null); setUsuarioGuardado(null); } })
       .finally(() => { if (activo) setCargando(false); });
     const dejarDeEscuchar = escucharSesionInvalidada(() => { setUsuario(null); setUsuarioGuardado(null); });

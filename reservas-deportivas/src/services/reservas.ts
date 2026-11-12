@@ -5,12 +5,22 @@ import { notificacionesService } from './notificaciones';
 import type { Espacio, Reserva, Turno } from '../tipos';
 import { presentarReserva, type ReservaGuardada } from '../modelos/reservas';
 import { instanteTurno } from '../utils/fechas';
+import { fechaRecordatorio } from '../utils/recordatorios';
 
 let cola = Promise.resolve();
 
 export async function reservasGuardadas(usuarioId: string): Promise<ReservaGuardada[]> {
   const datos = await leerLocal<ReservaGuardada[]>(`reservas:${usuarioId}`);
   return Array.isArray(datos) ? datos.filter(d => d?.reserva?.usuarioId === usuarioId && typeof d.reserva.codigoQr === 'string') : [];
+}
+
+export async function prepararRecordatoriosGuardados(usuarioId: string): Promise<void> {
+  const datos = await reservasGuardadas(usuarioId);
+  const ahora = new Date();
+  if (datos.some(d => d.reserva.estado === 'confirmada' && d.turno && fechaRecordatorio(instanteTurno(d.turno.fecha, d.turno.inicio), ahora))) {
+    // Al reabrir, los recordatorios ya programados también necesitan el handler en primer plano.
+    await notificacionesService.inicializar();
+  }
 }
 
 function guardar(usuarioId: string, datos: ReservaGuardada[]) {
@@ -33,7 +43,7 @@ export async function crearReserva(turno: Turno, espacio: Espacio, cantidadPerso
   let guardadaLocalmente = true;
   try { await guardar(usuarioId, [dato]); } catch { guardadaLocalmente = false; }
   let recordatorioDisponible = true;
-  try { await notificacionesService.programarRecordatorio(espacio.nombre, instanteTurno(turno.fecha, turno.inicio), reserva.id); }
+  try { recordatorioDisponible = await notificacionesService.programarRecordatorio(espacio.nombre, instanteTurno(turno.fecha, turno.inicio), reserva.id); }
   catch { recordatorioDisponible = false; }
   return { dato, guardadaLocalmente, recordatorioDisponible };
 }

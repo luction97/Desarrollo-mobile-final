@@ -1,18 +1,32 @@
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { fechaRecordatorio } from '../utils/recordatorios';
 
-if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true,
-    }),
+let carga: Promise<typeof import('expo-notifications')> | undefined;
+
+// El import público tiene efectos push internos en Expo Go; se carga sólo al usar avisos locales.
+function cargarNotificaciones() {
+  carga ??= import('expo-notifications').then(Notifications => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true,
+      }),
+    });
+    return Notifications;
+  }).catch(error => {
+    carga = undefined;
+    throw error;
   });
+  return carga;
 }
 
 export const notificacionesService = {
+  async inicializar(): Promise<void> {
+    if (Platform.OS !== 'web') await cargarNotificaciones();
+  },
+
   async pedirPermisos(): Promise<boolean> {
     if (Platform.OS === 'web') return false;
+    const Notifications = await cargarNotificaciones();
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('recordatorios', {
         name: 'Recordatorios de reservas', importance: Notifications.AndroidImportance.DEFAULT,
@@ -29,6 +43,7 @@ export const notificacionesService = {
     const fecha = fechaRecordatorio(inicio, new Date());
     await this.cancelarRecordatorio(reservaId);
     if (!fecha || !await this.pedirPermisos()) return false;
+    const Notifications = await cargarNotificaciones();
     await Notifications.scheduleNotificationAsync({
       identifier: `reserva-${reservaId}`,
       content: { title: 'Tu turno empieza en dos horas', body: `${nombre}. Llevá el QR para ingresar.`, data: { reservaId }, sound: true },
@@ -38,10 +53,14 @@ export const notificacionesService = {
   },
 
   async cancelarRecordatorio(reservaId: string): Promise<void> {
-    if (Platform.OS !== 'web') await Notifications.cancelScheduledNotificationAsync(`reserva-${reservaId}`);
+    if (Platform.OS === 'web') return;
+    const Notifications = await cargarNotificaciones();
+    await Notifications.cancelScheduledNotificationAsync(`reserva-${reservaId}`);
   },
 
   async cancelarTodos(): Promise<void> {
-    if (Platform.OS !== 'web') await Notifications.cancelAllScheduledNotificationsAsync();
+    if (Platform.OS === 'web') return;
+    const Notifications = await cargarNotificaciones();
+    await Notifications.cancelAllScheduledNotificationsAsync();
   },
 };
