@@ -8,6 +8,7 @@ import { instanteTurno } from '../utils/fechas';
 import { fechaRecordatorio } from '../utils/recordatorios';
 
 let cola = Promise.resolve();
+let revision = 0;
 
 export async function reservasGuardadas(usuarioId: string): Promise<ReservaGuardada[]> {
   const datos = await leerLocal<ReservaGuardada[]>(`reservas:${usuarioId}`);
@@ -23,14 +24,20 @@ export async function prepararRecordatoriosGuardados(usuarioId: string): Promise
   }
 }
 
-function guardar(usuarioId: string, datos: ReservaGuardada[]) {
+function guardar(usuarioId: string, datos: ReservaGuardada[], desdeRevision?: number) {
   const tarea = cola.catch(() => undefined).then(async () => {
     const previas = await reservasGuardadas(usuarioId);
+    if (desdeRevision !== undefined) {
+      if (revision !== desdeRevision) return false;
+      await escribirLocal(`reservas:${usuarioId}`, datos);
+      return true;
+    }
     const porId = new Map(previas.map(d => [d.reserva.id, d]));
     datos.forEach(d => porId.set(d.reserva.id, d));
     await escribirLocal(`reservas:${usuarioId}`, [...porId.values()]);
+    return true;
   });
-  cola = tarea;
+  cola = tarea.then(() => undefined, () => undefined);
   return tarea;
 }
 
@@ -39,6 +46,7 @@ export async function crearReserva(turno: Turno, espacio: Espacio, cantidadPerso
     throw new Error(`Indicá entre 1 y ${espacio.capacidad} personas.`);
   }
   const reserva = await api.post<Reserva>('/reservas', { turnoId: turno.id, cantidadPersonas });
+  revision++;
   const dato = presentarReserva(reserva, espacio, turno);
   let guardadaLocalmente = true;
   try { await guardar(usuarioId, [dato]); } catch { guardadaLocalmente = false; }
@@ -48,7 +56,8 @@ export async function crearReserva(turno: Turno, espacio: Espacio, cantidadPerso
   return { dato, guardadaLocalmente, recordatorioDisponible };
 }
 
-export async function sincronizarReservas(usuarioId: string): Promise<ReservaGuardada[]> {
+export async function sincronizarReservas(usuarioId: string, vigente = () => true) {
+  const desdeRevision = revision;
   const [proximas, pasadas] = await Promise.all([
     api.listarTodo<Reserva>('/yo/reservas?cuando=proximas'),
     api.listarTodo<Reserva>('/yo/reservas?cuando=pasadas'),
@@ -56,20 +65,35 @@ export async function sincronizarReservas(usuarioId: string): Promise<ReservaGua
   const anteriores = await reservasGuardadas(usuarioId);
   let espacios = await obtenerEspaciosLocales();
   try { espacios = (await obtenerEspacios()).datos; } catch { /* El QR no depende de descargar el catálogo. */ }
-  const datos = [...proximas, ...pasadas].map(r => {
+  const propias = new Map([...proximas, ...pasadas].filter(r => r.usuarioId === usuarioId).map(r => [r.id, r]));
+  const datos = [...propias.values()].map(r => {
     const anterior = anteriores.find(a => a.reserva.id === r.id);
-    return anterior ? { ...anterior, reserva: r, espacio: espacios.find(e => e.id === r.espacioId) ?? anterior.espacio }
-      : presentarReserva(r, espacios.find(e => e.id === r.espacioId) ?? null);
+    const espacio = espacios.find(e => e.id === r.espacioId) ?? anterior?.espacio ?? null;
+    return anterior && anterior.reserva.turnoId === r.turnoId && anterior.reserva.cancelableHasta === r.cancelableHasta
+      ? { ...anterior, reserva: r, espacio }
+      : presentarReserva(r, espacio);
   });
-  await guardar(usuarioId, datos);
+  const guardadas = vigente() && await guardar(usuarioId, datos, desdeRevision);
+  if (!guardadas) return { datos: await reservasGuardadas(usuarioId), cambios: [], actualizada: false };
+  const cambios = datos.filter(d => d.reserva.estado === 'cancelada' &&
+    anteriores.some(a => a.reserva.id === d.reserva.id && a.reserva.estado === 'confirmada'));
   for (const d of datos) {
-    if (d.reserva.estado !== 'confirmada') await notificacionesService.cancelarRecordatorio(d.reserva.id).catch(() => undefined);
+    if (!vigente() || revision !== desdeRevision) break;
+    if (d.reserva.estado === 'confirmada' && d.turno) {
+      const inicio = instanteTurno(d.turno.fecha, d.turno.inicio);
+      if (fechaRecordatorio(inicio, new Date())) {
+        await notificacionesService.programarRecordatorio(d.espacio?.nombre ?? 'Tu cancha', inicio, d.reserva.id, false).catch(() => undefined);
+      }
+    } else if (anteriores.some(a => a.reserva.id === d.reserva.id && a.reserva.estado === 'confirmada')) {
+      await notificacionesService.cancelarRecordatorio(d.reserva.id).catch(() => undefined);
+    }
   }
-  return datos;
+  return { datos, cambios, actualizada: true };
 }
 
 export async function cancelarReserva(dato: ReservaGuardada) {
   const reserva = await api.post<Reserva>(`/reservas/${encodeURIComponent(dato.reserva.id)}/cancelacion`, {});
+  revision++;
   let guardadaLocalmente = true;
   try { await guardar(reserva.usuarioId, [{ ...dato, reserva }]); } catch { guardadaLocalmente = false; }
   await notificacionesService.cancelarRecordatorio(reserva.id).catch(() => undefined);

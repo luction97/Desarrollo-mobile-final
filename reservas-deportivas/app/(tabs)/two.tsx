@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import * as Network from 'expo-network';
+import { useSinRed } from '../../src/hooks/useSinRed';
+import { useHorarioActual } from '../../src/hooks/useHorarioActual';
 import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { CodigoQr } from '../../src/components/CodigoQr';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
@@ -19,6 +20,8 @@ export default function MisReservasScreen() {
   const { usuario, cargando: cargandoSesion } = useAuth();
   const { puedeReservar } = permisosDe(usuario);
   const router = useRouter();
+  const sinRed = useSinRed();
+  const ahora = useHorarioActual();
   const [datos, setDatos] = useState<ReservaGuardada[]>([]);
   const [cargando, setCargando] = useState(true);
   const [local, setLocal] = useState(false);
@@ -39,22 +42,34 @@ export default function MisReservasScreen() {
     if (version !== generacion.current) return;
     setDatos(guardadas); setLocal(true); setCargando(false);
     try {
-      const red = await Network.getNetworkStateAsync();
-      if (red.isConnected === false) return;
-      const actuales = await sincronizarReservas(usuario.id);
-      if (version === generacion.current) { setDatos(actuales); setLocal(false); }
+      if (sinRed) return;
+      const vigentes = () => version === generacion.current;
+      const actuales = await sincronizarReservas(usuario.id, vigentes);
+      if (!vigentes()) return;
+      setDatos(actuales.datos);
+      setLocal(!actuales.actualizada);
+      if (actuales.cambios.length) {
+        setMensaje(actuales.cambios.map(d => [
+          d.espacio?.nombre ?? 'Cancha',
+          d.turno && fechaLegible(d.turno.fecha) + ' · ' + d.turno.inicio,
+          'Cancelada',
+        ].filter(Boolean).join(' · ')).join('\n'));
+      }
     } catch (e) {
       if (version === generacion.current && !esErrorSesion(e)) setError(e instanceof Error ? e.message : 'No se pudieron actualizar las reservas.');
     }
-  }, [usuario?.id, puedeReservar]);
+  }, [usuario?.id, puedeReservar, sinRed]);
 
   useFocusEffect(useCallback(() => {
     void cargar();
-    return () => { generacion.current++; };
+    const listener = AppState.addEventListener('change', estado => {
+      if (estado === 'active') void cargar();
+    });
+    return () => { generacion.current++; listener.remove(); };
   }, [cargar]));
 
   const cancelar = async () => {
-    if (!puedeReservar || !confirmacion || ocupado.current) return;
+    if (!puedeReservar || !confirmacion || ocupado.current || local || sinRed) return;
     ocupado.current = true; setCancelando(true);
     try {
       const resultado = await cancelarReserva(confirmacion);
@@ -75,7 +90,6 @@ export default function MisReservasScreen() {
     <Button title="Ver agenda" onPress={() => router.replace('/agenda')} />
   </StateView></Screen>;
 
-  const ahora = new Date();
   const esProxima = (d: ReservaGuardada) => d.reserva.estado === 'confirmada' &&
     (!d.turno || new Date(instanteTurno(d.turno.fecha, d.turno.inicio).getTime() + 60 * 60 * 1000) > ahora);
   const visibles = datos.filter(d => d.reserva.usuarioId === usuario.id && (pasadas ? !esProxima(d) : esProxima(d))).sort((a, b) =>
@@ -105,10 +119,10 @@ export default function MisReservasScreen() {
         </View>
         {item.turno && <>
           <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
-          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">{precioLegible(item.turno.precio)} · Se paga en el lugar</Text>}
+          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">Tarifa consultada: {precioLegible(item.turno.precio)} · Se paga en el lugar</Text>}
         </>}
         {esProxima(item) && <CodigoQr value={item.reserva.codigoQr} />}
-        <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>
+        {esProxima(item) && <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>}
         <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
         {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
           ? <Button title="Cancelar reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />

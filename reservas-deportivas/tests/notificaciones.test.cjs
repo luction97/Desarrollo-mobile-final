@@ -13,6 +13,7 @@ function entorno({ os = 'android', permiso = { granted: true }, respuesta = perm
   const llamadas = [];
   let cargas = 0;
   let handler;
+  const programadas = new Map();
   const nativo = {
     AndroidImportance: { DEFAULT: 3 },
     IosAuthorizationStatus: { PROVISIONAL: 3 },
@@ -21,8 +22,9 @@ function entorno({ os = 'android', permiso = { granted: true }, respuesta = perm
     setNotificationChannelAsync: async (...args) => { llamadas.push(['canal', ...args]); },
     getPermissionsAsync: async () => { llamadas.push(['permisos']); return permiso; },
     requestPermissionsAsync: async () => { llamadas.push(['solicitar']); return respuesta; },
-    scheduleNotificationAsync: async datos => { llamadas.push(['programar', datos]); return datos.identifier; },
-    cancelScheduledNotificationAsync: async id => { llamadas.push(['cancelar', id]); },
+    getAllScheduledNotificationsAsync: async () => [...programadas.values()],
+    scheduleNotificationAsync: async datos => { programadas.set(datos.identifier, datos); llamadas.push(['programar', datos]); return datos.identifier; },
+    cancelScheduledNotificationAsync: async id => { programadas.delete(id); llamadas.push(['cancelar', id]); },
     cancelAllScheduledNotificationsAsync: async () => { llamadas.push(['cancelarTodos']); },
     getExpoPushTokenAsync: () => assert.fail('No se deben solicitar tokens push'),
     getDevicePushTokenAsync: () => assert.fail('No se deben solicitar tokens del dispositivo'),
@@ -57,7 +59,7 @@ test('Android: programa el recordatorio local dos horas antes, con canal y sin t
   const programada = caso.llamadas.find(([nombre]) => nombre === 'programar')[1];
   assert.equal(programada.identifier, 'reserva-res-1');
   assert.deepEqual(programada.content, {
-    title: 'Tu turno empieza en dos horas', body: 'Cancha 2. Llevá el QR para ingresar.', data: { reservaId: 'res-1' }, sound: true,
+    title: 'Tu turno empieza en dos horas', body: 'Cancha 2. Llevá el QR para ingresar.', data: { reservaId: 'res-1', programadoPara: new Date(inicio.getTime() - 7200000).toISOString() }, sound: true,
   });
   assert.equal(programada.trigger.type, 'date');
   assert.equal(programada.trigger.channelId, 'recordatorios');
@@ -190,9 +192,21 @@ test('cancelar o sincronizar una reserva cancelada elimina su recordatorio local
   await reservas.cancelarReserva(guardada);
   await reservas.sincronizarReservas(usuario.id);
   assert.deepEqual(caso.llamadas.filter(([nombre]) => nombre === 'cancelar'), [
-    ['cancelar', 'reserva-res-1'], ['cancelar', 'reserva-res-1'],
+    ['cancelar', 'reserva-res-1'],
   ]);
   assert.ok(!caso.llamadas.some(([nombre]) => ['programar', 'solicitar'].includes(nombre)));
+});
+
+test('sincronizar recupera un recordatorio faltante y conserva el existente sin pedir permisos', async () => {
+  const caso = entorno();
+  const remota = { ...reserva, cancelableHasta: '2099-01-15T16:00:00-03:00' };
+  const reservas = cargarReservas(caso, {
+    api: { listarTodo: async ruta => ruta.endsWith('proximas') ? [remota] : [] },
+  });
+  await reservas.sincronizarReservas(usuario.id);
+  await reservas.sincronizarReservas(usuario.id);
+  assert.equal(caso.llamadas.filter(([nombre]) => nombre === 'programar').length, 1);
+  assert.ok(!caso.llamadas.some(([nombre]) => nombre === 'solicitar'));
 });
 
 test('reabrir con reservas confirmadas futuras prepara el handler sin reprogramar ni pedir permisos', async () => {
@@ -225,7 +239,8 @@ test('AuthContext: arranque invitado sin carga nativa; restauración con reserva
     const { AuthProvider, useAuth } = cargar('src/context/AuthContext.tsx', {
       react: { ...React, default: React },
       'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
-      '../services/auth': { authService: { restaurarSesion: async () => guardado, logout: async () => { cerrada = true; } } },
+      '../hooks/useSinRed': { useSinRed: () => false },
+      '../services/auth': { authService: { obtenerPerfil: async () => guardado, restaurarSesion: async () => guardado, logout: async () => { cerrada = true; } } },
       '../services/biometria': { biometriaDisponible: async () => false },
       '../services/sesionEventos': { escucharSesionInvalidada: () => () => {} },
       '../services/notificaciones': { notificacionesService: caso.servicio },

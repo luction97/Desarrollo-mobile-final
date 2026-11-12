@@ -23,6 +23,10 @@ async function guardarSesion(data: LoginResponse): Promise<Usuario> {
 }
 
 export const authService = {
+  obtenerPerfil(): Promise<Usuario> {
+    return api.get<Usuario>('/yo');
+  },
+
   async login(email: string, contrasena: string): Promise<Usuario> {
     const data = await api.post<LoginResponse>('/auth/ingreso', { email: email.trim(), contrasena });
     return guardarSesion(data);

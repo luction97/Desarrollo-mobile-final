@@ -9,7 +9,7 @@ export async function obtenerEspaciosLocales(): Promise<Espacio[]> {
 export async function obtenerEspacios(): Promise<{ datos: Espacio[]; local: boolean }> {
   try {
     const datos = await api.listarTodo<Espacio>('/espacios');
-    if (datos.length) await escribirLocal('espacios', datos).catch(() => undefined);
+    await escribirLocal('espacios', datos).catch(() => undefined);
     return { datos, local: false };
   } catch (error) {
     const datos = await obtenerEspaciosLocales();
@@ -36,5 +36,9 @@ export async function obtenerDeportes(): Promise<Deporte[]> {
     const datos = await api.listarTodo<Deporte>('/deportes');
     await escribirLocal('deportes', datos).catch(() => undefined);
     return datos;
-  } catch { return await leerLocal<Deporte[]>('deportes') ?? []; }
+  } catch (error) {
+    const locales = await leerLocal<Deporte[]>('deportes');
+    if (locales) return locales;
+    throw error;
+  }
 }

@@ -68,10 +68,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
     '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
     '../../src/services/preferencias': { default: { getItem: async () => null, setItem: async () => {} } },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario, cargando: false, logout: async () => {} }) },
-    'expo-network': {
-      getNetworkStateAsync: async () => ({ isConnected: true }),
-      addNetworkStateListener: () => ({ remove() {} }),
-    },
+    '../../src/hooks/useSinRed': { useSinRed: () => false },
     '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
     '../../src/components/ReservaDialog': { ReservaDialog: 'ReservaDialog' },

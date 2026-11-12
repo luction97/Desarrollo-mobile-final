@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import * as Network from 'expo-network';
+import { useSinRed } from '../../src/hooks/useSinRed';
 import { Badge, Button, Chip, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { ReservaDialog } from '../../src/components/ReservaDialog';
@@ -44,7 +44,10 @@ export default function DisponibilidadScreen() {
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sinRed, setSinRed] = useState(false);
+  const sinRed = useSinRed();
+  const [catalogoLocal, setCatalogoLocal] = useState(false);
+  const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null);
+  const [turnosLiberados, setTurnosLiberados] = useState<string[]>([]);
   const [local, setLocal] = useState(false);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [seleccionado, setSeleccionado] = useState<Turno | null>(null);
@@ -81,31 +84,34 @@ export default function DisponibilidadScreen() {
         : canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
     };
     const cargar = async () => {
-      setCargandoCatalogo(true); setError(null);
+      setCargandoCatalogo(true); setErrorCatalogo(null);
       const favorito = await preferencias.getItem('ultimoEspacio').catch(() => null);
       const locales = await obtenerEspaciosLocales().catch(() => []);
       aplicar(locales, favorito);
-      try { const resultado = await obtenerEspacios(); aplicar(resultado.datos, favorito); }
-      catch (e) { if (activo && !locales.length) setError(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.'); }
-      const listaDeportes = await obtenerDeportes();
-      if (activo) { setDeportes(listaDeportes); setCargandoCatalogo(false); }
+      if (activo) setCatalogoLocal(locales.length > 0);
+      try {
+        const [resultado, listaDeportes] = await Promise.all([obtenerEspacios(), obtenerDeportes().catch(() => null)]);
+        aplicar(resultado.datos, favorito);
+        if (activo) {
+          setCatalogoLocal(resultado.local);
+          if (listaDeportes) setDeportes(listaDeportes);
+          else setErrorCatalogo('No pudimos actualizar los deportes.');
+        }
+      } catch (e) {
+        if (activo) setErrorCatalogo(e instanceof Error ? e.message : 'No se pudieron cargar las canchas.');
+      } finally {
+        if (activo) setCargandoCatalogo(false);
+      }
     };
     void cargar();
     return () => { activo = false; };
-  }, [params.espacioId, intentoCatalogo]);
+  }, [params.espacioId, intentoCatalogo, sinRed]);
 
   useEffect(() => {
     if (params.fecha) setFecha(params.fecha);
   }, [params.fecha]);
 
-  useEffect(() => { setVerAnteriores(false); }, [fecha, espacioId]);
-
-  useEffect(() => {
-    let activo = true;
-    void Network.getNetworkStateAsync().then(red => { if (activo) setSinRed(red.isConnected === false); }).catch(() => undefined);
-    const listener = Network.addNetworkStateListener(red => setSinRed(red.isConnected === false));
-    return () => { activo = false; listener.remove(); };
-  }, []);
+  useEffect(() => { setVerAnteriores(false); setTurnosLiberados([]); }, [fecha, espacioId, usuario?.id]);
 
   const cargarGrilla = useCallback(async () => {
     if (!espacioId) { generacion.current++; setTurnos([]); setLocal(false); setCargando(false); return; }
@@ -116,6 +122,9 @@ export default function DisponibilidadScreen() {
       if (version !== generacion.current) return;
       setTurnos(resultado.datos);
       setLocal(resultado.local);
+      if (resultado.liberados?.length && usuario?.espaciosFavoritos.includes(espacioId)) {
+        setTurnosLiberados(resultado.liberados.map(t => t.inicio));
+      }
       if (usuario && params.turnoId && params.espacioId === espacioId && params.fecha === fecha
         && borradorRecuperado.current !== params.turnoId && !resultado.local) {
         borradorRecuperado.current = params.turnoId;
@@ -186,7 +195,12 @@ export default function DisponibilidadScreen() {
     try { const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
       setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
       setSeleccionado(null);
-      setAviso({ titulo: 'Reserva confirmada', mensaje: resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.' : 'No pudimos guardar el QR en este teléfono. Abrí Mis reservas con conexión para guardarlo.', verQr: true });
+      const mensajeQr = resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.'
+        : 'No pudimos guardar el QR en este teléfono. Abrí Mis reservas con conexión para guardarlo.';
+      setAviso({ titulo: 'Reserva confirmada', mensaje: [
+        mensajeQr,
+        resultado.recordatorioDisponible ? null : 'Esta reserva no tiene un recordatorio programado.',
+      ].filter(Boolean).join(' '), verQr: true });
     } catch (e) { setErrorReserva(e instanceof Error ? e.message : 'No se pudo reservar.'); }
     finally { operando.current = false; setReservando(false); }
   };
@@ -208,7 +222,13 @@ export default function DisponibilidadScreen() {
       {usuario ? <Button variant="ghost" size="sm" title="Salir" onPress={salir} />
         : <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
-    {(sinRed || local) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">Sin conexión · Mostramos los horarios guardados</Text>}
+    {(sinRed || local || catalogoLocal) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">
+      {sinRed ? 'Sin conexión. Los datos guardados pueden estar desactualizados.' : 'Mostramos datos guardados que pueden estar desactualizados.'}
+    </Text>}
+    {errorCatalogo && <View style={uiLayout.row}>
+      <Text style={uiLayout.grow} tone="danger" accessibilityRole="alert">{errorCatalogo}</Text>
+      <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
+    </View>}
 
     <View style={styles.filtrosRow}>
       <View style={styles.filtroCol}>
@@ -288,6 +308,9 @@ export default function DisponibilidadScreen() {
         <Text numeric variant="title">{d.fecha.slice(-2)}</Text>
       </PressableSurface>)}
     </ScrollView>}
+    {turnosLiberados.length > 0 && <Text variant="label" tone="success" accessibilityLiveRegion="polite">
+      Se liberaron horarios en esta cancha favorita: {turnosLiberados.join(', ')}.
+    </Text>}
     {espacio && <Text variant="subtitle" accessibilityRole="header" accessibilityLiveRegion="polite">Horarios de {espacio.nombre}</Text>}
   </View>;
 
@@ -296,6 +319,7 @@ export default function DisponibilidadScreen() {
       contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
       ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
+        : !espacio && errorCatalogo ? null
         : !espacio ? <StateView><Text tone="muted">{soloFavoritos && !usuario?.espaciosFavoritos.length
           ? 'Todavía no tenés favoritas. Tocá el corazón de una cancha para guardarla.'
           : 'No hay canchas con estos filtros.'}</Text><Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} /></StateView>

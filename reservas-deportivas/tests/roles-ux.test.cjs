@@ -169,7 +169,9 @@ test('ruta Mis reservas del personal no consulta datos privados ni ofrece crear 
   let consultas = 0;
   const navegaciones = [];
   const Pantalla = cargar('app/(tabs)/two.tsx', {
-    'react-native': nativos,
+    'react-native': { ...nativos, AppState: { addEventListener: () => ({ remove() {} }) } },
+    '../../src/hooks/useSinRed': { useSinRed: () => false },
+    '../../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
     'expo-router': { useRouter: () => ({ replace: ruta => navegaciones.push(ruta) }), useFocusEffect: callback => React.useEffect(callback, [callback]) },
     'expo-network': {}, '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: usuario('encargado'), cargando: false }) },

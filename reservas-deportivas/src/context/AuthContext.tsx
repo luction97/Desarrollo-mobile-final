@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { Usuario } from '../tipos';
 import { authService } from '../services/auth';
 import type { DatosRegistro } from '../services/auth';
@@ -6,6 +6,7 @@ import { autenticarConBiometria, biometriaDisponible } from '../services/biometr
 import { escucharSesionInvalidada } from '../services/sesionEventos';
 import { notificacionesService } from '../services/notificaciones';
 import { prepararRecordatoriosGuardados } from '../services/reservas';
+import { useSinRed } from '../hooks/useSinRed';
 import { AppState } from 'react-native';
 
 interface AuthContextType {
@@ -27,6 +28,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuarioGuardado, setUsuarioGuardado] = useState<Usuario | null>(null);
   const [tieneBiometria, setTieneBiometria] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const sinRed = useSinRed();
+  const perfilVersion = useRef(0);
+  const usuarioId = usuario?.id;
+  useEffect(() => {
+    if (!usuarioId || sinRed) return;
+    let activo = true;
+    const refrescar = () => {
+      const version = ++perfilVersion.current;
+      void authService.obtenerPerfil().then(perfil => {
+        if (!activo || version !== perfilVersion.current || perfil.id !== usuarioId) return;
+        setUsuario(perfil);
+        setUsuarioGuardado(perfil);
+        return authService.actualizar(perfil);
+      }).catch(() => undefined);
+    };
+    refrescar();
+    const listener = AppState.addEventListener('change', estado => {
+      if (estado === 'active') refrescar();
+      else perfilVersion.current++;
+    });
+    return () => { activo = false; listener.remove(); };
+  }, [usuarioId, sinRed]);
 
   useEffect(() => {
     let activo = true;
@@ -38,7 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) void prepararRecordatoriosGuardados(user.id).catch(() => undefined);
     }).catch(() => { if (activo) { setUsuario(null); setUsuarioGuardado(null); } })
       .finally(() => { if (activo) setCargando(false); });
-    const dejarDeEscuchar = escucharSesionInvalidada(() => { setUsuario(null); setUsuarioGuardado(null); });
+    const dejarDeEscuchar = escucharSesionInvalidada(() => {
+      perfilVersion.current++;
+      setUsuario(null);
+      setUsuarioGuardado(null);
+      void notificacionesService.cancelarTodos().catch(() => undefined);
+    });
     return () => { activo = false; dejarDeEscuchar(); };
   }, []);
 
@@ -69,12 +97,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const actualizarUsuario = (nuevo: Usuario) => {
+    perfilVersion.current++;
     setUsuario(nuevo);
     setUsuarioGuardado(nuevo);
     authService.actualizar(nuevo).catch(() => undefined);
   };
 
   const logout = async () => {
+    perfilVersion.current++;
     await authService.logout();
     setUsuario(null);
     setUsuarioGuardado(null);
