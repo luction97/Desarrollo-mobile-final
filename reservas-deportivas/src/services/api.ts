@@ -83,6 +83,7 @@ async function requestSobre<T>(method: string, endpoint: string, data?: unknown)
         method,
         url,
         data,
+        headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
       });
 
       if (response.status === 204) return { datos: undefined as T, meta: null };
@@ -124,8 +125,8 @@ export const api = {
   listarTodo,
   getConMeta: <T>(endpoint: string) => requestSobre<T>('GET', endpoint),
   get: <T>(endpoint: string) => requestApi<T>('GET', endpoint),
-  post: <T>(endpoint: string, body: any) => requestApi<T>('POST', endpoint, body),
-  put: <T>(endpoint: string, body: any) => requestApi<T>('PUT', endpoint, body),
-  patch: <T>(endpoint: string, body: any) => requestApi<T>('PATCH', endpoint, body),
+  post: <T>(endpoint: string, body: unknown) => requestApi<T>('POST', endpoint, body),
+  put: <T>(endpoint: string, body: unknown) => requestApi<T>('PUT', endpoint, body),
+  patch: <T>(endpoint: string, body: unknown) => requestApi<T>('PATCH', endpoint, body),
   delete: <T>(endpoint: string) => requestApi<T>('DELETE', endpoint),
 };

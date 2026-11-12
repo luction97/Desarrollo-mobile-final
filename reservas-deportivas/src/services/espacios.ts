@@ -18,16 +18,20 @@ export async function obtenerEspacios(): Promise<{ datos: Espacio[]; local: bool
   }
 }
 
-export async function obtenerEspacio(id: string): Promise<Espacio> {
+export async function obtenerEspacioLocal(id: string): Promise<Espacio | null> {
+  return await leerLocal<Espacio>(`espacio:${id}`) ?? (await obtenerEspaciosLocales()).find(e => e.id === id) ?? null;
+}
+
+export async function obtenerEspacio(id: string): Promise<{ datos: Espacio; local: boolean }> {
   const clave = `espacio:${id}`;
   try {
     const dato = await api.get<Espacio>(`/espacios/${encodeURIComponent(id)}`);
     await escribirLocal(clave, dato).catch(() => undefined);
-    return dato;
+    return { datos: dato, local: false };
   } catch (error) {
-    const dato = await leerLocal<Espacio>(clave) ?? (await obtenerEspaciosLocales()).find(e => e.id === id);
+    const dato = await obtenerEspacioLocal(id);
     if (!dato) throw error;
-    return dato;
+    return { datos: dato, local: true };
   }
 }
 

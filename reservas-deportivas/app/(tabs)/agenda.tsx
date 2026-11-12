@@ -1,17 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../src/components/ui';
-import { spacing, useTheme } from '../src/theme';
-import { DialogoAviso } from '../src/components/DialogoAviso';
-import { useAuth } from '../src/context/AuthContext';
-import { useHorarioActual } from '../src/hooks/useHorarioActual';
-import { operacionesService } from '../src/services/operaciones';
-import { obtenerEspacios } from '../src/services/espacios';
-import { diasDeReserva, fechaArgentina, fechaLegible, instanteTurno } from '../src/utils/fechas';
-import { permisosDe } from '../src/utils/permisos';
-import { etiquetasReserva, etiquetasTurno } from '../src/utils/etiquetas';
-import type { Espacio, Reserva, Turno, Usuario } from '../src/tipos';
+import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
+import { spacing, useTheme } from '../../src/theme';
+import { DialogoAviso } from '../../src/components/DialogoAviso';
+import { useAuth } from '../../src/context/AuthContext';
+import { useHorarioActual } from '../../src/hooks/useHorarioActual';
+import { operacionesService } from '../../src/services/operaciones';
+import { obtenerEspacios } from '../../src/services/espacios';
+import { diasDeReserva, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
+import { permisosDe } from '../../src/utils/permisos';
+import { etiquetasReserva, etiquetasTurno } from '../../src/utils/etiquetas';
+import type { Espacio, Reserva, Turno, Usuario } from '../../src/tipos';
 
 interface Agenda {
   clave: string;
@@ -113,6 +113,11 @@ export default function AgendaScreen() {
           {`${d.nombre} ${d.fecha.slice(-2)}`}
         </Chip>)}
       </ScrollView>
+      <Text variant="title" accessibilityRole="header">Agenda</Text>
+      <View style={uiLayout.row}>
+        <Button variant="secondary" size="sm" title="Escanear QR" onPress={() => router.push('/scanner')} />
+        <Button variant="ghost" size="sm" title="Gestionar canchas" onPress={() => router.push('/admin')} />
+      </View>
       <Text tone="muted">{fechaLegible(fecha)}</Text>
       {agenda && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
         <Chip selected={!filtro} onPress={() => setFiltro('')}>Todas las canchas</Chip>

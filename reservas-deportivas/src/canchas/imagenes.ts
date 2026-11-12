@@ -14,12 +14,11 @@ const FOTO_POR_DEPORTE: Record<FamiliaDeporte, ImageSourcePropType> = {
 };
 
 /**
- * Foto que se muestra como registrada por el complejo. Usa la imagen local
- * cuando el deporte tiene una y, si no, la que publique la API.
+ * Prioriza la imagen del espacio y usa la ilustración del deporte como respaldo.
  */
 export function fotoDeCancha(espacio: Pick<Espacio, 'deporteId' | 'imagenes'>): ImageSourcePropType | null {
+  const remota = espacio.imagenes?.find(Boolean);
+  if (remota) return { uri: remota };
   const familia = familiaDeDeporte(espacio.deporteId);
-  if (familia) return FOTO_POR_DEPORTE[familia];
-  const remota = espacio.imagenes?.[0];
-  return remota ? { uri: remota } : null;
+  return familia ? FOTO_POR_DEPORTE[familia] : null;
 }

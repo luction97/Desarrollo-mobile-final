@@ -32,7 +32,7 @@ export default function DisponibilidadScreen() {
   const { puedeReservar } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [deportes, setDeportes] = useState<Deporte[]>([]);
-  const [espacioElegidoId, setEspacioId] = useState('');
+  const [espacioElegidoId, setEspacioId] = useState(params.espacioId ?? '');
   const [cargandoCatalogo, setCargandoCatalogo] = useState(true);
   const [intentoCatalogo, setIntentoCatalogo] = useState(0);
   const ahora = useHorarioActual();
@@ -73,15 +73,14 @@ export default function DisponibilidadScreen() {
 
   useEffect(() => { setSoloFavoritos(false); }, [usuario?.id]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let activo = true;
     const aplicar = (datos: Espacio[], favorito: string | null) => {
       if (!activo) return;
       const canchas = catalogoDeEspacios(datos);
       setEspacios(canchas);
       if (canchas.length) setCargandoCatalogo(false);
-      setEspacioId(actual => canchas.some(e => e.id === params.espacioId) ? params.espacioId!
-        : canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
+      setEspacioId(actual => canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
     };
     const cargar = async () => {
       setCargandoCatalogo(true); setErrorCatalogo(null);
@@ -105,13 +104,30 @@ export default function DisponibilidadScreen() {
     };
     void cargar();
     return () => { activo = false; };
-  }, [params.espacioId, intentoCatalogo, sinRed]);
+  }, [intentoCatalogo, sinRed]));
+
+  useEffect(() => {
+    if (!params.espacioId) return;
+    setEspacioId(params.espacioId);
+    setFiltroDeporte('todos');
+    setFiltroComplejo('todos');
+    setSoloFavoritos(false);
+  }, [params.espacioId]);
 
   useEffect(() => {
     if (params.fecha) setFecha(params.fecha);
   }, [params.fecha]);
 
   useEffect(() => { setVerAnteriores(false); setTurnosLiberados([]); }, [fecha, espacioId, usuario?.id]);
+
+  useEffect(() => {
+    if (!params.turnoId) borradorRecuperado.current = null;
+    else if (usuario && params.fecha && !dias.some(dia => dia.fecha === params.fecha)) {
+      borradorRecuperado.current = params.turnoId;
+      router.setParams({ turnoId: '', personas: '' });
+      setAviso({ titulo: 'Elegí otro horario', mensaje: 'El día seleccionado ya no está dentro del período de reservas.' });
+    }
+  }, [params.turnoId, params.fecha, dias, usuario?.id, router]);
 
   const cargarGrilla = useCallback(async () => {
     if (!espacioId) { generacion.current++; setTurnos([]); setLocal(false); setCargando(false); return; }
@@ -128,6 +144,7 @@ export default function DisponibilidadScreen() {
       if (usuario && params.turnoId && params.espacioId === espacioId && params.fecha === fecha
         && borradorRecuperado.current !== params.turnoId && !resultado.local) {
         borradorRecuperado.current = params.turnoId;
+        router.setParams({ turnoId: '', personas: '' });
         const turno = resultado.datos.find(t => t.id === params.turnoId);
         if (puedeReservar && turno?.estado === 'libre' && instanteTurno(turno.fecha, turno.inicio) > new Date()) {
           const cantidad = Number(params.personas);
@@ -140,7 +157,7 @@ export default function DisponibilidadScreen() {
       }
     } catch (e) { if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la disponibilidad.'); }
     finally { if (version === generacion.current) setCargando(false); }
-  }, [espacioId, fecha, usuario?.id, puedeReservar, params.turnoId, params.espacioId, params.fecha, params.personas]);
+  }, [espacioId, fecha, usuario?.id, puedeReservar, params.turnoId, params.espacioId, params.fecha, params.personas, router]);
 
   useFocusEffect(useCallback(() => {
     void cargarGrilla();
@@ -230,6 +247,7 @@ export default function DisponibilidadScreen() {
       <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
     </View>}
 
+    <Button variant="ghost" size="sm" title="Mapa de complejos" onPress={() => router.push('/mapa')} />
     <View style={styles.filtrosRow}>
       <View style={styles.filtroCol}>
         <PressableSurface accessibilityLabel="Filtrar por deporte" accessibilityState={{ expanded: abiertoDeporte }} style={styles.desplegable} onPress={() => { setAbiertoDeporte(v => !v); setAbiertoComplejo(false); }}>
@@ -284,10 +302,11 @@ export default function DisponibilidadScreen() {
             <Pressable accessibilityRole="button" accessibilityLabel={`Ver horarios de ${e.nombre}`} accessibilityState={{ selected: elegida }}
               style={({ pressed }) => ({ opacity: pressed ? interaction.pressedOpacity : 1 })}
               onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); const indice = espaciosFiltrados.findIndex(c => c.id === e.id); centrarCancha(indice >= 0 ? indice : 0); }}>
-              {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
+              {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={e.imagenes.length ? 'Foto de ' + e.nombre : 'Imagen ilustrativa'} />}
               <View style={styles.cardInfo}>
                 <Text variant="subtitle" numberOfLines={2}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
                 <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? 'Cancha deportiva'}</Text>
+                <Text variant="label" tone="muted">{e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
                 <Text numeric variant="action" tone="primary">{precioLegible(e.precioPorHora)} / hora</Text>
                 <Text variant="label" tone={elegida ? 'primary' : 'muted'}>{elegida ? 'Seleccionada' : 'Ver horarios'}</Text>
               </View>
@@ -344,7 +363,7 @@ export default function DisponibilidadScreen() {
           </View>
         </PressableSurface>;
       }} />
-    {seleccionado && espacio?.id === seleccionado.espacioId && <ReservaDialog
+    {seleccionado && seleccionado.fecha === fecha && espacio?.id === seleccionado.espacioId && <ReservaDialog
       key={seleccionado.id} turno={seleccionado} espacio={espacio}
       personasIniciales={personasIniciales} requiereIngreso={!usuario}
       deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? 'Cancha deportiva'}

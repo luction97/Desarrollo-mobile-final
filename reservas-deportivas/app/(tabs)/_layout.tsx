@@ -8,7 +8,7 @@ export default function TabLayout() {
   const { colors } = useTheme();
   const { usuario } = useAuth();
   // El personal gestiona sus turnos desde la agenda; "Mis Reservas" es del jugador.
-  const verReservas = !usuario || permisosDe(usuario).puedeReservar;
+  const { puedeReservar, puedeGestionar } = permisosDe(usuario);
   return (
     <Tabs
       screenOptions={{
@@ -30,9 +30,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="two"
         options={{
-          href: verReservas ? undefined : null,
+          href: puedeReservar ? undefined : null,
           title: 'Mis reservas',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="ticket-outline" color={color} />,
+        }}
+      />
+
+      <Tabs.Screen
+        name="agenda"
+        options={{
+          href: puedeGestionar ? undefined : null,
+          title: 'Agenda',
+          tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="calendar-outline" color={color} />,
         }}
       />
 

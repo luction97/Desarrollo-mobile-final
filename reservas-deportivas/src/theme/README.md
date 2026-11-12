@@ -4,9 +4,7 @@ Entrada pública: `src/theme/index.ts`. `useTheme()` sigue el esquema del sistem
 y usa claro si no está definido. Los colores se aplican durante el render;
 los tokens de geometría y tipografía son estáticos. Fuente del sistema, sin assets nuevos.
 
-`constants/Colors.ts` es un adaptador de compatibilidad que deriva sus valores de
-esta paleta. El kit no importa los componentes de la plantilla. No se deben
-añadir paletas paralelas ni copiar tokens en pantallas.
+Usá esta paleta y sus tokens en las pantallas y componentes.
 
 Kit: `src/components/ui/index.ts`.
 

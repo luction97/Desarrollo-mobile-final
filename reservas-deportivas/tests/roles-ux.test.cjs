@@ -39,7 +39,13 @@ async function montarDetalle(rol) {
   const foto = async () => { llamadas.push('elegirFoto'); return { canceled: false, assets: [{ uri: 'file:///foto.jpg' }] }; };
   const Pantalla = cargar('app/espacio/[id].tsx', {
     'react-native': nativos,
-    'expo-router': { useRouter: () => ({ push() {} }), useLocalSearchParams: () => ({ id: cancha.id }) },
+    'expo-router': {
+      useRouter: () => ({ push() {} }), useLocalSearchParams: () => ({ id: cancha.id }),
+      useFocusEffect: callback => React.useEffect(callback, [callback]),
+    },
+    'expo': { useEvent: () => ({ status: 'readyToPlay' }) },
+    '../../src/hooks/useSinRed': { useSinRed: () => false },
+    '../../src/services/archivos': { subirFoto: async uri => { llamadas.push(uri); return { url: 'https://ejemplo.test/archivo' }; } },
     'expo-video': { useVideoPlayer: () => player, VideoView: 'VideoView' },
     'expo-image-picker': {
       requestCameraPermissionsAsync: async () => { llamadas.push('permiso'); return { granted: true }; },
@@ -48,10 +54,10 @@ async function montarDetalle(rol) {
     'expo-haptics': { NotificationFeedbackType: { Success: 'success' }, notificationAsync: async () => {} },
     '../../src/components/ui': entorno.ui,
     '../../src/theme': entorno.theme,
-    '../../src/services/espacios': { obtenerEspacio: async () => cancha },
+    '../../src/services/espacios': { obtenerEspacioLocal: async () => null, obtenerEspacio: async () => ({ datos: cancha, local: false }) },
     '../../src/services/medios': {
       obtenerFoto: async () => { llamadas.push('leerFoto'); return 'file:///privada.jpg'; },
-      obtenerVideo: async () => null,
+      obtenerDescarga: async () => null,
       guardarFoto: async () => { llamadas.push('guardarFoto'); return 'file:///nueva.jpg'; },
     },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: actual }) },
@@ -89,10 +95,13 @@ test('jugador, invitado y encargado ven la cancha sin herramientas ni fotos priv
 test('administrador registra una foto local, sin presentar el guardado como una publicación', async () => {
   const caso = await montarDetalle('administrador');
   try {
-    assert.ok(JSON.stringify(caso.vista.toJSON()).includes('no se publica para los jugadores'));
+    assert.ok(JSON.stringify(caso.vista.toJSON()).includes('archivo independiente de la galería'));
     await act(async () => { await boton(caso.vista, 'Tomar foto').props.onPress(); });
     assert.deepEqual(caso.llamadas, ['leerFoto', 'permiso', 'elegirFoto', 'guardarFoto']);
     assert.ok(caso.vista.root.findAllByType('Image').some(n => n.props.source.uri === 'file:///nueva.jpg'));
+    await act(async () => { await boton(caso.vista, 'Subir archivo').props.onPress(); });
+    assert.equal(caso.llamadas.at(-1), 'file:///nueva.jpg');
+    assert.ok(JSON.stringify(caso.vista.toJSON()).includes('https://ejemplo.test/archivo'));
     await caso.cambiarRol('jugador');
     assert.equal(boton(caso.vista, 'Tomar foto'), undefined);
     assert.ok(!caso.vista.root.findAllByType('Image').some(n => n.props.source.uri.startsWith('file:')));
@@ -146,16 +155,16 @@ test('Administración: encargado ve fijas sin edición; sólo administrador ve p
 test('agenda no consulta reservas ni titulares al entrar como invitado o jugador', async () => {
   for (const rol of [null, 'jugador', 'encargado']) {
     let consultas = 0;
-    const Pantalla = cargar('app/agenda.tsx', {
+    const Pantalla = cargar('app/(tabs)/agenda.tsx', {
       'react-native': nativos,
       'expo-router': { useRouter: () => ({ push() {} }), useFocusEffect: callback => React.useEffect(callback, [callback]) },
-      '../src/components/ui': entorno.ui, '../src/theme': entorno.theme,
-      '../src/context/AuthContext': { useAuth: () => ({ usuario: usuario(rol) }) },
-      '../src/utils/permisos': permisos, '../src/utils/etiquetas': etiquetas, '../src/utils/fechas': fechas,
-      '../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
-      '../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
-      '../src/services/espacios': { obtenerEspacios: async () => ({ datos: [cancha] }) },
-      '../src/services/operaciones': { operacionesService: { listarAgenda: async () => [], listarReservasDelDia: async () => { consultas++; return []; } } },
+      '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
+      '../../src/context/AuthContext': { useAuth: () => ({ usuario: usuario(rol) }) },
+      '../../src/utils/permisos': permisos, '../../src/utils/etiquetas': etiquetas, '../../src/utils/fechas': fechas,
+      '../../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
+      '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+      '../../src/services/espacios': { obtenerEspacios: async () => ({ datos: [cancha] }) },
+      '../../src/services/operaciones': { operacionesService: { listarAgenda: async () => [], listarReservasDelDia: async () => { consultas++; return []; } } },
     }).default;
     let vista;
     try {

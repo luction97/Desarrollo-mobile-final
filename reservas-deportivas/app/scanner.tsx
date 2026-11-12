@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, Linking, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, PressableSurface, Screen, StateView, Text, TextField, uiLayout } from '../src/components/ui';
 import { layout, radius, spacing, useTheme } from '../src/theme';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -134,25 +134,26 @@ export default function EscanerScreen() {
     return <Screen><StateView><Text tone="muted">Acceso restringido a encargados y administradores.</Text></StateView></Screen>;
   }
 
-  return (
-    <Screen>
-      <View style={styles.panel}>
+  const cabecera =       <View style={styles.panel}>
         <Text variant="title" accessibilityRole="header">Registrar ingreso</Text>
         <Text tone="muted">Elegí la cancha donde estás recibiendo a los jugadores.</Text>
         {espacio && <Text variant="subtitle">{espacio.nombre}</Text>}
         {sinRed && <Text accessibilityLiveRegion="polite" tone="warning">Conectate a internet para registrar ingresos.</Text>}
         {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
         {resultado && <Text selectable accessibilityLiveRegion="polite" tone="success">{resultado}</Text>}
-      </View>
+      </View>;
+
+  return (
+    <Screen>
       {!espacio ? (
-        cargando ? <ActivityIndicator color={colors.primary} accessibilityLabel="Cargando canchas" /> : (
+        cargando ? <>{cabecera}<ActivityIndicator color={colors.primary} accessibilityLabel="Cargando canchas" /></> : (
           <FlatList
             contentInsetAdjustmentBehavior="automatic"
             contentContainerStyle={uiLayout.listContent}
             data={espacios}
             keyExtractor={(item) => item.id}
             ListEmptyComponent={<StateView><Text tone="muted">No hay canchas disponibles.</Text></StateView>}
-            ListHeaderComponent={<Button variant="secondary" title="Recargar canchas" onPress={cargarEspacios} />}
+            ListHeaderComponent={<>{cabecera}<Button variant="secondary" title="Recargar canchas" onPress={cargarEspacios} /></>}
             renderItem={({ item }) => (
               <PressableSurface accessibilityRole="button" onPress={() => { setEspacio(item); setError(null); }}>
                 <Text variant="subtitle">{item.nombre}</Text>
@@ -162,7 +163,8 @@ export default function EscanerScreen() {
           />
         )
       ) : (
-        <>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.escaneo}>
+          {cabecera}
           {!autenticado ? (
             <View style={styles.panel}>
               {usarContrasena && <TextField label="Contraseña de tu cuenta" value={contrasena} onChangeText={setContrasena} secureTextEntry autoComplete="current-password" editable={!procesando} />}
@@ -197,13 +199,14 @@ export default function EscanerScreen() {
             setResultado(null);
             setContrasena(''); setLinterna(false);
           }} />
-        </>
+        </ScrollView>
       )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  escaneo: { flexGrow: 1, paddingBottom: spacing.lg },
   panel: { padding: spacing.xl, gap: spacing.md },
   action: { marginHorizontal: spacing.xl, marginBottom: spacing.sm },
   camera: { flex: 1, minHeight: layout.cameraMinHeight, margin: spacing.xl, borderRadius: radius.card, overflow: 'hidden' },

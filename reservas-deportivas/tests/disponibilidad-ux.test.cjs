@@ -44,7 +44,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
   const rutas = [];
   const consultas = [];
   const desplazamientos = [];
-  const router = { push: ruta => { rutas.push(ruta); navegaciones.push(typeof ruta === 'string' ? ruta : ruta.pathname); } };
+  const router = { setParams() {}, push: ruta => { rutas.push(ruta); navegaciones.push(typeof ruta === 'string' ? ruta : ruta.pathname); } };
   const pantalla = cargar('app/(tabs)/index.tsx', {
     'react-native': { ...nativos, FlatList: props => React.createElement('FlatList', props,
       props.ListHeaderComponent, !props.data.length && props.ListEmptyComponent) },

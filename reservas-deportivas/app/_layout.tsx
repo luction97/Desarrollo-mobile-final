@@ -66,7 +66,7 @@ function RootLayoutNav() {
           <Stack.Screen name="espacio/[id]" options={{ title: 'La cancha' }} />
           
           <Stack.Screen name="admin" options={{ title: 'Gestión del complejo' }} />
-          <Stack.Screen name="agenda" options={{ title: 'Agenda del día' }} />
+          <Stack.Screen name="mapa" options={{ title: 'Mapa de complejos' }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

@@ -66,8 +66,8 @@ export default function AdminScreen() {
     <ScrollScreen contentContainerStyle={{ gap: spacing.lg }}>
       <Text variant="title">Canchas</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-        {espacios.map(e => <Chip key={e.id} selected={espacioId === e.id} disabled={cargandoEspacios}
-          onPress={() => setEspacioId(e.id)}>{e.nombre}</Chip>)}
+        {espacios.map(e => <Chip key={e.id} selected={espacioId === e.id} disabled={cargandoEspacios || cambiandoPrecio}
+          onPress={() => { setEspacioId(e.id); setPrecio(''); }}>{e.nombre}</Chip>)}
       </ScrollView>
       {cargandoEspacios && <ActivityIndicator color={colors.primary} />}
       {!espacios.length && !cargandoEspacios && <Button title="Reintentar carga" onPress={cargar} />}

@@ -122,7 +122,7 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
     'react': React,
     'react/jsx-runtime': require('react/jsx-runtime'),
     'react-native': {
-      ActivityIndicator: 'ActivityIndicator', Button: 'Button', FlatList: 'FlatList',
+      ActivityIndicator: 'ActivityIndicator', Button: 'Button', FlatList: 'FlatList', ScrollView: 'ScrollView',
       Text: 'Text', TouchableOpacity: 'TouchableOpacity', View: 'View', Linking: {},
       AppState: { addEventListener: (_evento, callback) => { cambiarEstado = callback; return { remove() {} }; } },
       StyleSheet: { create: (datos) => datos, hairlineWidth: 1 },

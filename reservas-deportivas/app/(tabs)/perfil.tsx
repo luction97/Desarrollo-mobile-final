@@ -1,4 +1,4 @@
-import { View, StyleSheet } from 'react-native';
+import { ScrollView, View, StyleSheet } from 'react-native';
 import { Button, Screen, Surface, Text, uiLayout } from '../../src/components/ui';
 import { radius, spacing } from '../../src/theme';
 import { useRouter } from 'expo-router';
@@ -14,7 +14,7 @@ export default function PerfilScreen() {
 
   return (
     <Screen topInset>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <Text variant="title" accessibilityRole="header">Perfil</Text>
         {!usuario ? (
           <Surface style={styles.card}>
@@ -54,7 +54,7 @@ export default function PerfilScreen() {
             )}
           </>
         )}
-      </View>
+      </ScrollView>
     </Screen>
   );
 }
