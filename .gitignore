@@ -6,6 +6,7 @@
 !/reservas-deportivas/
 !/LICENSE
 !/README.md
+!/GUIA_DEMOSTRACION.md
 !/.github/
 /.github/*
 !/.github/workflows/

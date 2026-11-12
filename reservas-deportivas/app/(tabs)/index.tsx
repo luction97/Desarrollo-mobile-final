@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
@@ -22,7 +22,7 @@ import { etiquetasTurno } from '../../src/utils/etiquetas';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
 import { catalogoDeEspacios } from '../../src/canchas/modelo';
 import { FavoritoToggle } from '../../src/components/favoritos';
-import { fotoDeCancha, portadaDeEjemplo } from '../../src/canchas/imagenes';
+import { fotoDeCancha } from '../../src/canchas/imagenes';
 
 interface Aviso { titulo: string; mensaje?: string; detalle?: string; reservaId?: string }
 
@@ -60,7 +60,9 @@ export default function DisponibilidadScreen() {
   const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
   const [filtroComplejo, setFiltroComplejo] = useState<string>('todos');
   const [soloFavoritos, setSoloFavoritos] = useState(false);
-  const [catalogoAbierto, setCatalogoAbierto] = useState(false);
+  const [anchoCarrusel, setAnchoCarrusel] = useState(0);
+  const carrusel = useRef<ScrollView>(null);
+  const reposo = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const operando = useRef(false);
   const generacion = useRef(0);
   const espaciosFavoritos = usuario?.espaciosFavoritos;
@@ -69,10 +71,23 @@ export default function DisponibilidadScreen() {
     (filtroComplejo === 'todos' || e.complejo === filtroComplejo) &&
     (!soloFavoritos || !espaciosFavoritos || espaciosFavoritos.includes(e.id))),
   [espacios, filtroDeporte, filtroComplejo, soloFavoritos, espaciosFavoritos]);
-  const espacio = espacios.find(e => e.id === espacioElegidoId) ?? espacios[0] ?? null;
+  const indiceCancha = Math.max(0, espaciosFiltrados.findIndex(e => e.id === espacioElegidoId));
+  const espacio = espaciosFiltrados[indiceCancha] ?? null;
+  const seleccionarCancha = (indice: number) => {
+    const elegida = espaciosFiltrados[indice];
+    if (!elegida || elegida.id === espacio?.id) return;
+    setEspacioId(elegida.id);
+    void preferencias.setItem('ultimoEspacio', elegida.id).catch(() => undefined);
+  };
+
+  useEffect(() => {
+    clearTimeout(reposo.current);
+    if (anchoCarrusel) carrusel.current?.scrollTo({ x: indiceCancha * anchoCarrusel, animated: false });
+    return () => clearTimeout(reposo.current);
+  }, [anchoCarrusel, espaciosFiltrados, indiceCancha]);
   const espacioId = espacio?.id ?? '';
 
-  useEffect(() => { setSoloFavoritos(false); }, [usuario?.id]);
+  useEffect(() => { setSoloFavoritos(false); setEspacioId(''); }, [usuario?.id]);
 
   useFocusEffect(useCallback(() => {
     let activo = true;
@@ -232,7 +247,6 @@ export default function DisponibilidadScreen() {
   const limpiarFiltros = () => { setSoloFavoritos(false); setFiltroDeporte('todos'); setFiltroComplejo('todos'); };
 
   const deporteDe = (id: string) => deportes.find(d => d.id === id)?.nombre ?? 'Espacio deportivo';
-  const fotoSeleccionada = espacio ? fotoDeCancha(espacio) : null;
   const cantidadLibres = grilla.slice(anteriores.length).filter(t => t.estado === 'libre').length;
 
   const cabecera = <View style={styles.cabecera}>
@@ -251,24 +265,65 @@ export default function DisponibilidadScreen() {
       <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
     </View>}
 
-    {espacio && <Surface padding="none" style={styles.seleccion}>
-      {fotoSeleccionada && <Image source={fotoSeleccionada} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
-      <View style={styles.resumenCancha}>
-        <View style={uiLayout.row}>
-          <View style={uiLayout.grow}>
-            <Text variant="title" accessibilityRole="header">{espacio.nombre}</Text>
-            <Text variant="label" tone="muted">{espacio.complejo && espacio.complejo !== '—' ? espacio.complejo + ' · ' : ''}{precioLegible(espacio.precioPorHora)}/h</Text>
-          </View>
-          <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
-        </View>
-        <View style={styles.accionesCancha}>
-          <Button style={uiLayout.grow} variant="secondary" title="Ver detalles"
-            onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />
-          <Button style={uiLayout.grow} variant="ghost" title="Cambiar cancha"
-            accessibilityLabel={'Cambiar cancha. Actual: ' + espacio.nombre} onPress={() => setCatalogoAbierto(true)} />
-        </View>
+    {espacios.length > 0 && <View style={styles.filtros}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por deporte">
+        <Chip accessibilityLabel="Todos los deportes" selected={filtroDeporte === 'todos'} onPress={() => setFiltroDeporte('todos')}>Todos</Chip>
+        {[...new Set(espacios.map(e => e.deporteId))].map(id =>
+          <Chip key={id} accessibilityLabel={deporteDe(id)} selected={id === filtroDeporte}
+            onPress={() => setFiltroDeporte(id)}>{deporteDe(id)}</Chip>)}
+      </ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por complejo">
+        {complejosDisponibles.map(comp => <Chip key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp}
+          selected={comp === filtroComplejo} onPress={() => setFiltroComplejo(comp)}>
+          {comp === 'todos' ? 'Todos los complejos' : comp}
+        </Chip>)}
+        {usuario && <Chip accessibilityLabel="Solo favoritos" selected={soloFavoritos} onPress={() => setSoloFavoritos(v => !v)}>Favoritos</Chip>}
+      </ScrollView>
+    </View>}
+    {espacio && <View onLayout={evento => setAnchoCarrusel(evento.nativeEvent.layout.width)} testID="marco-canchas">
+      <ScrollView ref={carrusel} horizontal pagingEnabled directionalLockEnabled
+        showsHorizontalScrollIndicator={false} accessibilityLabel="Carrusel de canchas"
+        scrollEventThrottle={32}
+        onScroll={evento => {
+          const x = evento.nativeEvent.contentOffset.x;
+          clearTimeout(reposo.current);
+          reposo.current = setTimeout(() => {
+            if (anchoCarrusel) seleccionarCancha(Math.round(x / anchoCarrusel));
+          }, 160);
+        }}
+        onMomentumScrollEnd={evento => {
+          clearTimeout(reposo.current);
+          if (anchoCarrusel) seleccionarCancha(Math.round(evento.nativeEvent.contentOffset.x / anchoCarrusel));
+        }}>
+        {(anchoCarrusel ? espaciosFiltrados : [espacio]).map(e => {
+          const foto = fotoDeCancha(e);
+          const elegida = e.id === espacio.id;
+          return <Surface key={e.id} padding="none" variant="outlined"
+            accessibilityState={{ selected: elegida }}
+            style={[styles.seleccion, { width: anchoCarrusel || undefined, borderColor: elegida ? colors.primary : colors.border }]}>
+            {foto && <Image source={foto} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
+            <View style={styles.resumenCancha}>
+              <View style={uiLayout.row}>
+                <View style={uiLayout.grow}>
+                  <Text variant="title" accessibilityRole="header">{e.nombre}</Text>
+                  <Text variant="label" tone="muted">{e.complejo && e.complejo !== '—' ? e.complejo + ' · ' : ''}{precioLegible(e.precioPorHora)}/h</Text>
+                  <Text variant="label" tone="muted">{deporteDe(e.deporteId)} · {e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
+                </View>
+                <FavoritoToggle espacioId={e.id} nombre={e.nombre} />
+              </View>
+              <Button variant="secondary" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
+            </View>
+          </Surface>;
+        })}
+      </ScrollView>
+      <View style={uiLayout.row}>
+        <Button variant="ghost" size="sm" title="‹" accessibilityLabel="Cancha anterior"
+          disabled={indiceCancha === 0} onPress={() => seleccionarCancha(indiceCancha - 1)} />
+        <Text variant="label" tone="primary" accessibilityLiveRegion="polite">{`Seleccionada · ${indiceCancha + 1} de ${espaciosFiltrados.length}`}</Text>
+        <Button variant="ghost" size="sm" title="›" accessibilityLabel="Cancha siguiente"
+          disabled={indiceCancha >= espaciosFiltrados.length - 1} onPress={() => seleccionarCancha(indiceCancha + 1)} />
       </View>
-    </Surface>}
+    </View>}
     {espacio && <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Días disponibles">
         {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={d.nombre + ' ' + fechaLegible(d.fecha)}
@@ -293,7 +348,11 @@ export default function DisponibilidadScreen() {
       ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || cargando ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
         : !espacio && errorCatalogo ? null
-        : !espacio ? <StateView><Text tone="muted">No hay canchas disponibles en el catálogo.</Text></StateView>
+        : !espacio ? <StateView>
+          <Text tone="muted">{!espacios.length ? 'No hay canchas disponibles en el catálogo.'
+            : soloFavoritos && !espaciosFavoritos?.length ? 'Todavía no tenés favoritas.' : 'No hay canchas con estos filtros.'}</Text>
+          {espacios.length > 0 && <Button title="Ver todas las canchas" variant="secondary" onPress={limpiarFiltros} />}
+        </StateView>
         : <StateView><Text tone="muted">{local ? 'No hay horarios guardados para esta fecha.' : 'No quedan horarios para mostrar en esta fecha.'}</Text></StateView>}
       ListFooterComponent={espacio && !cargando && !error && anteriores.length > 0
         ? <Button variant="ghost" title={verAnteriores ? 'Ocultar anteriores' : 'Ver anteriores'}
@@ -319,54 +378,6 @@ export default function DisponibilidadScreen() {
         </PressableSurface>;
       }} />
 
-    <Modal visible={catalogoAbierto} transparent animationType="slide" onRequestClose={() => setCatalogoAbierto(false)}>
-      <View style={[styles.fondoCatalogo, { backgroundColor: colors.scrim }]}>
-        <Surface style={styles.catalogo} accessibilityViewIsModal>
-          <View style={uiLayout.row}>
-            <Text variant="title" accessibilityRole="header" style={uiLayout.grow}>Elegí una cancha</Text>
-            <Button size="sm" variant="ghost" title="Cerrar" onPress={() => setCatalogoAbierto(false)} />
-          </View>
-          <ScrollView contentContainerStyle={styles.opciones}>
-            <Text variant="label" tone="muted">Deporte</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
-              <Chip selected={filtroDeporte === 'todos'} onPress={() => setFiltroDeporte('todos')}>Todos los deportes</Chip>
-              {[...new Set(espacios.map(e => e.deporteId))].map(id =>
-                <Chip key={id} accessibilityLabel={deporteDe(id)} selected={id === filtroDeporte}
-                  onPress={() => setFiltroDeporte(id)}>{deporteDe(id)}</Chip>)}
-            </ScrollView>
-            <Text variant="label" tone="muted">Complejo</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal}>
-              {complejosDisponibles.map(comp => <Chip key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp} selected={comp === filtroComplejo}
-                onPress={() => setFiltroComplejo(comp)}>{comp === 'todos' ? 'Todos los complejos' : comp}</Chip>)}
-            </ScrollView>
-            {usuario && <Chip accessibilityLabel="Solo favoritos" selected={soloFavoritos}
-              onPress={() => setSoloFavoritos(v => !v)}>Solo favoritos</Chip>}
-            {!espaciosFiltrados.length && <>
-              <Text tone="muted">{soloFavoritos && !usuario?.espaciosFavoritos.length ? 'Todavía no tenés favoritas.' : 'No hay canchas con estos filtros.'}</Text>
-              <Button variant="ghost" title="Ver todas las canchas" onPress={limpiarFiltros} />
-            </>}
-            {espaciosFiltrados.map(e => {
-              const foto = fotoDeCancha(e);
-              const elegida = e.id === espacioId;
-              return <PressableSurface key={e.id} selected={elegida} accessibilityLabel={'Ver horarios de ' + e.nombre}
-                style={styles.cambiarCancha} onPress={() => {
-                  setEspacioId(e.id);
-                  setCatalogoAbierto(false);
-                  void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined);
-                }}>
-                {foto && <Image source={foto} style={styles.miniatura} accessibilityLabel={portadaDeEjemplo(e) || e.imagenes.length ? 'Foto de cancha' : 'Imagen ilustrativa'} />}
-                <View style={uiLayout.grow}>
-                  <Text variant="label">{e.nombre}</Text>
-                  <Text variant="caption" tone="muted">{deporteDe(e.deporteId)} · {e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
-                  <Text variant="caption" tone="primary">{precioLegible(e.precioPorHora)}/h</Text>
-                </View>
-                <Ionicons name={elegida ? 'checkmark-circle' : 'chevron-forward'} size={spacing.xl} color={colors.primary} />
-              </PressableSurface>;
-            })}
-          </ScrollView>
-        </Surface>
-      </View>
-    </Modal>
     {seleccionado && seleccionado.fecha === fecha && espacio?.id === seleccionado.espacioId && <ReservaDialog
       key={seleccionado.id} turno={seleccionado} espacio={espacio}
       personasIniciales={personasIniciales} requiereIngreso={!usuario}
@@ -384,13 +395,9 @@ export default function DisponibilidadScreen() {
 const styles = StyleSheet.create({
   cabecera: { paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.md },
   seleccion: { overflow: 'hidden' },
-  cambiarCancha: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm,
-  },
-  miniatura: { width: layout.courtThumbnail, height: layout.courtThumbnail, borderRadius: radius.input },
-  fotoPrincipal: { width: '100%', aspectRatio: layout.mediaRatio, maxHeight: layout.mapHeight },
+  filtros: { gap: spacing.xs },
+  fotoPrincipal: { width: '100%', aspectRatio: 1.6, maxHeight: layout.mapHeight },
   resumenCancha: { padding: spacing.md, gap: spacing.sm },
-  accionesCancha: { flexDirection: 'row', gap: spacing.sm },
   horizontal: { gap: spacing.xs },
   dia: {
     ...controlSizes.sm, minWidth: layout.dayWidth, alignItems: 'center',
@@ -398,7 +405,4 @@ const styles = StyleSheet.create({
   },
   listaTurnos: { gap: spacing.xs },
   filaTurno: { ...controlSizes.sm, opacity: 1, borderRadius: radius.input },
-  fondoCatalogo: { flex: 1, justifyContent: 'flex-end', padding: spacing.md },
-  catalogo: { width: '100%', maxWidth: layout.formWidth, maxHeight: '88%', alignSelf: 'center', gap: spacing.sm },
-  opciones: { gap: spacing.sm, paddingBottom: spacing.md },
 });

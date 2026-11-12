@@ -12,6 +12,20 @@ Aplicación móvil para consultar y reservar canchas deportivas de Villaguay. Tr
 La app se comunica con la API por HTTP; no accede a la base del servidor. La API pertenece a la
 cátedra: su código y su contrato no se modifican.
 
+## Roles y permisos
+
+| Rol | Qué puede hacer en Deporturnos |
+|---|---|
+| Invitado | Consultar canchas, fichas, mapa y disponibilidad. Puede elegir un turno y la cantidad de personas. Para confirmar, debe ingresar o registrarse. |
+| Jugador | Reservar turnos libres, consultar sus reservas, mostrar su QR incluso con una copia guardada sin conexión, cancelar dentro del plazo y gestionar favoritos. |
+| Encargado | Consultar la agenda y las reservas fijas, validar ingresos por QR, marcar ausencias, tramitar cancelaciones según las reglas de la API y gestionar bloqueos. |
+| Administrador | Realizar las operaciones del encargado y, además, crear, editar o dar de baja reservas fijas, cambiar tarifas y capturar, seleccionar y subir fotos como archivos independientes. |
+
+El registro público crea una cuenta de jugador. La API de la cátedra valida los permisos de cada operación.
+La subida de una foto devuelve un archivo y la galería de la cancha conserva las imágenes asociadas por la API.
+
+Para preparar y grabar la demostración, seguí la [guía de permisos y pruebas manuales](GUIA_DEMOSTRACION.md).
+
 ## Requisitos
 
 - **Node.js 24.15.0** (ver `reservas-deportivas/.nvmrc`) con npm, para la app.
