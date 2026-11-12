@@ -23,6 +23,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Canchas',
+          tabBarAccessibilityLabel: 'Canchas',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="football-outline" color={color} />,
         }}
       />
@@ -32,6 +33,7 @@ export default function TabLayout() {
         options={{
           href: puedeReservar ? undefined : null,
           title: 'Mis reservas',
+          tabBarAccessibilityLabel: 'Mis reservas',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="ticket-outline" color={color} />,
         }}
       />
@@ -41,6 +43,7 @@ export default function TabLayout() {
         options={{
           href: puedeGestionar ? undefined : null,
           title: 'Agenda',
+          tabBarAccessibilityLabel: 'Agenda',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="calendar-outline" color={color} />,
         }}
       />
@@ -48,7 +51,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="perfil"
         options={{
-          title: 'Perfil',
+          href: usuario ? undefined : null,
+          title: 'Cuenta',
+          tabBarAccessibilityLabel: 'Cuenta',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="person-outline" color={color} />,
         }}
       />

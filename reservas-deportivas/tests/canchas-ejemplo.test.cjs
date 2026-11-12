@@ -9,6 +9,7 @@ const codigo = ts.transpileModule(fuente, { compilerOptions: { module: ts.Module
 const modulo = { exports: {} };
 new Function('exports', codigo)(modulo.exports);
 const { familiaDeDeporte, catalogoDeEspacios } = modulo.exports;
+const { cargarModulo } = require('./helpers/cargar-modulo.cjs');
 
 const espacio = (id, deporteId, activo = true) => ({
   id,
@@ -45,6 +46,17 @@ test('incluye los once espacios activos de ejemplo', () => {
   const canchas = catalogoDeEspacios(semillas());
   assert.equal(canchas.length, 11);
   assert.deepEqual(canchas.map(c => c.id), ['esp-01','esp-02','esp-03','esp-04','esp-05','esp-06','esp-07','esp-08','esp-09','esp-10','esp-11']);
+});
+
+test('las portadas locales de los ejemplos prevalecen y el gimnasio conserva su imagen de API', () => {
+  const imagenes = Object.fromEntries(['futbol', 'basquet', 'voley', 'tenis'].map(deporte => [
+    '../../assets/images/canchas/cancha-' + deporte + '.png', deporte,
+  ]));
+  const { fotoDeCancha } = cargarModulo('src/canchas/imagenes.ts', { './modelo': { familiaDeDeporte }, ...imagenes });
+  const remota = 'https://ejemplo.test/imagen.png';
+  assert.deepEqual(semillas().map(e => fotoDeCancha({ ...e, imagenes: [remota] })), [
+    'futbol', 'futbol', 'futbol', 'basquet', 'basquet', 'basquet', 'voley', 'voley', 'tenis', 'tenis', { uri: remota },
+  ]);
 });
 
 test('fútbol 5 y fútbol 11 comparten la misma foto registrada', () => {

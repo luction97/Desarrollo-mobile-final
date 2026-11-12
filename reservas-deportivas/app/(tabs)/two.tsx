@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, ScrollView, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { useHorarioActual } from '../../src/hooks/useHorarioActual';
 import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { CodigoQr } from '../../src/components/CodigoQr';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
-import { useTheme } from '../../src/theme';
+import { borders, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { cancelarReserva, esErrorSesion, reservasGuardadas, sincronizarReservas } from '../../src/services/reservas';
 import type { ReservaGuardada } from '../../src/modelos/reservas';
@@ -160,12 +160,14 @@ export default function MisReservasScreen() {
   };
 
   return <Screen topInset>
-    <View style={uiLayout.inset}>
-      <Text variant="title" accessibilityRole="header">Mis reservas</Text>
+    <View style={[uiLayout.inset, styles.encabezado]}>
       <View style={uiLayout.row}>
-        <Chip selected={!pasadas} onPress={() => setPasadas(false)}>Próximas</Chip>
-        <Chip selected={pasadas} onPress={() => setPasadas(true)}>Pasadas</Chip>
-        <Button size="sm" variant="ghost" title="Actualizar" onPress={cargar} />
+        <Text variant="display" accessibilityRole="header" style={uiLayout.grow}>Mis reservas</Text>
+        <Button size="sm" variant="ghost" title="Actualizar" onPress={cargar} disabled={cargando} />
+      </View>
+      <View style={styles.segmentos}>
+        <Chip style={uiLayout.grow} selected={!pasadas} onPress={() => setPasadas(false)}>Próximas</Chip>
+        <Chip style={uiLayout.grow} selected={pasadas} onPress={() => setPasadas(true)}>Pasadas</Chip>
       </View>
       {!pasadas && futuras > 0 && <Text variant="label" tone="muted">
         {futuras} {futuras === 1 ? 'reserva futura confirmada' : 'reservas futuras confirmadas'}
@@ -176,25 +178,29 @@ export default function MisReservasScreen() {
     <FlatList data={visibles} keyExtractor={d => d.reserva.id} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
       ListEmptyComponent={<StateView><Text tone="muted">{local ? 'No hay reservas guardadas en este teléfono.' : pasadas ? 'No tenés reservas pasadas.' : 'No tenés reservas próximas.'}</Text>
         <Button title="Ver disponibilidad" variant="secondary" onPress={() => router.push('/(tabs)')} /></StateView>}
-      renderItem={({ item }) => <Surface style={uiLayout.section}>
+      renderItem={({ item }) => <Surface style={styles.reserva}>
         <View style={uiLayout.row}>
+          {item.turno && <Text numeric variant="label" tone="primary" style={uiLayout.grow}>
+            {fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}
+          </Text>}
+          <Badge size="sm" variant={item.reserva.estado === 'confirmada' ? 'success' : 'neutral'}>{etiquetasReserva[item.reserva.estado]}</Badge>
+        </View>
+        <View>
           <View style={uiLayout.grow}>
             <Text variant="subtitle">{item.espacio?.nombre ?? 'Espacio no disponible'}</Text>
             <Text tone="muted">{item.espacio?.complejo}</Text>
           </View>
-          <Badge variant={item.reserva.estado === 'confirmada' ? 'success' : 'neutral'}>{etiquetasReserva[item.reserva.estado]}</Badge>
         </View>
-        {item.turno && <>
-          <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
-          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">Tarifa consultada: {precioLegible(item.turno.precio)} · Se paga en el lugar</Text>}
-        </>}
-        {esProxima(item) && <Button title="Mostrar QR" onPress={() => setQrElegido(item.reserva.id)} />}
-        <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
-        {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
-          ? <Button title="Cancelar reserva" variant="destructive" disabled={cargando || local || sinRed || cancelando} onPress={() => setConfirmacion(item)} />
-          : <Text tone="muted">Contactá al encargado para cancelar.</Text>)}
-        {item.espacio && puntosDeEspacios([item.espacio]).length > 0 && <Button title="Cómo llegar" variant="secondary"
+        <Text variant="label" tone="muted">{item.reserva.cantidadPersonas} {item.reserva.cantidadPersonas === 1 ? 'persona' : 'personas'}
+          {item.turno?.precio != null ? ' · ' + precioLegible(item.turno.precio) + ' en el lugar' : ''}</Text>
+        <View style={[uiLayout.row, styles.acciones, { borderColor: colors.border }]}>
+        {esProxima(item) && <Button size="sm" title="Mostrar QR" onPress={() => setQrElegido(item.reserva.id)} />}
+        {item.espacio && puntosDeEspacios([item.espacio]).length > 0 && <Button title="Cómo llegar" size="sm" variant="ghost"
           onPress={() => { if (item.espacio) void comoLlegar(item.espacio); }} />}
+        {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
+          ? <Button title="Cancelar reserva" size="sm" variant="ghost" disabled={cargando || local || sinRed || cancelando} onPress={() => setConfirmacion(item)} />
+          : <Text tone="muted">Contactá al encargado para cancelar.</Text>)}
+        </View>
       </Surface>} />
     {qr && <Modal visible animationType="fade" onRequestClose={cerrarQr}>
       <Screen topInset>
@@ -218,3 +224,10 @@ export default function MisReservasScreen() {
     {mensaje && <DialogoAviso titulo="Mis reservas" mensaje={mensaje} accionPrincipal="Entendido" onCerrar={() => setMensaje(null)} onConfirmar={() => setMensaje(null)} />}
   </Screen>;
 }
+
+const styles = StyleSheet.create({
+  encabezado: { gap: spacing.sm },
+  segmentos: { flexDirection: 'row', gap: spacing.sm },
+  reserva: { gap: spacing.sm },
+  acciones: { justifyContent: 'flex-start', borderTopWidth: borders.thin, paddingTop: spacing.sm, gap: spacing.xs },
+});

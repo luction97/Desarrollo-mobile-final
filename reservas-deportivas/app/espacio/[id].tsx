@@ -16,7 +16,7 @@ import { subirFoto } from '../../src/services/archivos';
 import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales } from '../../src/services/mapas';
-import { fotoDeCancha } from '../../src/canchas/imagenes';
+import { fotoDeDeporte, portadaDeEjemplo } from '../../src/canchas/imagenes';
 import { precioLegible } from '../../src/utils/dinero';
 import { permisosDe } from '../../src/utils/permisos';
 import type { Espacio } from '../../src/tipos';
@@ -36,7 +36,7 @@ function Detalle({ id }: { id: string }) {
   const [local, setLocal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
-  const [indice, setIndice] = useState(0);
+  const [indice, setIndice] = useState(-1);
   const [fotoLocal, setFotoLocal] = useState<string | null>(null);
   const [archivoSubido, setArchivoSubido] = useState<string | null>(null);
   const [fotoDescargada, setFotoDescargada] = useState<string | null>(null);
@@ -47,7 +47,8 @@ function Detalle({ id }: { id: string }) {
   const [guardando, setGuardando] = useState(false);
   const operando = useRef(false);
   const galeria = espacio?.imagenes.filter(Boolean) ?? [];
-  const posicion = Math.min(indice, Math.max(0, galeria.length - 1));
+  const portada = espacio ? portadaDeEjemplo(espacio) : null;
+  const posicion = portada && indice === -1 ? -1 : Math.min(Math.max(0, indice), Math.max(0, galeria.length - 1));
   const urlFoto = galeria[posicion];
   const urlVideo = espacio?.videoUrl;
 
@@ -151,22 +152,22 @@ function Detalle({ id }: { id: string }) {
 
   const uriFoto = fotoDescargada ?? urlFoto;
   const puedeMostrarFoto = !!uriFoto && fotoFallida !== uriFoto && (!sinRed || !!fotoDescargada);
-  const fuenteFoto = puedeMostrarFoto ? { uri: uriFoto } : fotoDeCancha({ ...espacio, imagenes: [] });
+  const fuenteFoto = puedeMostrarFoto ? { uri: uriFoto } : portada ?? fotoDeDeporte(espacio.deporteId);
   const fuenteVideo = videoDescargado ?? (!sinRed ? urlVideo : null);
 
   return <ScrollScreen contentContainerStyle={styles.scroll}>
     {fuenteFoto
       ? <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto} style={styles.image}
         onError={puedeMostrarFoto ? () => setFotoFallida(uriFoto) : undefined}
-        accessibilityLabel={puedeMostrarFoto ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
+        accessibilityLabel={puedeMostrarFoto || portada ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
       : null}
     <View style={styles.content}>
-      {galeria.length > 1 && <View style={uiLayout.row}>
+      {(galeria.length > 1 || (portada && galeria.length > 0)) && <View style={uiLayout.row}>
         <Button variant="ghost" size="sm" title="Anterior" accessibilityLabel="Foto anterior"
-          disabled={guardando || posicion === 0} onPress={() => setIndice(posicion - 1)} />
-        <Text variant="label" style={uiLayout.grow}>Foto {posicion + 1} de {galeria.length}</Text>
+          disabled={guardando || posicion <= (portada ? -1 : 0)} onPress={() => setIndice(posicion - 1)} />
+        <Text variant="label" style={uiLayout.grow}>{posicion < 0 ? 'Portada' : 'Foto ' + (posicion + 1) + ' de ' + galeria.length}</Text>
         <Button variant="ghost" size="sm" title="Siguiente" accessibilityLabel="Foto siguiente"
-          disabled={guardando || posicion === galeria.length - 1} onPress={() => setIndice(posicion + 1)} />
+          disabled={guardando || posicion >= galeria.length - 1} onPress={() => setIndice(posicion + 1)} />
       </View>}
       {urlFoto && Platform.OS !== 'web' && <Button variant="ghost" size="sm"
         title={fotoDescargada ? 'Borrar foto descargada' : 'Guardar foto sin conexión'}

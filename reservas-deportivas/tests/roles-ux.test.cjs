@@ -70,7 +70,7 @@ async function montarDetalle(rol) {
     '../../src/services/mapas': { obtenerPuntosLocales: async () => [], guardarPuntosLocales: async () => {} },
     '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
     '../../src/utils/dinero': dinero,
-    '../../src/canchas/imagenes': { fotoDeCancha: () => ({ uri: cancha.imagenes[0] }) },
+    '../../src/canchas/imagenes': { fotoDeDeporte: () => null, portadaDeEjemplo: () => null },
   }).default;
   let vista;
   await act(async () => { vista = create(React.createElement(Pantalla)); });
@@ -111,7 +111,7 @@ test('administrador registra una foto local, sin presentar el guardado como una 
   } finally { await caso.cerrar(); }
 });
 
-test('Perfil distingue historial del jugador y herramientas de gestión del personal', async () => {
+test('Cuenta muestra historial del jugador y concentra el cierre de sesión', async () => {
   for (const rol of ['jugador', 'encargado', 'administrador']) {
     const Pantalla = cargar('app/(tabs)/perfil.tsx', {
       'react-native': nativos, 'expo-router': { useRouter: () => ({ push() {} }) },
@@ -122,8 +122,8 @@ test('Perfil distingue historial del jugador y herramientas de gestión del pers
     let vista;
     try {
       await act(async () => { vista = create(React.createElement(Pantalla)); });
-      assert.equal(!!boton(vista, 'Gestionar canchas'), rol !== 'jugador');
-      assert.equal(!!boton(vista, 'Escanear QR'), rol !== 'jugador');
+      assert.equal(boton(vista, 'Gestionar canchas'), undefined);
+      assert.equal(boton(vista, 'Escanear QR'), undefined);
       assert.equal(JSON.stringify(vista.toJSON()).includes('Tu historial'), rol === 'jugador');
       assert.ok(boton(vista, 'Cerrar sesión'));
     } finally { if (vista) await act(async () => { vista.unmount(); }); }

@@ -14,11 +14,20 @@ const FOTO_POR_DEPORTE: Record<FamiliaDeporte, ImageSourcePropType> = {
 };
 
 /**
- * Prioriza la imagen del espacio y usa la ilustración del deporte como respaldo.
+ * Usa la foto local en los espacios de ejemplo y la imagen publicada en los demás.
  */
-export function fotoDeCancha(espacio: Pick<Espacio, 'deporteId' | 'imagenes'>): ImageSourcePropType | null {
-  const remota = espacio.imagenes?.find(Boolean);
-  if (remota) return { uri: remota };
+export function portadaDeEjemplo(espacio: Pick<Espacio, 'id' | 'deporteId'>): ImageSourcePropType | null {
+  if (!/^esp-(0[1-9]|10)$/.test(espacio.id)) return null;
   const familia = familiaDeDeporte(espacio.deporteId);
+  return familia ? FOTO_POR_DEPORTE[familia] : null;
+}
+
+export function fotoDeCancha(espacio: Pick<Espacio, 'id' | 'deporteId' | 'imagenes'>): ImageSourcePropType | null {
+  const remota = espacio.imagenes?.find(Boolean);
+  return portadaDeEjemplo(espacio) ?? (remota ? { uri: remota } : fotoDeDeporte(espacio.deporteId));
+}
+
+export function fotoDeDeporte(deporteId: string): ImageSourcePropType | null {
+  const familia = familiaDeDeporte(deporteId);
   return familia ? FOTO_POR_DEPORTE[familia] : null;
 }
