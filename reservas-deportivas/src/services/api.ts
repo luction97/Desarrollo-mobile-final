@@ -1,11 +1,41 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { storage } from './storage';
 import { invalidarSesion } from './sesionEventos';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const PUERTO_API = '3000';
+
+/**
+ * Resuelve la URL de la API en runtime, sin hardcodear en componentes:
+ * 1. EXPO_PUBLIC_API_URL (web y APK preview: se hornea en el bundle, ver eas.json).
+ * 2. En Expo Go / dev client, el host con el que el teléfono llegó a Metro
+ *    (hostUri). Así sigue andando si la IP de la PC cambia de red o con hotspot.
+ * 3. Emulador de Android: el localhost de la PC es 10.0.2.2.
+ * 4. Web: mismo host que sirve la página.
+ * Nota: con --tunnel el host (…exp.direct) sólo alcanza a Metro, no a la API;
+ * para consumir la API hace falta estar en la misma red (--lan o hotspot).
+ */
+function resolverBaseUrl(): string {
+  const configurada = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (configurada) return configurada.replace(/\/+$/, '');
+
+  if (Platform.OS === 'web') {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    return `http://${host}:${PUERTO_API}`;
+  }
+
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  if (host && host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('exp.direct')) {
+    return `http://${host}:${PUERTO_API}`;
+  }
+
+  if (Platform.OS === 'android') return `http://10.0.2.2:${PUERTO_API}`;
+  return `http://localhost:${PUERTO_API}`;
+}
 
 const apiClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: resolverBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
