@@ -33,6 +33,8 @@ export default function RegistroScreen() {
   return <KeyboardAvoidingView style={uiLayout.grow} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollScreen>
       <View style={{ width: '100%', maxWidth: layout.formWidth, alignSelf: 'center', gap: spacing.xl }}>
+        <Text variant="display" accessibilityRole="header">Deporturnos</Text>
+        <Text tone="muted">Reservas Deportivas Villaguay</Text>
         {error !== '' && <Text accessibilityRole="alert" selectable tone="danger">{error}</Text>}
         <TextField label="Nombre" value={nombre} onChangeText={setNombre} autoComplete="name" editable={!cargando} maxLength={80} />
         <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" editable={!cargando} maxLength={254} />

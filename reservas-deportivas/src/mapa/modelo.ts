@@ -11,7 +11,7 @@ export type MensajeMapa =
 export const ATRIBUCION_URL = 'https://www.openstreetmap.org/copyright';
 export const REPORTE_URL = 'https://www.openstreetmap.org/fixthemap';
 export const LEAFLET_URL = 'https://leafletjs.com';
-export const IDENTIFICACION_MAPA = 'ReservasDeportivas/1.0 (+https://github.com/luction97/Desarrollo-mobile-final)';
+export const IDENTIFICACION_MAPA = 'Deporturnos/1.0 (+https://github.com/luction97/Desarrollo-mobile-final)';
 
 export function coordenadasValidas(valor: unknown): valor is CoordenadasMapa {
   if (!valor || typeof valor !== 'object') return false;

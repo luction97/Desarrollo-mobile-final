@@ -43,7 +43,9 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
         <View style={styles.form}>
-          <Text variant="display" accessibilityRole="header">Iniciar Sesión</Text>
+          <Text variant="display" accessibilityRole="header">Deporturnos</Text>
+          <Text tone="muted">Reservas Deportivas Villaguay</Text>
+          <Text variant="title" accessibilityRole="header">Iniciar Sesión</Text>
           {error !== '' && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
           {usuarioGuardado && tieneBiometria && <View style={styles.fields}>
             <Text variant="subtitle">¡Hola de nuevo, {usuarioGuardado.nombre.split(' ')[0]}!</Text>

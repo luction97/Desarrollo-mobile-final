@@ -102,7 +102,7 @@ test('WebView conserva caché HTTP, identifica la app y no permite archivos ni n
   const vista = VisorMapa({ html: '<html/>', onMensaje() {}, onError() {} });
   assert.equal(vista.props.cacheEnabled, true);
   assert.equal(vista.props.cacheMode, 'LOAD_DEFAULT');
-  assert.ok(vista.props.applicationNameForUserAgent.includes('ReservasDeportivas/'));
+  assert.ok(vista.props.applicationNameForUserAgent.includes('Deporturnos/'));
   assert.equal(vista.props.geolocationEnabled, false);
   assert.equal(vista.props.allowFileAccess, false);
   assert.equal(vista.props.mixedContentMode, 'never');
