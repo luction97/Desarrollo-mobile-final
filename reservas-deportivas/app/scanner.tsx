@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { autenticarPersonal } from '../src/services/biometria';
+import { obtenerEspacios } from '../src/services/espacios';
 import { operacionesService } from '../src/services/operaciones';
 import { authService } from '../src/services/auth';
 import type { Espacio } from '../src/tipos';
@@ -62,7 +63,7 @@ export default function EscanerScreen() {
     setCargando(true);
     setError(null);
     try {
-      const datos = await operacionesService.obtenerEspacios();
+      const { datos } = await obtenerEspacios();
       setEspacios(datos.filter((item) => item.activo));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar las canchas.');

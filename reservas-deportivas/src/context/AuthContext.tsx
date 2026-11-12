@@ -16,6 +16,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   registro: (datos: DatosRegistro) => Promise<void>;
   desbloquear: () => Promise<boolean>;
+  actualizarUsuario: (usuario: Usuario) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -65,6 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const actualizarUsuario = (nuevo: Usuario) => {
+    setUsuario(nuevo);
+    setUsuarioGuardado(nuevo);
+    authService.actualizar(nuevo).catch(() => undefined);
+  };
+
   const logout = async () => {
     await authService.logout();
     setUsuario(null);
@@ -73,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, login, registro, desbloquear, logout }}>
+    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, login, registro, desbloquear, logout, actualizarUsuario }}>
       {children}
     </AuthContext.Provider>
   );

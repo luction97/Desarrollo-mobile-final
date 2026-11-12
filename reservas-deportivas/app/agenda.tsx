@@ -1,14 +1,15 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, ScrollView, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../src/components/ui';
 import { spacing, useTheme } from '../src/theme';
 import { CodigoQr } from '../src/components/CodigoQr';
 import { DialogoAviso } from '../src/components/DialogoAviso';
-import { api } from '../src/services/api';
+import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
-import { fechaArgentina, fechaLegible } from '../src/utils/fechas';
-import type { Espacio, Reserva } from '../src/tipos';
+import { obtenerEspacios } from '../src/services/espacios';
+import { ZONA, fechaArgentina, fechaLegible } from '../src/utils/fechas';
+import type { Reserva, Usuario } from '../src/tipos';
 
 function datosDelQr(codigoQr: string) {
   const partes = codigoQr.split('-');
@@ -21,14 +22,18 @@ function datosDelQr(codigoQr: string) {
 
 export default function AgendaScreen() {
   const { colors } = useTheme();
+  const { usuario } = useAuth();
+  const router = useRouter();
+  const autorizado = usuario?.rol === 'administrador' || usuario?.rol === 'encargado';
   const [fecha, setFecha] = useState(fechaArgentina());
   const [dias] = useState(() => Array.from({ length: 7 }, (_, i) => {
     const dia = new Date(`${fechaArgentina()}T12:00:00-03:00`);
     dia.setUTCDate(dia.getUTCDate() + i);
-    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: 'America/Argentina/Buenos_Aires' }).format(dia) };
+    return { fecha: fechaArgentina(dia), nombre: i === 0 ? 'Hoy' : new Intl.DateTimeFormat('es-AR', { weekday: 'short', timeZone: ZONA }).format(dia) };
   }));
   const [reservas, setReservas] = useState<Reserva[]>([]);
-  const [espacios, setEspacios] = useState<Espacio[]>([]);
+  const [titulares, setTitulares] = useState<Record<string, Usuario>>({});
+  const [espacios, setEspacios] = useState<Record<string, string>>({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirmacion, setConfirmacion] = useState<Reserva | null>(null);
@@ -38,12 +43,16 @@ export default function AgendaScreen() {
   const cargar = useCallback(async () => {
     setCargando(true); setError(null);
     try {
-      const [lista, canchas] = await Promise.all([
-        api.listarTodo<Reserva>(`/reservas?fecha=${encodeURIComponent(fecha)}`),
-        operacionesService.obtenerEspacios(),
-      ]);
+      const lista = await operacionesService.listarReservasDelDia(fecha);
+      const { datos: nombres } = await obtenerEspacios();
+      setEspacios(Object.fromEntries(nombres.map(e => [e.id, e.nombre])));
+      // El titular de cada reserva se consulta una sola vez por usuario.
+      const ids = [...new Set(lista.map(r => r.usuarioId))];
+      const personas = await Promise.all(ids.map(id =>
+        operacionesService.obtenerUsuario(id).catch(() => null)));
+      const registrados = Object.fromEntries(personas.flatMap(p => p ? [[p.id, p] as const] : []));
+      setTitulares(registrados);
       setReservas(lista);
-      setEspacios(canchas);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar la agenda.');
     } finally {
@@ -57,10 +66,12 @@ export default function AgendaScreen() {
     if (!confirmacion || marcando) return;
     setMarcando(true);
     try {
-      await operacionesService.marcarAusente(confirmacion.id);
+      const reserva = await operacionesService.marcarAusente(confirmacion.id);
+      setReservas(datos => datos.map(r => r.id === reserva.id ? reserva : r));
+      const titular = titulares[reserva.usuarioId];
+      if (titular) setTitulares(d => ({ ...d, [titular.id]: { ...titular, ausencias: titular.ausencias + 1 } }));
       setConfirmacion(null);
       setMensaje('Ausencia registrada.');
-      await cargar();
     } catch (e) {
       setConfirmacion(null);
       setMensaje(e instanceof Error ? e.message : 'No se pudo registrar la ausencia.');
@@ -68,6 +79,11 @@ export default function AgendaScreen() {
       setMarcando(false);
     }
   };
+
+  if (!autorizado) return <Screen><StateView>
+    <Text>Acceso restringido al personal.</Text>
+    <Button title="Iniciar sesión" onPress={() => router.push('/login')} />
+  </StateView></Screen>;
 
   return <Screen topInset>
     <View style={uiLayout.inset}>
@@ -86,24 +102,27 @@ export default function AgendaScreen() {
         ListEmptyComponent={<StateView><Text tone="muted">No hay reservas para esta fecha.</Text></StateView>}
         renderItem={({ item }) => {
           const datos = datosDelQr(item.codigoQr);
-          const espacio = espacios.find(e => e.id === item.espacioId);
+          const titular = titulares[item.usuarioId];
           return <Surface style={uiLayout.section}>
             <View style={uiLayout.row}>
               <View style={uiLayout.grow}>
-                <Text variant="subtitle">{espacio?.nombre ?? 'Espacio no disponible'}</Text>
+                <Text variant="subtitle">{espacios[item.espacioId] ?? 'Espacio no disponible'}</Text>
                 {datos && <Text numeric variant="label" tone="primary">{datos.fecha} · {datos.hora}</Text>}
               </View>
               <Badge variant={item.estado === 'confirmada' ? 'success' : 'neutral'}>{item.estado.toUpperCase()}</Badge>
             </View>
+            {titular && <View>
+              <Text variant="label">{titular.nombre} · {titular.telefono}</Text>
+              <Text variant="label" tone="muted">Ausencias: {titular.ausencias} · Cancelaciones tardías: {titular.cancelacionesTardias}</Text>
+            </View>}
             <CodigoQr size="sm" value={item.codigoQr} />
             <Text selectable variant="label" tone="muted">Código: {item.codigoQr}</Text>
             <Text variant="label" tone="muted">Personas: {item.cantidadPersonas}</Text>
-            {item.ingresoEn && <Text variant="label" tone="muted">Ingreso: {new Date(item.ingresoEn).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</Text>}
             {item.estado === 'confirmada' && <Button variant="destructive" title="Marcar ausente" disabled={marcando} onPress={() => setConfirmacion(item)} />}
           </Surface>;
         }} />}
     {confirmacion && <DialogoAviso titulo="Marcar ausente" mensaje="La reserva quedará registrada como no presentada."
-      detalle={`${espacios.find(e => e.id === confirmacion.espacioId)?.nombre ?? 'Espacio'} · ${datosDelQr(confirmacion.codigoQr)?.hora ?? ''}`}
+      detalle={`${espacios[confirmacion.espacioId] ?? 'Espacio'} · ${datosDelQr(confirmacion.codigoQr)?.hora ?? ''}`}
       destructivo accionPrincipal="Marcar ausente" accionSecundaria="Volver" onConfirmar={marcarAusente} onCerrar={() => setConfirmacion(null)} />}
     {mensaje && <DialogoAviso titulo="Agenda" mensaje={mensaje} accionPrincipal="Entendido" onConfirmar={() => setMensaje(null)} onCerrar={() => setMensaje(null)} />}
   </Screen>;

@@ -4,6 +4,7 @@ import type { Espacio, Turno } from '../tipos';
 import { Button, Surface, Text, TextField, uiLayout } from './ui';
 import { layout, spacing, useTheme } from '../theme';
 import { fechaLegible } from '../utils/fechas';
+import { precioLegible } from '../utils/dinero';
 
 interface Props {
   turno: Turno;
@@ -28,7 +29,7 @@ export function ReservaDialog({ turno, espacio, deporte, cargando, error, onConf
           <Text variant="title" accessibilityRole="header">{espacio.nombre}</Text>
           <Text tone="muted">{deporte}</Text>
           <Text numeric variant="action">{fechaLegible(turno.fecha)} · {turno.inicio}–{turno.fin}</Text>
-          <Text numeric variant="title" tone="primary">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(turno.precio)}</Text>
+          <Text numeric variant="title" tone="primary">{precioLegible(turno.precio)}</Text>
           <Text variant="label" tone="muted">Se paga en el lugar</Text>
           <View style={uiLayout.row}>
             <Button title="−" accessibilityLabel="Una persona menos" variant="secondary" disabled={cargando || numero <= 1}

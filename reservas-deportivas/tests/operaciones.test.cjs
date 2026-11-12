@@ -1,28 +1,15 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const ts = require('typescript');
+const { cargarModulo: cargar } = require('./helpers/cargar-modulo.cjs');
 
-// Ejecuta el código TypeScript real con dependencias controladas, sin red ni BD.
-function cargar(archivo, dependencias) {
-  const fuente = fs.readFileSync(path.join(__dirname, '..', archivo), 'utf8');
-  const { outputText } = ts.transpileModule(fuente, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  });
-  const modulo = { exports: {} };
-  new Function('require', 'module', 'exports', outputText)((nombre) => {
-    if (Object.hasOwn(dependencias, nombre)) return dependencias[nombre];
-    throw new Error(`Dependencia sin controlar: ${nombre}`);
-  }, modulo, modulo.exports);
-  return modulo.exports;
-}
+const horarios = cargar('src/utils/horarios.ts', {});
 
 test('ingreso envía código y cancha seleccionada, no una cancha fija', async () => {
   let peticion;
   const reserva = { estado: 'cumplida', ingresoEn: '2026-11-10T12:00:00-03:00' };
   const { operacionesService: servicio } = cargar('src/services/operaciones.ts', {
     './api': { api: { post: async (...args) => { peticion = args; return reserva; } } },
+    '../utils/horarios': horarios,
   });
   assert.equal(await servicio.registrarIngreso(' QR-PRUEBA ', 'esp-06'), reserva);
   assert.deepEqual(peticion, ['/ingresos', { codigoQr: 'QR-PRUEBA', espacioId: 'esp-06' }]);
@@ -31,6 +18,7 @@ test('ingreso envía código y cancha seleccionada, no una cancha fija', async (
 test('ingreso incompleto no hace peticiones', async () => {
   const { operacionesService: servicio } = cargar('src/services/operaciones.ts', {
     './api': { api: { post: () => assert.fail('No debe llamar a la API') } },
+    '../utils/horarios': horarios,
   });
   await assert.rejects(servicio.registrarIngreso('QR', ''), /cancha/);
   await assert.rejects(servicio.registrarIngreso(' ', 'esp-02'), /código/);
@@ -40,18 +28,20 @@ test('errores de API se conservan para mostrarlos al operador', async () => {
   const error = Object.assign(new Error('Esa reserva es para otra cancha.'), { codigo: 'CODIGO_DE_OTRO_ESPACIO' });
   const { operacionesService: servicio } = cargar('src/services/operaciones.ts', {
     './api': { api: { post: async () => { throw error; } } },
+    '../utils/horarios': horarios,
   });
   await assert.rejects(servicio.registrarIngreso('QR', 'esp-03'), (err) => err === error);
 });
 
-test('bloqueo envía espacioIds como arreglo y motivo sin espacios', async () => {
+test('bloqueo de un día envía espacioIds como arreglo y motivo sin espacios', async () => {
   let peticion;
   const { operacionesService: servicio } = cargar('src/services/operaciones.ts', {
-    './api': { api: { post: async (...args) => { peticion = args; } } },
+    './api': { api: { post: async (...args) => { peticion = args; return []; } } },
+    '../utils/horarios': horarios,
   });
-  await servicio.bloquearDia('esp-02', '2026-11-10', ' Lluvia ');
+  await servicio.bloquear({ espacioIds: ['esp-02'], fecha: '2026-11-10', motivo: ' Lluvia ' });
   assert.deepEqual(peticion, ['/bloqueos', { espacioIds: ['esp-02'], fecha: '2026-11-10', motivo: 'Lluvia' }]);
-  await assert.rejects(servicio.bloquearDia('esp-02', '2026-11-10', ' '), /motivo/);
+  await assert.rejects(servicio.bloquear({ espacioIds: ['esp-02'], fecha: '2026-11-10', motivo: ' ' }), /motivo/);
 });
 
 test('logout elimina token y usuario antes de finalizar', async () => {
@@ -147,9 +137,9 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
     '../src/context/AuthContext': { useAuth: () => ({ usuario, cargando: false }) },
     '../src/services/biometria': { autenticarPersonal: async () => true },
     '../src/services/auth': { authService: { verificarPersonal: async () => true } },
+    '../src/services/espacios': { obtenerEspacios: async () => ({ datos: [espacio] }) },
     '../src/services/operaciones': {
       operacionesService: {
-        obtenerEspacios: async () => [espacio],
         registrarIngreso: (codigo, cancha) => {
           solicitudes++;
           assert.equal(codigo, 'QR-PRUEBA');

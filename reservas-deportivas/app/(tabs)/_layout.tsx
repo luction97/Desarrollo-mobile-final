@@ -1,9 +1,13 @@
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { Tabs } from 'expo-router';
 import { layout, spacing, typography, useTheme } from '../../src/theme';
+import { useAuth } from '../../src/context/AuthContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const { usuario } = useAuth();
+  // El personal gestiona sus turnos desde la agenda; "Mis Reservas" es del jugador.
+  const verReservas = !usuario || usuario.rol === 'jugador';
   return (
     <Tabs
       screenOptions={{
@@ -25,6 +29,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="two"
         options={{
+          href: verReservas ? undefined : null,
           title: 'Mis Reservas',
           tabBarIcon: ({ color }) => <Ionicons size={spacing.xxl} name="ticket-outline" color={color} />,
         }}

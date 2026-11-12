@@ -30,6 +30,19 @@ export default function PerfilScreen() {
               <Text variant="label" tone="muted">Rol: {usuario.rol}</Text>
               <Button variant="ghost" title="Cerrar sesión" onPress={() => void logout()} loading={cargando} />
             </Surface>
+            <Surface style={styles.card}>
+              <Text variant="subtitle">Tu historial</Text>
+              <View style={uiLayout.row}>
+                <View style={uiLayout.grow}>
+                  <Text variant="label" tone="muted">Cancelaciones tardías</Text>
+                  <Text variant="title" numeric>{usuario.cancelacionesTardias}</Text>
+                </View>
+                <View style={uiLayout.grow}>
+                  <Text variant="label" tone="muted">Ausencias</Text>
+                  <Text variant="title" numeric>{usuario.ausencias}</Text>
+                </View>
+              </View>
+            </Surface>
             {esPersonal && (
               <Surface style={styles.card}>
                 <Text variant="subtitle">Gestión</Text>

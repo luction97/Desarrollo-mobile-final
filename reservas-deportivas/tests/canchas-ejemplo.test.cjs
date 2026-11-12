@@ -8,7 +8,7 @@ const fuente = fs.readFileSync(path.join(__dirname, '../src/canchas/modelo.ts'),
 const codigo = ts.transpileModule(fuente, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const modulo = { exports: {} };
 new Function('exports', codigo)(modulo.exports);
-const { familiaDeDeporte, seleccionarCanchasDeEjemplo } = modulo.exports;
+const { familiaDeDeporte, catalogoDeEspacios } = modulo.exports;
 
 const espacio = (id, deporteId, activo = true) => ({
   id,
@@ -41,21 +41,21 @@ const semillas = () => [
   espacio('esp-11', 'dep-gimnasio'),
 ];
 
-test('incluye todas las canchas activas y excluye el gimnasio', () => {
-  const canchas = seleccionarCanchasDeEjemplo(semillas());
-  assert.equal(canchas.length, 10);
-  assert.ok(!canchas.some(c => c.deporteId === 'dep-gimnasio'));
-  assert.deepEqual(canchas.map(c => c.id), ['esp-01','esp-02','esp-03','esp-04','esp-05','esp-06','esp-07','esp-08','esp-09','esp-10']);
+test('incluye los once espacios activos de ejemplo', () => {
+  const canchas = catalogoDeEspacios(semillas());
+  assert.equal(canchas.length, 11);
+  assert.deepEqual(canchas.map(c => c.id), ['esp-01','esp-02','esp-03','esp-04','esp-05','esp-06','esp-07','esp-08','esp-09','esp-10','esp-11']);
 });
 
 test('fútbol 5 y fútbol 11 comparten la misma foto registrada', () => {
   assert.equal(familiaDeDeporte('dep-futbol5'), 'futbol');
   assert.equal(familiaDeDeporte('dep-futbol11'), 'futbol');
+  // El gimnasio no tiene foto propia: usa la imagen que publica la API.
   assert.equal(familiaDeDeporte('dep-gimnasio'), null);
 });
 
 test('descarta las canchas inactivas y mantiene las activas', () => {
-  const canchas = seleccionarCanchasDeEjemplo([
+  const canchas = catalogoDeEspacios([
     espacio('esp-04', 'dep-basquet', false),
     espacio('esp-06', 'dep-basquet'),
     espacio('esp-05', 'dep-basquet'),
@@ -66,8 +66,8 @@ test('descarta las canchas inactivas y mantiene las activas', () => {
 
 test('no modifica el arreglo original y tolera listas vacías', () => {
   const original = Object.freeze(semillas().map(e => Object.freeze(e)));
-  assert.doesNotThrow(() => seleccionarCanchasDeEjemplo(original));
-  assert.deepEqual(seleccionarCanchasDeEjemplo([]), []);
+  assert.doesNotThrow(() => catalogoDeEspacios(original));
+  assert.deepEqual(catalogoDeEspacios([]), []);
 });
 
 test('cada deporte del ejemplo tiene su archivo de foto local', () => {

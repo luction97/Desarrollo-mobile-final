@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, View, type ScrollViewProps, type ViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { layout, spacing, useTheme } from '../../theme';
+import { borders, layout, spacing, useTheme } from '../../theme';
 
 export interface ScreenProps extends ViewProps {
   topInset?: boolean;
@@ -29,6 +29,7 @@ export const uiLayout = StyleSheet.create({
   listContent: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.md },
   section: { gap: spacing.lg },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, flexWrap: 'wrap' },
+  fila: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: borders.thin },
   grow: { flex: 1, minWidth: 0 },
   inset: { padding: spacing.xl, gap: spacing.lg },
 });

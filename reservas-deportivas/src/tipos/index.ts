@@ -81,6 +81,15 @@ export interface Usuario {
   ausencias: number;
 }
 
+export interface Bloqueo {
+  id: string;
+  espacioId: string;
+  fecha: string;
+  inicio: string | null;
+  fin: string | null;
+  motivo: string;
+}
+
 export interface ApiResponseExito<T> {
   datos: T;
   meta?: {

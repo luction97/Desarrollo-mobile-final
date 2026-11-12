@@ -9,6 +9,7 @@ import { useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { cancelarReserva, esErrorSesion, reservasGuardadas, sincronizarReservas } from '../../src/services/reservas';
 import type { ReservaGuardada } from '../../src/modelos/reservas';
+import { precioLegible } from '../../src/utils/dinero';
 import { fechaLegible, instanteTurno } from '../../src/utils/fechas';
 
 export default function MisReservasScreen() {
@@ -97,7 +98,7 @@ export default function MisReservasScreen() {
         </View>
         {item.turno && <>
           <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
-          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.turno.precio)} · Se paga en el lugar</Text>}
+          {item.turno.precio !== null && <Text numeric variant="action" tone="primary">{precioLegible(item.turno.precio)} · Se paga en el lugar</Text>}
         </>}
         {esProxima(item) && <CodigoQr value={item.reserva.codigoQr} />}
         <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>

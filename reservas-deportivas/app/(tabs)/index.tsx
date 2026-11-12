@@ -12,9 +12,11 @@ import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../
 import { crearReserva } from '../../src/services/reservas';
 import preferencias from '../../src/services/preferencias';
 import { fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
+import { precioLegible } from '../../src/utils/dinero';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
 import type { Deporte, Espacio, Turno } from '../../src/tipos';
-import { seleccionarCanchasDeEjemplo } from '../../src/canchas/modelo';
+import { catalogoDeEspacios } from '../../src/canchas/modelo';
+import { FavoritoToggle } from '../../src/components/favoritos';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
 interface Aviso { titulo: string; mensaje?: string; detalle?: string; ingreso?: boolean; verQr?: boolean }
@@ -54,7 +56,7 @@ export default function DisponibilidadScreen() {
     let activo = true;
     const aplicar = (datos: Espacio[], favorito: string | null) => {
       if (!activo) return;
-      const canchas = seleccionarCanchasDeEjemplo(datos);
+      const canchas = catalogoDeEspacios(datos);
       setEspacios(canchas);
       setEspacioId(actual => canchas.some(e => e.id === params.espacioId) ? params.espacioId!
         : canchas.some(e => e.id === actual) ? actual : canchas.find(e => e.id === favorito)?.id ?? canchas[0]?.id ?? '');
@@ -187,11 +189,14 @@ export default function DisponibilidadScreen() {
         return (
           <PressableSurface key={e.id} style={styles.card} onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); }}>
             {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
+            <View style={styles.cardFavorito}>
+              <FavoritoToggle espacioId={e.id} nombre={e.nombre} />
+            </View>
             <View style={styles.cardInfo}>
               <Text variant="subtitle" numberOfLines={1}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
               <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? e.deporteId}</Text>
               <Text numeric variant="action" tone="primary">
-                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(e.precioPorHora)} / hora
+                {precioLegible(e.precioPorHora)} / hora
               </Text>
               <Button size="sm" variant="ghost" title="Detalle" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
             </View>
@@ -218,7 +223,7 @@ export default function DisponibilidadScreen() {
       renderItem={({ item }) => {
         const pasado = instanteTurno(item.fecha, item.inicio) <= ahora;
         const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion;
-        const precio = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(item.precio);
+        const precio = precioLegible(item.precio);
         return <PressableSurface onPress={() => elegir(item)} disabled={deshabilitado} accessibilityState={{ disabled: deshabilitado }}
           accessibilityLabel={`${item.inicio} a ${item.fin}. ${pasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precio}` : item.estado}`}>
           <View style={uiLayout.row}>
@@ -255,6 +260,7 @@ const styles = StyleSheet.create({
   opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
   card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
+  cardFavorito: { position: 'absolute', top: spacing.sm, right: spacing.sm },
   cardImage: { width: '100%', height: 120, resizeMode: 'cover' },
   cardInfo: { padding: spacing.md, gap: spacing.xs },
   horizontal: { gap: spacing.sm },

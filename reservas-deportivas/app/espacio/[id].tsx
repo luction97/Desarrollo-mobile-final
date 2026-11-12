@@ -12,6 +12,8 @@ import * as Haptics from 'expo-haptics';
 import { Mapa } from '../../src/components/Mapa';
 import { PuntoMapa, enlacesDestino, puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales, obtenerPuntosLocales } from '../../src/services/mapas';
+import { FavoritoToggle } from '../../src/components/favoritos';
+import { precioLegible } from '../../src/utils/dinero';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
 export default function EspacioDetalleScreen() {
@@ -123,12 +125,17 @@ export default function EspacioDetalleScreen() {
       {fotoRegistrada ? <Image source={fotoRegistrada} style={styles.image} accessibilityLabel={`Foto de ${espacio.nombre}`} /> : null}
 
       <View style={styles.content}>
-        <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>
-        <Text tone="muted">{espacio.complejo}</Text>
-        <Text variant="label" tone="muted">{espacio.deporteId.replace('dep-', '').toUpperCase()}</Text>
+        <View style={uiLayout.row}>
+          <View style={uiLayout.grow}>
+            <Text variant="display" accessibilityRole="header">{espacio.nombre}</Text>
+            <Text tone="muted">{espacio.complejo}</Text>
+            <Text variant="label" tone="muted">{espacio.deporteId.replace('dep-', '').toUpperCase()}</Text>
+          </View>
+          <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
+        </View>
 
         <Text numeric variant="title" tone="primary">
-          {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(espacio.precioPorHora)} / hora
+          {precioLegible(espacio.precioPorHora)} / hora
         </Text>
         <Text variant="label" tone="muted">Se paga en el lugar</Text>
 

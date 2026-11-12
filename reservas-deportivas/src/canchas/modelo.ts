@@ -17,11 +17,9 @@ export function familiaDeDeporte(deporteId: string): FamiliaDeporte | null {
 }
 
 /**
- * Catálogo de ejemplo: todas las canchas activas, sin el gimnasio.
- * La API devuelve once espacios; la selección es sólo de presentación.
+ * Catálogo visible de la app: los espacios activos, en orden estable por id.
+ * Incluye los once de ejemplo (el gimnasio usa la foto que publica la API).
  */
-export function seleccionarCanchasDeEjemplo(espacios: Espacio[]): Espacio[] {
-  return [...espacios]
-    .filter(e => e.activo && familiaDeDeporte(e.deporteId) !== null)
-    .sort((a, b) => a.id.localeCompare(b.id));
+export function catalogoDeEspacios(espacios: Espacio[]): Espacio[] {
+  return [...espacios].filter(e => e.activo).sort((a, b) => a.id.localeCompare(b.id));
 }

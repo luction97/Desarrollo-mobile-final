@@ -66,11 +66,7 @@ function RootLayoutNav() {
           <Stack.Screen name="espacio/[id]" options={{ title: 'Detalle del Espacio' }} />
           
           <Stack.Screen name="admin" options={{ title: 'Panel Admin' }} />
-          <Stack.Screen name="catalogo" options={{ title: 'Catálogo de Espacios' }} />
-          
           <Stack.Screen name="agenda" options={{ title: 'Agenda y Ausentes' }} />
-          
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

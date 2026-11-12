@@ -67,8 +67,10 @@ async function montar({ fallar = false } = {}) {
       addNetworkStateListener: () => ({ remove() {} }),
     },
     '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
     '../../src/components/ReservaDialog': { ReservaDialog: 'ReservaDialog' },
     '../../src/utils/fechas': fechas,
+    '../../src/utils/dinero': cargar('src/utils/dinero.ts', {}),
     '../../src/utils/turnos': cargar('src/utils/turnos.ts', {}),
   }).default;
   let vista;

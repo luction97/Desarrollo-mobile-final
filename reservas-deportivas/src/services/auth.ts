@@ -44,6 +44,11 @@ export const authService = {
     try { return userStr ? JSON.parse(userStr) as Usuario : null; } catch { return null; }
   },
 
+  /** Guarda la copia local del usuario (favoritos, contadores). */
+  async actualizar(usuario: Usuario): Promise<void> {
+    await storage.setItem('usuario', JSON.stringify(usuario));
+  },
+
   async restaurarSesion(): Promise<Usuario | null> {
     const token = await storage.getItem('token');
     if (!token || !tokenVigente(token, Date.now())) return null;

@@ -1,5 +1,5 @@
 import { api } from './api';
-import { guardarTurnosLocalmente, obtenerTurnosLocales } from './db';
+import { guardarTurnosLocalmente, obtenerTurnosLocales } from './turnosStorage';
 import * as Network from 'expo-network';
 import type { Turno } from '../tipos';
 
