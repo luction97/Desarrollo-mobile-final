@@ -44,13 +44,17 @@ export async function guardarEspacioActualizado(espacio: Espacio): Promise<void>
   ]);
 }
 
+export function obtenerDeportesLocales(): Promise<Deporte[] | null> {
+  return leerLocal<Deporte[]>('deportes');
+}
+
 export async function obtenerDeportes(): Promise<Deporte[]> {
   try {
     const datos = await api.listarTodo<Deporte>('/deportes');
     await escribirLocal('deportes', datos).catch(() => undefined);
     return datos;
   } catch (error) {
-    const locales = await leerLocal<Deporte[]>('deportes');
+    const locales = await obtenerDeportesLocales();
     if (locales) return locales;
     throw error;
   }

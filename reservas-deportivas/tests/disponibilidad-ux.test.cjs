@@ -61,6 +61,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
     '../../src/services/espacios': {
       obtenerEspacios: async () => ({ datos: canchas, local: false }),
       obtenerEspaciosLocales: async () => canchas,
+      obtenerDeportesLocales: async () => null,
       obtenerDeportes: async () => [{ id: 'dep-futbol5', nombre: 'Fútbol 5' }, { id: 'dep-tenis', nombre: 'Tenis' }],
     },
     '../../src/canchas/modelo': modeloCanchas,

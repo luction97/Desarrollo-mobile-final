@@ -11,6 +11,7 @@ const permisos = cargar('src/utils/permisos.ts', {});
 const etiquetas = cargar('src/utils/etiquetas.ts', {});
 const fechas = cargar('src/utils/fechas.ts', {});
 const dinero = cargar('src/utils/dinero.ts', {});
+const mapa = cargar('src/mapa/modelo.ts', {});
 const nativos = {
   View: 'View', Image: 'Image', ScrollView: 'ScrollView', FlatList: 'FlatList',
   ActivityIndicator: 'ActivityIndicator', KeyboardAvoidingView: 'KeyboardAvoidingView',
@@ -180,15 +181,18 @@ test('ruta Mis reservas del personal no consulta datos privados ni ofrece crear 
   let consultas = 0;
   const navegaciones = [];
   const Pantalla = cargar('app/(tabs)/two.tsx', {
-    'react-native': { ...nativos, AppState: { addEventListener: () => ({ remove() {} }) } },
+    'react-native': { ...nativos, Modal: 'Modal', AppState: { addEventListener: () => ({ remove() {} }) } },
     '../../src/hooks/useSinRed': { useSinRed: () => false },
     '../../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
-    'expo-router': { useRouter: () => ({ replace: ruta => navegaciones.push(ruta) }), useFocusEffect: callback => React.useEffect(callback, [callback]) },
+    'expo-router': { useRouter: () => ({ replace: ruta => navegaciones.push(ruta) }), useLocalSearchParams: () => ({}), useFocusEffect: callback => React.useEffect(callback, [callback]) },
     'expo-network': {}, '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: usuario('encargado'), cargando: false }) },
     '../../src/utils/permisos': permisos, '../../src/utils/etiquetas': etiquetas,
     '../../src/utils/fechas': fechas, '../../src/utils/dinero': dinero,
     '../../src/components/CodigoQr': { CodigoQr: 'CodigoQr' }, '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/utils/recordatorios': cargar('src/utils/recordatorios.ts', {}),
+    '../../src/mapa/modelo': mapa,
+    '../../src/services/notificaciones': { notificacionesService: {} },
     '../../src/services/reservas': { reservasGuardadas: async () => { consultas++; return []; } },
   }).default;
   let vista;
@@ -210,9 +214,11 @@ test('Mis reservas cierra la confirmación de cancelación al perder la conexió
     espacio: cancha,
   };
   let sinRed = false;
+  let reservaId;
+  const router = { setParams: params => { reservaId = params.reservaId; } };
   const Pantalla = cargar('app/(tabs)/two.tsx', {
-    'react-native': { ...nativos, AppState: { addEventListener: () => ({ remove() {} }) } },
-    'expo-router': { useRouter: () => ({}), useFocusEffect: callback => React.useEffect(callback, [callback]) },
+    'react-native': { ...nativos, Modal: 'Modal', AppState: { addEventListener: () => ({ remove() {} }) } },
+    'expo-router': { useRouter: () => router, useLocalSearchParams: () => ({ reservaId }), useFocusEffect: callback => React.useEffect(callback, [callback]) },
     '../../src/hooks/useSinRed': { useSinRed: () => sinRed },
     '../../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
     '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
@@ -221,6 +227,9 @@ test('Mis reservas cierra la confirmación de cancelación al perder la conexió
     '../../src/utils/fechas': fechas, '../../src/utils/dinero': dinero,
     '../../src/components/CodigoQr': { CodigoQr: 'CodigoQr' },
     '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/utils/recordatorios': cargar('src/utils/recordatorios.ts', {}),
+    '../../src/mapa/modelo': mapa,
+    '../../src/services/notificaciones': { notificacionesService: {} },
     '../../src/services/reservas': {
       reservasGuardadas: async () => [dato],
       sincronizarReservas: async () => ({ datos: [dato], cambios: [], actualizada: true, guardadas: true }),
@@ -246,8 +255,14 @@ test('Mis reservas cierra la confirmación de cancelación al perder la conexió
     await act(async () => { vista.update(React.createElement(Pantalla)); });
     assert.equal(vista.root.findAllByType('DialogoAviso').length, 0);
     await renderizarFila();
-    assert.equal(fila.root.findByType('CodigoQr').props.value, 'QR-PRUEBA');
+    await act(async () => { boton(fila, 'Mostrar QR').props.onPress(); });
+    assert.equal(vista.root.findByType('CodigoQr').props.value, 'QR-PRUEBA');
+    assert.equal(boton(vista, 'Programar recordatorio'), undefined);
     assert.equal(boton(fila, 'Cancelar reserva').props.disabled, true);
+    await act(async () => { boton(vista, 'Volver a mis reservas').props.onPress(); });
+    reservaId = dato.reserva.id;
+    await act(async () => { vista.update(React.createElement(Pantalla)); });
+    assert.equal(vista.root.findByType('CodigoQr').props.value, 'QR-PRUEBA');
   } finally {
     await act(async () => { fila?.unmount(); vista?.unmount(); });
   }

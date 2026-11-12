@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { ActivityIndicator, AppState, FlatList, Linking, Modal, Platform, ScrollView, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { useHorarioActual } from '../../src/hooks/useHorarioActual';
 import { Badge, Button, Chip, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
@@ -14,12 +14,17 @@ import { precioLegible } from '../../src/utils/dinero';
 import { fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { permisosDe } from '../../src/utils/permisos';
 import { etiquetasReserva } from '../../src/utils/etiquetas';
+import { fechaRecordatorio } from '../../src/utils/recordatorios';
+import { notificacionesService } from '../../src/services/notificaciones';
+import { enlacesDestino, puntosDeEspacios } from '../../src/mapa/modelo';
+import type { Espacio } from '../../src/tipos';
 
 export default function MisReservasScreen() {
   const { colors } = useTheme();
   const { usuario, cargando: cargandoSesion } = useAuth();
   const { puedeReservar } = permisosDe(usuario);
   const router = useRouter();
+  const { reservaId } = useLocalSearchParams<{ reservaId?: string }>();
   const sinRed = useSinRed();
   const ahora = useHorarioActual();
   const [datos, setDatos] = useState<ReservaGuardada[]>([]);
@@ -30,6 +35,9 @@ export default function MisReservasScreen() {
   const [cancelando, setCancelando] = useState(false);
   const [confirmacion, setConfirmacion] = useState<ReservaGuardada | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [qrElegido, setQrElegido] = useState<string | null>(null);
+  const [programando, setProgramando] = useState(false);
+  const [estadoRecordatorio, setEstadoRecordatorio] = useState<{ id: string; mensaje: string } | null>(null);
   const generacion = useRef(0);
   const ocupado = useRef(false);
 
@@ -101,7 +109,9 @@ export default function MisReservasScreen() {
     finally { ocupado.current = false; setCancelando(false); }
   };
 
-  if (cargandoSesion || cargando) return <Screen topInset><StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando reservas...</Text></StateView></Screen>;
+  if (cargandoSesion || (cargando && !datos.some(d => d.reserva.usuarioId === usuario?.id))) {
+    return <Screen topInset><StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando reservas...</Text></StateView></Screen>;
+  }
   if (!usuario) return <Screen topInset><StateView>
     <Text variant="title">Tus reservas y códigos QR</Text>
     <Button title="Iniciar sesión" onPress={() => router.push({ pathname: '/login', params: { volverA: 'reservas' } })} />
@@ -117,6 +127,37 @@ export default function MisReservasScreen() {
     d.turno && instanteTurno(d.turno.fecha, d.turno.inicio) > ahora).length;
   const visibles = datos.filter(d => d.reserva.usuarioId === usuario.id && (pasadas ? !esProxima(d) : esProxima(d))).sort((a, b) =>
     (pasadas ? -1 : 1) * a.reserva.cancelableHasta.localeCompare(b.reserva.cancelableHasta));
+  const qr = datos.find(d => d.reserva.usuarioId === usuario.id && d.reserva.id === (qrElegido ?? reservaId) && esProxima(d));
+  const inicioQr = qr?.turno ? instanteTurno(qr.turno.fecha, qr.turno.inicio) : null;
+  const cerrarQr = () => {
+    setQrElegido(null);
+    if (reservaId) router.setParams({ reservaId: '' });
+  };
+
+  const activarRecordatorio = async () => {
+    if (!qr || !inicioQr || programando || !fechaRecordatorio(inicioQr, new Date())) return;
+    setProgramando(true);
+    try {
+      const programado = await notificacionesService.programarRecordatorio(qr.espacio?.nombre ?? 'Tu cancha', inicioQr, qr.reserva.id);
+      setEstadoRecordatorio({ id: qr.reserva.id, mensaje: programado
+        ? 'Recordatorio programado para dos horas antes del turno.'
+        : 'No se programó el recordatorio. Revisá los permisos de notificaciones en Ajustes.' });
+    } catch {
+      setEstadoRecordatorio({ id: qr.reserva.id, mensaje: 'No pudimos programar el recordatorio. Volvé a intentar.' });
+    } finally {
+      setProgramando(false);
+    }
+  };
+
+  const comoLlegar = async (espacio: Espacio) => {
+    const destino = puntosDeEspacios([espacio])[0];
+    if (destino) {
+      for (const enlace of enlacesDestino(destino, Platform.OS)) {
+        try { await Linking.openURL(enlace); return; } catch { /* Intenta la opción web. */ }
+      }
+    }
+    setMensaje('No pudimos abrir las indicaciones para esta cancha.');
+  };
 
   return <Screen topInset>
     <View style={uiLayout.inset}>
@@ -147,14 +188,30 @@ export default function MisReservasScreen() {
           <Text numeric variant="action">{fechaLegible(item.turno.fecha)} · {item.turno.inicio}–{item.turno.fin}</Text>
           {item.turno.precio !== null && <Text numeric variant="action" tone="primary">Tarifa consultada: {precioLegible(item.turno.precio)} · Se paga en el lugar</Text>}
         </>}
-        {esProxima(item) && <CodigoQr value={item.reserva.codigoQr} />}
-        {esProxima(item) && <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>}
+        {esProxima(item) && <Button title="Mostrar QR" onPress={() => setQrElegido(item.reserva.id)} />}
         <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
         {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
-          ? <Button title="Cancelar reserva" variant="destructive" disabled={local || sinRed || cancelando} onPress={() => setConfirmacion(item)} />
+          ? <Button title="Cancelar reserva" variant="destructive" disabled={cargando || local || sinRed || cancelando} onPress={() => setConfirmacion(item)} />
           : <Text tone="muted">Contactá al encargado para cancelar.</Text>)}
-        {item.espacio && <Button title="Cómo llegar" variant="secondary" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.espacio!.id } })} />}
+        {item.espacio && puntosDeEspacios([item.espacio]).length > 0 && <Button title="Cómo llegar" variant="secondary"
+          onPress={() => { if (item.espacio) void comoLlegar(item.espacio); }} />}
       </Surface>} />
+    {qr && <Modal visible animationType="fade" onRequestClose={cerrarQr}>
+      <Screen topInset>
+        <ScrollView contentContainerStyle={uiLayout.scrollContent}>
+            <Text variant="title" accessibilityRole="header">QR de ingreso</Text>
+            <Text variant="subtitle">{qr.espacio?.nombre ?? 'Reserva confirmada'}</Text>
+            {qr.turno && <Text>{fechaLegible(qr.turno.fecha)} · {qr.turno.inicio}–{qr.turno.fin}</Text>}
+            {local && <Text variant="label" tone="warning">QR guardado en este teléfono</Text>}
+            <CodigoQr value={qr.reserva.codigoQr} />
+            <Text selectable variant="label">Código: {qr.reserva.codigoQr}</Text>
+            {!local && !sinRed && inicioQr && fechaRecordatorio(inicioQr, ahora) && <Button
+              variant="secondary" title="Programar recordatorio" loading={programando} onPress={activarRecordatorio} />}
+            {estadoRecordatorio?.id === qr.reserva.id && <Text accessibilityLiveRegion="polite">{estadoRecordatorio.mensaje}</Text>}
+            <Button variant="ghost" title="Volver a mis reservas" onPress={cerrarQr} />
+        </ScrollView>
+      </Screen>
+    </Modal>}
     {confirmacion && !cancelando && <DialogoAviso titulo="Cancelar reserva" mensaje="¿Querés cancelar este turno?" accionPrincipal="Cancelar reserva" accionSecundaria="Volver"
       destructivo onCerrar={() => setConfirmacion(null)} onConfirmar={cancelar} />}
     {cancelando && <StateView><ActivityIndicator color={colors.primary} /></StateView>}

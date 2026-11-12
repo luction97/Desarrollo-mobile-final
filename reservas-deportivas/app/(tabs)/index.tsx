@@ -8,7 +8,7 @@ import { ReservaDialog } from '../../src/components/ReservaDialog';
 import { borders, interaction, layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { consultarGrilla } from '../../src/services/turnos';
-import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
+import { obtenerDeportes, obtenerDeportesLocales, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
 import { crearReserva } from '../../src/services/reservas';
 import { ApiError } from '../../src/services/api';
 import preferencias from '../../src/services/preferencias';
@@ -23,13 +23,13 @@ import { catalogoDeEspacios } from '../../src/canchas/modelo';
 import { FavoritoToggle } from '../../src/components/favoritos';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
-interface Aviso { titulo: string; mensaje?: string; detalle?: string; verQr?: boolean }
+interface Aviso { titulo: string; mensaje?: string; detalle?: string; reservaId?: string }
 
 export default function DisponibilidadScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ espacioId?: string; fecha?: string; turnoId?: string; personas?: string }>();
-  const { usuario, logout, cargando: cargandoSesion } = useAuth();
+  const { usuario, cargando: cargandoSesion } = useAuth();
   const { puedeReservar } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [deportes, setDeportes] = useState<Deporte[]>([]);
@@ -85,10 +85,20 @@ export default function DisponibilidadScreen() {
     };
     const cargar = async () => {
       setCargandoCatalogo(true); setErrorCatalogo(null);
-      const favorito = await preferencias.getItem('ultimoEspacio').catch(() => null);
-      const locales = await obtenerEspaciosLocales().catch(() => []);
+      const [favorito, locales, deportesLocales] = await Promise.all([
+        preferencias.getItem('ultimoEspacio').catch(() => null),
+        obtenerEspaciosLocales().catch(() => []),
+        obtenerDeportesLocales().catch(() => null),
+      ]);
+      if (!activo) return;
       aplicar(locales, favorito);
-      if (activo) setCatalogoLocal(locales.length > 0);
+      if (deportesLocales) setDeportes(deportesLocales);
+      setCatalogoLocal(locales.length > 0);
+      if (sinRed) {
+        if (!locales.length) setErrorCatalogo('Conectate para cargar el catálogo de canchas.');
+        setCargandoCatalogo(false);
+        return;
+      }
       try {
         const [resultado, listaDeportes] = await Promise.all([obtenerEspacios(), obtenerDeportes().catch(() => null)]);
         aplicar(resultado.datos, favorito);
@@ -218,7 +228,7 @@ export default function DisponibilidadScreen() {
       setAviso({ titulo: 'Reserva confirmada', mensaje: [
         mensajeQr,
         resultado.recordatorioDisponible ? null : 'Esta reserva no tiene un recordatorio programado.',
-      ].filter(Boolean).join(' '), verQr: true });
+      ].filter(Boolean).join(' '), reservaId: resultado.dato.reserva.id });
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : 'No se pudo reservar.';
       if (e instanceof ApiError && ['TURNO_OCUPADO', 'TURNO_NO_DISPONIBLE'].includes(e.codigo)) {
@@ -232,11 +242,6 @@ export default function DisponibilidadScreen() {
     finally { operando.current = false; setReservando(false); }
   };
 
-  const salir = async () => {
-    try { await logout(); }
-    catch { setAviso({ titulo: 'No se pudo cerrar sesión', mensaje: 'Volvé a intentar.' }); }
-  };
-
   const grilla = ordenarTurnosParaMostrar(turnos.filter(t => t.espacioId === espacioId && t.fecha === fecha));
   const anteriores = fecha === hoy ? grilla.filter(t => instanteTurno(t.fecha, t.inicio) <= ahora) : [];
   const visibles = [...grilla.slice(anteriores.length), ...(verAnteriores ? anteriores : [])];
@@ -245,9 +250,9 @@ export default function DisponibilidadScreen() {
 
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
-      <Text variant="title" style={uiLayout.grow}>Hola, {usuario ? usuario.nombre.split(' ')[0] : 'Invitado'}</Text>
-      {usuario ? <Button variant="ghost" size="sm" title="Salir" onPress={salir} />
-        : <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
+      <Text variant="title" style={uiLayout.grow} accessibilityRole="header">Canchas</Text>
+      <Button variant="ghost" size="sm" title="Mapa" accessibilityLabel="Mapa de complejos" onPress={() => router.push('/mapa')} />
+      {!usuario && <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}
     </View>
     {(sinRed || local || catalogoLocal) && <Text accessibilityLiveRegion="polite" variant="label" tone="warning">
       {sinRed ? 'Sin conexión. Los datos guardados pueden estar desactualizados.' : 'Mostramos datos guardados que pueden estar desactualizados.'}
@@ -257,7 +262,6 @@ export default function DisponibilidadScreen() {
       <Button size="sm" variant="secondary" title="Actualizar canchas" onPress={() => setIntentoCatalogo(v => v + 1)} />
     </View>}
 
-    <Button variant="ghost" size="sm" title="Mapa de complejos" onPress={() => router.push('/mapa')} />
     <View style={styles.filtrosRow}>
       <View style={styles.filtroCol}>
         <PressableSurface accessibilityLabel="Filtrar por deporte" accessibilityState={{ expanded: abiertoDeporte }} style={styles.desplegable} onPress={() => { setAbiertoDeporte(v => !v); setAbiertoComplejo(false); }}>
@@ -316,11 +320,11 @@ export default function DisponibilidadScreen() {
               onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); const indice = espaciosFiltrados.findIndex(c => c.id === e.id); centrarCancha(indice >= 0 ? indice : 0); }}>
               {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={e.imagenes.length ? 'Foto de ' + e.nombre : 'Imagen ilustrativa'} />}
               <View style={styles.cardInfo}>
-                <Text variant="subtitle" numberOfLines={2}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
+                <Text variant="subtitle">{e.nombre}</Text>
                 <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? 'Cancha deportiva'}</Text>
                 <Text variant="label" tone="muted">{e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
                 <Text numeric variant="action" tone="primary">{precioLegible(e.precioPorHora)} / hora</Text>
-                <Text variant="label" tone={elegida ? 'primary' : 'muted'}>{elegida ? 'Seleccionada' : 'Ver horarios'}</Text>
+                {elegida && <Text variant="label" tone="primary">Seleccionada</Text>}
               </View>
             </Pressable>
             <View style={styles.cardAcciones}>
@@ -362,7 +366,7 @@ export default function DisponibilidadScreen() {
           onPress={() => setVerAnteriores(v => !v)} /> : null}
       renderItem={({ item }) => {
         const pasado = instanteTurno(item.fecha, item.inicio) <= ahora;
-        const deshabilitado = pasado || item.estado !== 'libre' || reservando || cargandoSesion || (!!usuario && !puedeReservar);
+        const deshabilitado = pasado || item.estado !== 'libre' || sinRed || local || reservando || cargandoSesion || (!!usuario && !puedeReservar);
         const precio = precioLegible(item.precio);
         return <PressableSurface onPress={() => elegir(item)} disabled={deshabilitado} accessibilityState={{ disabled: deshabilitado }}
           accessibilityLabel={`${item.inicio} a ${item.fin}. ${pasado ? 'Turno pasado, no reservable' : item.estado === 'libre' ? `Disponible. ${precio}` : etiquetasTurno[item.estado]}`}>
@@ -383,16 +387,16 @@ export default function DisponibilidadScreen() {
       deporte={deportes.find(d => d.id === espacio.deporteId)?.nombre ?? 'Cancha deportiva'}
       cargando={reservando} error={errorReserva} onConfirmar={confirmar} onCerrar={() => setSeleccionado(null)} />}
     {aviso && <DialogoAviso titulo={aviso.titulo} mensaje={aviso.mensaje} detalle={aviso.detalle}
-      accionPrincipal={aviso.verQr ? 'Ver QR' : 'Entendido'}
+      accionPrincipal={aviso.reservaId ? 'Ver QR' : 'Entendido'}
       onCerrar={() => setAviso(null)} onConfirmar={() => {
         setAviso(null);
-        if (aviso.verQr) router.push('/(tabs)/two');
+        if (aviso.reservaId) router.push({ pathname: '/(tabs)/two', params: { reservaId: aviso.reservaId } });
       }} />}
   </Screen>;
 }
 
 const styles = StyleSheet.create({
-  cabecera: { paddingVertical: spacing.lg, gap: spacing.lg },
+  cabecera: { paddingVertical: spacing.md, gap: spacing.sm },
   filtrosRow: { flexDirection: 'row', gap: spacing.md },
   filtroCol: { flex: 1, gap: spacing.xs, position: 'relative', zIndex: 1 },
   desplegable: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.input, borderWidth: 1 },

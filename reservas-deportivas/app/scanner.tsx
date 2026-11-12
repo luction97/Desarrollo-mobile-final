@@ -88,7 +88,7 @@ export default function EscanerScreen() {
   }, [autorizado, espacioId]);
 
   const habilitarEscaner = async () => {
-    if (!autorizado || !espacio || ocupado.current || sinRed) return;
+    if (!autorizado || !espacio || !permission?.granted || ocupado.current || sinRed) return;
     ocupado.current = true;
     setProcesando(true);
     setError(null);
@@ -111,7 +111,7 @@ export default function EscanerScreen() {
   };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (ocupado.current || !lecturaHabilitada.current || !autorizado || !autenticado || !espacio || !enFoco || sinRed) return;
+    if (ocupado.current || !lecturaHabilitada.current || !autorizado || !autenticado || !permission?.granted || !espacio || !enFoco || sinRed) return;
     lecturaHabilitada.current = false;
     ocupado.current = true;
     setProcesando(true);
@@ -171,22 +171,22 @@ export default function EscanerScreen() {
       ) : (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.escaneo}>
           {cabecera}
-          {!autenticado ? (
+          {sinRed ? null : !permission ? <ActivityIndicator color={colors.primary} accessibilityLabel="Consultando permiso de cámara" /> : !permission.granted ? (
+            <View style={styles.panel}>
+              <Text>Permití el acceso a la cámara para leer el QR de la reserva.</Text>
+              <Button title={permission.canAskAgain ? 'Permitir cámara' : 'Abrir ajustes'} onPress={() => {
+                const accion = permission.canAskAgain ? requestPermission() : Linking.openSettings();
+                void accion.catch(() => setError('No se pudo abrir el permiso de cámara. Revisá los ajustes del dispositivo.'));
+              }} />
+            </View>
+          ) : !autenticado ? (
             <View style={styles.panel}>
               {usarContrasena && <TextField label="Contraseña de tu cuenta" value={contrasena} onChangeText={setContrasena} secureTextEntry autoComplete="current-password" editable={!procesando} />}
               <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={sinRed || procesando || (usarContrasena && !contrasena)} onPress={habilitarEscaner} />
               <Button variant="ghost" title={usarContrasena ? 'Usar huella o rostro' : 'Usar contraseña'} disabled={procesando}
                 onPress={() => { setUsarContrasena(v => !v); setContrasena(''); setError(null); }} />
             </View>
-          ) : !permission ? <ActivityIndicator color={colors.primary} accessibilityLabel="Consultando permiso de cámara" /> : !permission.granted ? (
-            <View style={styles.panel}>
-              <Text>Necesitamos la cámara para leer el QR de la reserva.</Text>
-              <Button title={permission.canAskAgain ? 'Permitir cámara' : 'Abrir ajustes'} onPress={() => {
-                const accion = permission.canAskAgain ? requestPermission() : Linking.openSettings();
-                void accion.catch(() => setError('No se pudo abrir el permiso de cámara. Revisá los ajustes del dispositivo.'));
-              }} />
-            </View>
-          ) : enFoco && !procesando && !sinRed && (
+          ) : enFoco && !procesando && (
             <CameraView
               style={styles.camera}
               facing="back"
@@ -200,7 +200,8 @@ export default function EscanerScreen() {
               }}
             />
           )}
-          {autenticado && <Button variant="secondary" title={linterna ? 'Apagar linterna' : 'Encender linterna'} onPress={() => setLinterna(v => !v)} />}
+          {autenticado && permission?.granted && enFoco && !sinRed && !procesando && <Button variant="secondary"
+            title={linterna ? 'Apagar linterna' : 'Encender linterna'} onPress={() => setLinterna(v => !v)} />}
           {procesando && <ActivityIndicator color={colors.primary} accessibilityLabel="Procesando ingreso" />}
           <Button variant="ghost" style={styles.action} title="Cambiar cancha" disabled={procesando} onPress={() => {
             lecturaHabilitada.current = false;
