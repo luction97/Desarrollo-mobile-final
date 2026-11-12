@@ -62,7 +62,7 @@ async function montarDetalle(rol) {
       obtenerDescarga: async () => null,
       guardarFoto: async () => { llamadas.push('guardarFoto'); return 'file:///nueva.jpg'; },
     },
-    '../../src/context/AuthContext': { useAuth: () => ({ usuario: actual }) },
+    '../../src/context/AuthContext': { useAuth: () => ({ usuario: actual, conSelectorNativo: abrir => abrir() }) },
     '../../src/utils/permisos': permisos,
     '../../src/components/Mapa': { Mapa: 'Mapa' },
     '../../src/mapa/modelo': { puntosDeEspacios: () => [] },
@@ -199,4 +199,56 @@ test('ruta Mis reservas del personal no consulta datos privados ni ofrece crear 
     await act(async () => { boton(vista, 'Ver agenda').props.onPress(); });
     assert.deepEqual(navegaciones, ['/agenda']);
   } finally { if (vista) await act(async () => { vista.unmount(); }); }
+});
+
+test('Mis reservas cierra la confirmación de cancelación al perder la conexión y conserva el QR', async () => {
+  const titular = usuario('jugador');
+  const dato = {
+    reserva: { id: 'res-prueba', usuarioId: titular.id, estado: 'confirmada', codigoQr: 'QR-PRUEBA',
+      cancelableHasta: '2099-01-15T16:00:00-03:00', cantidadPersonas: 2 },
+    turno: { fecha: '2099-01-15', inicio: '20:00', fin: '21:00', precio: 12000 },
+    espacio: cancha,
+  };
+  let sinRed = false;
+  const Pantalla = cargar('app/(tabs)/two.tsx', {
+    'react-native': { ...nativos, AppState: { addEventListener: () => ({ remove() {} }) } },
+    'expo-router': { useRouter: () => ({}), useFocusEffect: callback => React.useEffect(callback, [callback]) },
+    '../../src/hooks/useSinRed': { useSinRed: () => sinRed },
+    '../../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
+    '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
+    '../../src/context/AuthContext': { useAuth: () => ({ usuario: titular, cargando: false }) },
+    '../../src/utils/permisos': permisos, '../../src/utils/etiquetas': etiquetas,
+    '../../src/utils/fechas': fechas, '../../src/utils/dinero': dinero,
+    '../../src/components/CodigoQr': { CodigoQr: 'CodigoQr' },
+    '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    '../../src/services/reservas': {
+      reservasGuardadas: async () => [dato],
+      sincronizarReservas: async () => ({ datos: [dato], cambios: [], actualizada: true, guardadas: true }),
+      cancelarReserva: async () => assert.fail('Sin conexión no debe solicitar la cancelación.'),
+    },
+  }).default;
+  let vista;
+  let fila;
+  try {
+    await act(async () => { vista = create(React.createElement(Pantalla)); });
+    const renderizarFila = async () => {
+      const lista = vista.root.findByType('FlatList');
+      await act(async () => {
+        const elemento = lista.props.renderItem({ item: lista.props.data[0] });
+        if (fila) fila.update(elemento);
+        else fila = create(elemento);
+      });
+    };
+    await renderizarFila();
+    await act(async () => { boton(fila, 'Cancelar reserva').props.onPress(); });
+    assert.equal(vista.root.findByType('DialogoAviso').props.titulo, 'Cancelar reserva');
+    sinRed = true;
+    await act(async () => { vista.update(React.createElement(Pantalla)); });
+    assert.equal(vista.root.findAllByType('DialogoAviso').length, 0);
+    await renderizarFila();
+    assert.equal(fila.root.findByType('CodigoQr').props.value, 'QR-PRUEBA');
+    assert.equal(boton(fila, 'Cancelar reserva').props.disabled, true);
+  } finally {
+    await act(async () => { fila?.unmount(); vista?.unmount(); });
+  }
 });

@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { DialogoAviso } from './DialogoAviso';
 import { useAuth } from '../context/AuthContext';
-import { favoritosService } from '../services/favoritos';
 import { interaction, spacing, useTheme } from '../theme';
 
 interface AvisoFavorito { titulo: string; mensaje?: string }
@@ -22,41 +21,32 @@ interface FavoritoToggleProps {
  */
 export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
   const { colors } = useTheme();
-  const { usuario, actualizarUsuario } = useAuth();
+  const { usuario, cambiarFavorito } = useAuth();
   const [aviso, setAviso] = useState<AvisoFavorito | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const operando = useRef(false);
   const favorito = usuario?.espaciosFavoritos.includes(espacioId) ?? false;
 
   const alternar = async () => {
-    if (ocupado) return;
+    if (operando.current) return;
     if (!usuario) {
       setAviso({ titulo: 'Ingresá para marcar favoritos' });
       return;
     }
+    operando.current = true;
     setOcupado(true);
-    const favoritosAnteriores = usuario.espaciosFavoritos;
-    const favoritos = favorito
-      ? favoritosAnteriores.filter(id => id !== espacioId)
-      : [...favoritosAnteriores, espacioId];
-    if (!favorito) actualizarUsuario({ ...usuario, espaciosFavoritos: favoritos });
     try {
       const red = await Network.getNetworkStateAsync();
-      if (red.isConnected === false) throw new Error('Conectate para actualizar tus favoritos.');
-      if (favorito) {
-        await favoritosService.quitar(espacioId);
-        actualizarUsuario({ ...usuario, espaciosFavoritos: favoritos });
-      } else {
-        const actualizado = await favoritosService.agregar(espacioId);
-        actualizarUsuario(actualizado);
-        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-      }
+      if (red.isConnected === false || red.isInternetReachable === false) throw new Error('Conectate para actualizar tus favoritos.');
+      await cambiarFavorito(espacioId, !favorito);
+      if (!favorito) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch (e) {
-      if (!favorito) actualizarUsuario({ ...usuario, espaciosFavoritos: favoritosAnteriores });
       setAviso({
         titulo: 'No se pudo actualizar el favorito',
         mensaje: e instanceof Error ? e.message : 'Probá de nuevo.',
       });
     } finally {
+      operando.current = false;
       setOcupado(false);
     }
   };
@@ -76,7 +66,9 @@ export function FavoritoToggle({ espacioId, nombre }: FavoritoToggleProps) {
 
 const styles = StyleSheet.create({
   boton: {
-    padding: spacing.md,
+    minWidth: 48,
+    minHeight: 48,
+    padding: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

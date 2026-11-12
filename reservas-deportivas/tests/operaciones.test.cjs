@@ -48,6 +48,7 @@ test('logout elimina token y usuario antes de finalizar', async () => {
   const eliminados = [];
   const { authService } = cargar('src/services/auth.ts', {
     './api': {},
+    './sesionEventos': { cambiarSesion: fn => fn() },
     './storage': { storage: { deleteItem: async (clave) => { eliminados.push(clave); } } },
     '../utils/sesion': { tokenVigente: () => true },
   });
@@ -184,6 +185,8 @@ test('pantalla: restringe roles, selecciona cancha y evita escaneos duplicados',
     assert.deepEqual(vibraciones, ['success']);
     assert.equal(pantalla.root.findAllByType('CameraView').length, 0);
     assert.ok(habilitar()); // Reautenticación antes del próximo escaneo.
+    await act(async () => { await escanear({ data: 'QR-PRUEBA' }); });
+    assert.equal(solicitudes, 1); // Un evento tardío de la cámara desmontada no reenvía.
 
     await act(async () => { await habilitar().props.onPress(); });
     assert.equal(pantalla.root.findAllByType('CameraView').length, 1);

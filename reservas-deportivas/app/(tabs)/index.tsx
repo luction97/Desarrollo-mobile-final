@@ -10,6 +10,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { consultarGrilla } from '../../src/services/turnos';
 import { obtenerDeportes, obtenerEspacios, obtenerEspaciosLocales } from '../../src/services/espacios';
 import { crearReserva } from '../../src/services/reservas';
+import { ApiError } from '../../src/services/api';
 import preferencias from '../../src/services/preferencias';
 import { useHorarioActual } from '../../src/hooks/useHorarioActual';
 import { diasDeReserva, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
@@ -194,7 +195,7 @@ export default function DisponibilidadScreen() {
   };
 
   const confirmar = async (cantidad: number) => {
-    if (!seleccionado || !espacio || operando.current || seleccionado.espacioId !== espacioId) return;
+    if (!seleccionado || !espacio || operando.current || seleccionado.espacioId !== espacioId || seleccionado.fecha !== fecha) return;
     if (sinRed || local) { setErrorReserva('Conectate a internet para reservar.'); return; }
     if (instanteTurno(seleccionado.fecha, seleccionado.inicio) <= new Date()) {
       setErrorReserva('Este turno ya pasó. Elegí otro horario.');
@@ -218,7 +219,16 @@ export default function DisponibilidadScreen() {
         mensajeQr,
         resultado.recordatorioDisponible ? null : 'Esta reserva no tiene un recordatorio programado.',
       ].filter(Boolean).join(' '), verQr: true });
-    } catch (e) { setErrorReserva(e instanceof Error ? e.message : 'No se pudo reservar.'); }
+    } catch (e) {
+      const mensaje = e instanceof Error ? e.message : 'No se pudo reservar.';
+      if (e instanceof ApiError && ['TURNO_OCUPADO', 'TURNO_NO_DISPONIBLE'].includes(e.codigo)) {
+        setSeleccionado(null);
+        setAviso({ titulo: 'El turno ya no está disponible', mensaje });
+        void cargarGrilla();
+      } else {
+        setErrorReserva(mensaje);
+      }
+    }
     finally { operando.current = false; setReservando(false); }
   };
 
@@ -256,13 +266,14 @@ export default function DisponibilidadScreen() {
         </PressableSurface>
         <Modal visible={abiertoDeporte} transparent animationType="fade" onRequestClose={() => setAbiertoDeporte(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoDeporte(false)}>
-            <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
+            <ScrollView style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              contentContainerStyle={styles.opciones} accessibilityViewIsModal>
               {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
                 <PressableSurface key={dep} accessibilityLabel={dep === 'todos' ? 'Todos los deportes' : deportes.find(d => d.id === dep)?.nombre ?? 'Otro deporte'} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
                   <Text>{dep === 'todos' ? 'Todos los deportes' : deportes.find(d => d.id === dep)?.nombre ?? 'Otro deporte'}</Text>
                 </PressableSurface>
               ))}
-            </View>
+            </ScrollView>
           </Pressable>
         </Modal>
       </View>
@@ -273,13 +284,14 @@ export default function DisponibilidadScreen() {
         </PressableSurface>
         <Modal visible={abiertoComplejo} transparent animationType="fade" onRequestClose={() => setAbiertoComplejo(false)}>
           <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoComplejo(false)}>
-            <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
+            <ScrollView style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              contentContainerStyle={styles.opciones} accessibilityViewIsModal>
               {complejosDisponibles.map(comp => (
                 <PressableSurface key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
                   <Text>{comp === 'todos' ? 'Todos los complejos' : comp}</Text>
                 </PressableSurface>
               ))}
-            </View>
+            </ScrollView>
           </Pressable>
         </Modal>
       </View>
@@ -384,8 +396,9 @@ const styles = StyleSheet.create({
   filtrosRow: { flexDirection: 'row', gap: spacing.md },
   filtroCol: { flex: 1, gap: spacing.xs, position: 'relative', zIndex: 1 },
   desplegable: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.input, borderWidth: 1 },
-  menu: { borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs, borderWidth: 1, elevation: 8, zIndex: 20 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-start', paddingTop: spacing.xl },
+  menu: { flexGrow: 0, maxHeight: '80%', borderRadius: radius.card, borderWidth: 1, elevation: 8 },
+  opciones: { padding: spacing.sm, gap: spacing.xs },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: spacing.xl },
   opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
   card: { width: layout.courtCardWidth, overflow: 'hidden', borderWidth: borders.focus },

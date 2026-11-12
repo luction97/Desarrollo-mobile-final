@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { storage } from './storage';
-import { invalidarSesion } from './sesionEventos';
+import { cambiarSesion, invalidarSesion } from './sesionEventos';
 
 const PUERTO_API = '3000';
 
@@ -50,14 +50,6 @@ const apiClient = axios.create({
   },
 });
 
-apiClient.interceptors.request.use(async (config) => {
-  const token = await storage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
 export class ApiError extends Error {
   codigo: string;
   constructor(codigo: string, mensaje: string) {
@@ -74,6 +66,8 @@ interface Sobre<T> {
 }
 
 async function requestSobre<T>(method: string, endpoint: string, data?: unknown): Promise<Sobre<T>> {
+  const esIngreso = endpoint === '/auth/ingreso' || endpoint === '/auth/registro';
+  const token = esIngreso ? null : await cambiarSesion(() => storage.getItem('token'));
   // Las lecturas pueden buscar la API de desarrollo; las escrituras se envían una vez.
   const orden = method === 'GET' ? [baseActual, ...CANDIDATOS_BASE.filter(base => base !== baseActual)] : [baseActual];
   for (const base of orden) {
@@ -83,7 +77,10 @@ async function requestSobre<T>(method: string, endpoint: string, data?: unknown)
         method,
         url,
         data,
-        headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(data instanceof FormData && { 'Content-Type': 'multipart/form-data' }),
+        },
       });
 
       if (response.status === 204) return { datos: undefined as T, meta: null };
@@ -92,10 +89,12 @@ async function requestSobre<T>(method: string, endpoint: string, data?: unknown)
     } catch (error: any) {
       if (error.response) {
         baseActual = base;
-        if (error.response.status === 401 && error.response.data?.error?.codigo === 'NO_AUTENTICADO') {
-          await storage.deleteItem('token');
-          await storage.deleteItem('usuario');
-          invalidarSesion();
+        if (token && error.response.status === 401 && error.response.data?.error?.codigo === 'NO_AUTENTICADO') {
+          await cambiarSesion(async () => {
+            if (await storage.getItem('token') !== token) return;
+            await Promise.allSettled([storage.deleteItem('token'), storage.deleteItem('usuario')]);
+            invalidarSesion();
+          });
         }
         throw new ApiError(
           error.response.data?.error?.codigo || 'ERROR_DESCONOCIDO',
@@ -123,10 +122,10 @@ async function listarTodo<T>(endpoint: string): Promise<T[]> {
 
 export const api = {
   listarTodo,
-  getConMeta: <T>(endpoint: string) => requestSobre<T>('GET', endpoint),
-  get: <T>(endpoint: string) => requestApi<T>('GET', endpoint),
-  post: <T>(endpoint: string, body: unknown) => requestApi<T>('POST', endpoint, body),
-  put: <T>(endpoint: string, body: unknown) => requestApi<T>('PUT', endpoint, body),
-  patch: <T>(endpoint: string, body: unknown) => requestApi<T>('PATCH', endpoint, body),
-  delete: <T>(endpoint: string) => requestApi<T>('DELETE', endpoint),
+  getConMeta: <T,>(endpoint: string) => requestSobre<T>('GET', endpoint),
+  get: <T,>(endpoint: string) => requestApi<T>('GET', endpoint),
+  post: <T,>(endpoint: string, body: unknown) => requestApi<T>('POST', endpoint, body),
+  put: <T,>(endpoint: string, body: unknown) => requestApi<T>('PUT', endpoint, body),
+  patch: <T,>(endpoint: string, body: unknown) => requestApi<T>('PATCH', endpoint, body),
+  delete: <T,>(endpoint: string) => requestApi<T>('DELETE', endpoint),
 };

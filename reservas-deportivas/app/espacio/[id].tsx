@@ -29,7 +29,7 @@ export default function EspacioDetalleScreen() {
 function Detalle({ id }: { id: string }) {
   const router = useRouter();
   const { colors } = useTheme();
-  const { usuario } = useAuth();
+  const { usuario, conSelectorNativo } = useAuth();
   const { puedeActualizarFoto } = permisosDe(usuario);
   const sinRed = useSinRed();
   const [espacio, setEspacio] = useState<Espacio | null>(null);
@@ -40,6 +40,7 @@ function Detalle({ id }: { id: string }) {
   const [fotoLocal, setFotoLocal] = useState<string | null>(null);
   const [archivoSubido, setArchivoSubido] = useState<string | null>(null);
   const [fotoDescargada, setFotoDescargada] = useState<string | null>(null);
+  const [fotoFallida, setFotoFallida] = useState<string | null>(null);
   const [videoDescargado, setVideoDescargado] = useState<string | null>(null);
   const [intentoVideo, setIntentoVideo] = useState(0);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -119,7 +120,9 @@ function Detalle({ id }: { id: string }) {
     }
     const opciones: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7,
       preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible };
-    const foto = await (camara ? ImagePicker.launchCameraAsync(opciones) : ImagePicker.launchImageLibraryAsync(opciones));
+    const foto = await conSelectorNativo(() => camara
+      ? ImagePicker.launchCameraAsync(opciones)
+      : ImagePicker.launchImageLibraryAsync(opciones));
     if (foto.canceled) return;
     setFotoLocal(await guardarFoto(id, foto.assets[0].uri));
     setArchivoSubido(null);
@@ -146,12 +149,16 @@ function Detalle({ id }: { id: string }) {
     </>}
   </StateView></Screen>;
 
-  const fuenteFoto = urlFoto ? { uri: fotoDescargada ?? urlFoto } : fotoDeCancha(espacio);
+  const uriFoto = fotoDescargada ?? urlFoto;
+  const puedeMostrarFoto = !!uriFoto && fotoFallida !== uriFoto && (!sinRed || !!fotoDescargada);
+  const fuenteFoto = puedeMostrarFoto ? { uri: uriFoto } : fotoDeCancha({ ...espacio, imagenes: [] });
   const fuenteVideo = videoDescargado ?? (!sinRed ? urlVideo : null);
 
   return <ScrollScreen contentContainerStyle={styles.scroll}>
-    {fuenteFoto && (!sinRed || !urlFoto || fotoDescargada)
-      ? <Image source={fuenteFoto} style={styles.image} accessibilityLabel={urlFoto ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
+    {fuenteFoto
+      ? <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto} style={styles.image}
+        onError={puedeMostrarFoto ? () => setFotoFallida(uriFoto) : undefined}
+        accessibilityLabel={puedeMostrarFoto ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
       : null}
     <View style={styles.content}>
       {galeria.length > 1 && <View style={uiLayout.row}>
@@ -165,6 +172,8 @@ function Detalle({ id }: { id: string }) {
         title={fotoDescargada ? 'Borrar foto descargada' : 'Guardar foto sin conexión'}
         disabled={guardando || (sinRed && !fotoDescargada)}
         onPress={() => alternarDescarga('imagen', urlFoto, fotoDescargada)} />}
+      {uriFoto && fotoFallida === uriFoto && <Button variant="ghost" size="sm"
+        title="Reintentar foto" disabled={sinRed && !fotoDescargada} onPress={() => setFotoFallida(null)} />}
       {local && <Text variant="label" tone="warning">Ficha guardada. Los datos pueden estar desactualizados.</Text>}
       {error && <Button title="Actualizar ficha" variant="secondary" onPress={() => setIntento(n => n + 1)} />}
 

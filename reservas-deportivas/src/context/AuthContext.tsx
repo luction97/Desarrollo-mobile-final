@@ -7,6 +7,7 @@ import { escucharSesionInvalidada } from '../services/sesionEventos';
 import { notificacionesService } from '../services/notificaciones';
 import { prepararRecordatoriosGuardados } from '../services/reservas';
 import { useSinRed } from '../hooks/useSinRed';
+import { favoritosService } from '../services/favoritos';
 import { AppState } from 'react-native';
 
 interface AuthContextType {
@@ -18,7 +19,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   registro: (datos: DatosRegistro) => Promise<void>;
   desbloquear: () => Promise<boolean>;
-  actualizarUsuario: (usuario: Usuario) => void;
+  cambiarFavorito: (espacioId: string, agregar: boolean) => Promise<void>;
+  conSelectorNativo: <T>(abrir: () => Promise<T>) => Promise<T>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -30,6 +32,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [cargando, setCargando] = useState(true);
   const sinRed = useSinRed();
   const perfilVersion = useRef(0);
+  const sesionVersion = useRef(0);
+  const perfilActual = useRef<Usuario | null>(null);
+  const selectoresActivos = useRef(0);
+  const conSelectorNativo = async <T,>(abrir: () => Promise<T>) => {
+    selectoresActivos.current++;
+    try { return await abrir(); }
+    finally { selectoresActivos.current--; }
+  };
+  const aplicarPerfil = (perfil: Usuario | null) => {
+    perfilActual.current = perfil;
+    setUsuario(perfil);
+    setUsuarioGuardado(perfil);
+  };
   const usuarioId = usuario?.id;
   useEffect(() => {
     if (!usuarioId || sinRed) return;
@@ -38,8 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const version = ++perfilVersion.current;
       void authService.obtenerPerfil().then(perfil => {
         if (!activo || version !== perfilVersion.current || perfil.id !== usuarioId) return;
-        setUsuario(perfil);
-        setUsuarioGuardado(perfil);
+        aplicarPerfil(perfil);
         return authService.actualizar(perfil);
       }).catch(() => undefined);
     };
@@ -58,13 +72,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTieneBiometria(biometria);
       setUsuarioGuardado(user);
       setUsuario(biometria ? null : user);
+      perfilActual.current = biometria ? null : user;
       if (user) void prepararRecordatoriosGuardados(user.id).catch(() => undefined);
     }).catch(() => { if (activo) { setUsuario(null); setUsuarioGuardado(null); } })
       .finally(() => { if (activo) setCargando(false); });
     const dejarDeEscuchar = escucharSesionInvalidada(() => {
       perfilVersion.current++;
-      setUsuario(null);
-      setUsuarioGuardado(null);
+      sesionVersion.current++;
+      aplicarPerfil(null);
       void notificacionesService.cancelarTodos().catch(() => undefined);
     });
     return () => { activo = false; dejarDeEscuchar(); };
@@ -72,47 +87,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const listener = AppState.addEventListener('change', estado => {
-      if (estado === 'background' && tieneBiometria) setUsuario(null);
+      if (estado === 'background' && tieneBiometria && selectoresActivos.current === 0) {
+        perfilVersion.current++;
+        sesionVersion.current++;
+        perfilActual.current = null;
+        setUsuario(null);
+      }
     });
     return () => listener.remove();
   }, [tieneBiometria]);
 
   const login = async (email: string, contrasena: string) => {
     const user = await authService.login(email, contrasena);
-    setUsuario(user);
-    setUsuarioGuardado(user);
+    sesionVersion.current++;
+    aplicarPerfil(user);
   };
 
   const registro = async (datos: DatosRegistro) => {
     const user = await authService.registro(datos);
-    setUsuario(user); setUsuarioGuardado(user);
+    sesionVersion.current++;
+    aplicarPerfil(user);
   };
 
   const desbloquear = async () => {
     if (!await autenticarConBiometria()) return false;
     const user = await authService.restaurarSesion();
     if (!user) throw new Error('La sesión venció. Ingresá con tu contraseña.');
-    setUsuario(user); setUsuarioGuardado(user);
+    sesionVersion.current++;
+    aplicarPerfil(user);
     return true;
   };
 
-  const actualizarUsuario = (nuevo: Usuario) => {
+  const cambiarFavorito = async (espacioId: string, agregar: boolean) => {
+    if (!usuario || perfilActual.current?.id !== usuario.id) return;
+    const version = sesionVersion.current;
+    if (agregar) await favoritosService.agregar(espacioId);
+    else await favoritosService.quitar(espacioId);
+    const perfil = perfilActual.current;
+    if (!perfil || version !== sesionVersion.current) return;
     perfilVersion.current++;
-    setUsuario(nuevo);
-    setUsuarioGuardado(nuevo);
-    authService.actualizar(nuevo).catch(() => undefined);
+    const favoritos = new Set(perfil.espaciosFavoritos);
+    if (agregar) favoritos.add(espacioId);
+    else favoritos.delete(espacioId);
+    const nuevo = { ...perfil, espaciosFavoritos: [...favoritos] };
+    aplicarPerfil(nuevo);
+    await authService.actualizar(nuevo).catch(() => undefined);
   };
 
   const logout = async () => {
     perfilVersion.current++;
+    sesionVersion.current++;
     await authService.logout();
-    setUsuario(null);
-    setUsuarioGuardado(null);
+    aplicarPerfil(null);
     await notificacionesService.cancelarTodos().catch(() => undefined);
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, login, registro, desbloquear, logout, actualizarUsuario }}>
+    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, login, registro, desbloquear, logout, cambiarFavorito, conSelectorNativo }}>
       {children}
     </AuthContext.Provider>
   );

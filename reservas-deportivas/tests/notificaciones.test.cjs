@@ -221,6 +221,23 @@ test('una cancelación detectada al actualizar se informa una sola vez', async (
   assert.equal((await reservas.reservasGuardadas(usuario.id))[0].reserva.estado, 'cancelada');
 });
 
+test('una sincronización que perdió vigencia no pisa el QR guardado', async () => {
+  const caso = entorno();
+  let devolver;
+  const peticion = new Promise(resolve => { devolver = resolve; });
+  const reservas = cargarReservas(caso, {
+    datos: [guardada],
+    api: { listarTodo: async () => peticion },
+  });
+  let vigente = true;
+  const sincronizacion = reservas.sincronizarReservas(usuario.id, () => vigente);
+  vigente = false;
+  devolver([]);
+  assert.equal((await sincronizacion).actualizada, false);
+  assert.equal((await reservas.reservasGuardadas(usuario.id))[0].reserva.codigoQr, guardada.reserva.codigoQr);
+  assert.deepEqual(caso.llamadas, []);
+});
+
 test('reabrir con reservas confirmadas futuras prepara el handler sin reprogramar ni pedir permisos', async () => {
   const caso = entorno();
   const reservas = cargarReservas(caso, { datos: [guardada] });
@@ -254,6 +271,7 @@ test('AuthContext: arranque invitado sin carga nativa; restauración con reserva
       '../hooks/useSinRed': { useSinRed: () => false },
       '../services/auth': { authService: { obtenerPerfil: async () => guardado, restaurarSesion: async () => guardado, logout: async () => { cerrada = true; } } },
       '../services/biometria': { biometriaDisponible: async () => false },
+      '../services/favoritos': { favoritosService: {} },
       '../services/sesionEventos': { escucharSesionInvalidada: () => () => {} },
       '../services/notificaciones': { notificacionesService: caso.servicio },
       '../services/reservas': reservas,

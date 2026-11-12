@@ -36,11 +36,13 @@ export default function EscanerScreen() {
   // El ref evita dos peticiones antes de que React aplique el siguiente render.
   const ocupado = useRef(false);
   const generacion = useRef(0);
+  const lecturaHabilitada = useRef(false);
 
   useFocusEffect(useCallback(() => {
     setEnFoco(true);
     return () => {
       generacion.current += 1;
+      lecturaHabilitada.current = false;
       setEnFoco(false);
       setAutenticado(false);
     };
@@ -50,6 +52,7 @@ export default function EscanerScreen() {
     const subscription = AppState.addEventListener('change', (estado) => {
       if (estado === 'background') {
         generacion.current += 1;
+        lecturaHabilitada.current = false;
         setAutenticado(false);
       }
       if (estado === 'active') {
@@ -61,6 +64,7 @@ export default function EscanerScreen() {
 
   useEffect(() => {
     generacion.current += 1;
+    lecturaHabilitada.current = false;
     setAutenticado(false);
   }, [usuario?.id, usuario?.rol]);
 
@@ -93,6 +97,7 @@ export default function EscanerScreen() {
     try {
       const valido = usarContrasena && usuario ? await authService.verificarPersonal(usuario.email, contrasena, usuario.id) : await autenticarPersonal();
       if (actual === generacion.current) {
+        lecturaHabilitada.current = valido;
         setAutenticado(valido);
         if (!valido) setError('Identidad no confirmada. Podés volver a intentar.');
         if (valido) setContrasena('');
@@ -106,7 +111,8 @@ export default function EscanerScreen() {
   };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (ocupado.current || !autorizado || !autenticado || !espacio || !enFoco || sinRed) return;
+    if (ocupado.current || !lecturaHabilitada.current || !autorizado || !autenticado || !espacio || !enFoco || sinRed) return;
+    lecturaHabilitada.current = false;
     ocupado.current = true;
     setProcesando(true);
     setError(null);
@@ -134,7 +140,7 @@ export default function EscanerScreen() {
     return <Screen><StateView><Text tone="muted">Acceso restringido a encargados y administradores.</Text></StateView></Screen>;
   }
 
-  const cabecera =       <View style={styles.panel}>
+  const cabecera = <View style={styles.panel}>
         <Text variant="title" accessibilityRole="header">Registrar ingreso</Text>
         <Text tone="muted">Elegí la cancha donde estás recibiendo a los jugadores.</Text>
         {espacio && <Text variant="subtitle">{espacio.nombre}</Text>}
@@ -187,12 +193,17 @@ export default function EscanerScreen() {
               enableTorch={linterna}
               barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
               onBarcodeScanned={handleBarCodeScanned}
-              onMountError={() => { setAutenticado(false); setError('No se pudo iniciar la cámara. Revisá los permisos y volvé a intentar.'); }}
+              onMountError={() => {
+                lecturaHabilitada.current = false;
+                setAutenticado(false);
+                setError('No se pudo iniciar la cámara. Revisá los permisos y volvé a intentar.');
+              }}
             />
           )}
           {autenticado && <Button variant="secondary" title={linterna ? 'Apagar linterna' : 'Encender linterna'} onPress={() => setLinterna(v => !v)} />}
           {procesando && <ActivityIndicator color={colors.primary} accessibilityLabel="Procesando ingreso" />}
           <Button variant="ghost" style={styles.action} title="Cambiar cancha" disabled={procesando} onPress={() => {
+            lecturaHabilitada.current = false;
             setAutenticado(false);
             setEspacio(null);
             setError(null);

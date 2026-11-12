@@ -146,8 +146,7 @@ test('corazón: sin sesión no llama a la API y sugiere ingresar', async () => {
     'expo-haptics': { NotificationFeedbackType: { Success: 'success' }, notificationAsync: async () => {} },
     'expo-network': { getNetworkStateAsync: async () => ({ isConnected: true }) },
     './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
-    '../context/AuthContext': { useAuth: () => ({ usuario: null, actualizarUsuario: () => {} }) },
-    '../services/favoritos': { favoritosService: { agregar: async () => { peticiones++; } } },
+    '../context/AuthContext': { useAuth: () => ({ usuario: null, cambiarFavorito: async () => { peticiones++; } }) },
     '../theme': entorno.theme,
   });
   let vista;
@@ -158,7 +157,7 @@ test('corazón: sin sesión no llama a la API y sugiere ingresar', async () => {
     assert.equal(estilo.borderWidth, undefined);
     assert.equal(estilo.borderRadius, undefined);
     assert.equal(estilo.backgroundColor, undefined);
-    assert.ok(estilo.padding * 2 + vista.root.findByType('Ionicons').props.size >= 48);
+    assert.ok(estilo.minWidth >= 48 && estilo.minHeight >= 48);
     assert.ok(boton.props.style({ pressed: true }).at(-1).opacity < 1);
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
     assert.equal(peticiones, 0);
@@ -169,12 +168,11 @@ test('corazón: sin sesión no llama a la API y sugiere ingresar', async () => {
   }
 });
 
-test('corazón: marca con cambio optimista, aplica el usuario del servidor y avisa con háptica', async () => {
+test('corazón: envía el cambio una vez y avisa con háptica tras confirmarlo', async () => {
   const entorno = createUiEnvironment();
   const vibraciones = [];
   const actualizaciones = [];
   const usuarioBase = { id: 'usr-207', espaciosFavoritos: ['esp-01'] };
-  const usuarioServidor = { ...usuarioBase, espaciosFavoritos: ['esp-01', 'esp-02'] };
   const { FavoritoToggle } = cargar('src/components/favoritos.tsx', {
     'react-native': { Pressable: 'Pressable', View: 'View', StyleSheet: { create: s => s } },
     '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
@@ -182,9 +180,8 @@ test('corazón: marca con cambio optimista, aplica el usuario del servidor y avi
     'expo-network': { getNetworkStateAsync: async () => ({ isConnected: true }) },
     './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../context/AuthContext': {
-      useAuth: () => ({ usuario: usuarioBase, actualizarUsuario: (u) => actualizaciones.push(u.espaciosFavoritos) }),
+      useAuth: () => ({ usuario: usuarioBase, cambiarFavorito: async (...args) => { actualizaciones.push(args); } }),
     },
-    '../services/favoritos': { favoritosService: { agregar: async () => usuarioServidor } },
     '../theme': entorno.theme,
   });
   let vista;
@@ -192,16 +189,15 @@ test('corazón: marca con cambio optimista, aplica el usuario del servidor y avi
     await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02' })); });
     assert.equal(vista.root.findByType('Pressable').props.accessibilityLabel, 'Agregar esta cancha a favoritos');
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
-    assert.deepEqual(actualizaciones, [['esp-01', 'esp-02'], ['esp-01', 'esp-02']]);
+    assert.deepEqual(actualizaciones, [['esp-02', true]]);
     assert.deepEqual(vibraciones, ['success']);
   } finally {
     if (vista) await act(async () => vista.unmount());
   }
 });
 
-test('corazón: si el servidor rechaza, revierte y muestra el error', async () => {
+test('corazón: si el servidor rechaza, conserva el estado y muestra el error', async () => {
   const entorno = createUiEnvironment();
-  const actualizaciones = [];
   const usuarioBase = { id: 'usr-207', espaciosFavoritos: ['esp-01'] };
   const fallo = new Error('Ya alcanzaste el máximo de favoritos.');
   const { FavoritoToggle } = cargar('src/components/favoritos.tsx', {
@@ -211,16 +207,15 @@ test('corazón: si el servidor rechaza, revierte y muestra el error', async () =
     'expo-network': { getNetworkStateAsync: async () => ({ isConnected: true }) },
     './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../context/AuthContext': {
-      useAuth: () => ({ usuario: usuarioBase, actualizarUsuario: (u) => actualizaciones.push(u.espaciosFavoritos) }),
+      useAuth: () => ({ usuario: usuarioBase, cambiarFavorito: async () => { throw fallo; } }),
     },
-    '../services/favoritos': { favoritosService: { agregar: async () => { throw fallo; } } },
     '../theme': entorno.theme,
   });
   let vista;
   try {
     await act(async () => { vista = create(React.createElement(FavoritoToggle, { espacioId: 'esp-02' })); });
     await act(async () => { await vista.root.findByType('Pressable').props.onPress(); });
-    assert.deepEqual(actualizaciones, [['esp-01', 'esp-02'], ['esp-01']]);
+    assert.equal(vista.root.findByType('Pressable').props.accessibilityState.selected, false);
     const dialogo = vista.root.findByType('DialogoAviso').props;
     assert.equal(dialogo.mensaje, fallo.message);
   } finally {
@@ -239,9 +234,8 @@ test('corazón: quitar favorito conserva la selección y muestra el error si fal
     'expo-network': { getNetworkStateAsync: async () => ({ isConnected: false }) },
     './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../context/AuthContext': {
-      useAuth: () => ({ usuario: usuarioBase, actualizarUsuario: (u) => actualizaciones.push(u.espaciosFavoritos) }),
+      useAuth: () => ({ usuario: usuarioBase, cambiarFavorito: async (...args) => { actualizaciones.push(args); } }),
     },
-    '../services/favoritos': { favoritosService: { quitar: async () => assert.fail('Sin conexión no debe llamar a la API') } },
     '../theme': entorno.theme,
   });
   let vista;
@@ -267,8 +261,8 @@ test('corazón: quitar espera al servidor antes de desaparecer de Solo favoritos
     '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
     'expo-haptics': {}, 'expo-network': { getNetworkStateAsync: async () => ({ isConnected: true }) },
     './DialogoAviso': { DialogoAviso: 'DialogoAviso' },
-    '../context/AuthContext': { useAuth: () => ({ usuario: { espaciosFavoritos: ['esp-02'] }, actualizarUsuario: u => actualizaciones.push(u.espaciosFavoritos) }) },
-    '../services/favoritos': { favoritosService: { quitar: () => pendiente } }, '../theme': entorno.theme,
+    '../context/AuthContext': { useAuth: () => ({ usuario: { espaciosFavoritos: ['esp-02'] }, cambiarFavorito: async (...args) => { await pendiente; actualizaciones.push(args); } }) },
+    '../theme': entorno.theme,
   });
   let vista;
   try {
@@ -278,6 +272,6 @@ test('corazón: quitar espera al servidor antes de desaparecer de Solo favoritos
     assert.deepEqual(actualizaciones, []);
     assert.equal(vista.root.findByType('Pressable').props.accessibilityState.busy, true);
     await act(async () => { confirmar(); await operacion; });
-    assert.deepEqual(actualizaciones, [[]]);
+    assert.deepEqual(actualizaciones, [['esp-02', false]]);
   } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });

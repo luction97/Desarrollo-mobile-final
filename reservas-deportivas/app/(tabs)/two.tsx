@@ -34,13 +34,16 @@ export default function MisReservasScreen() {
   const ocupado = useRef(false);
 
   const cargar = useCallback(async () => {
-    if (!usuario || !puedeReservar) { setDatos([]); setCargando(false); return; }
     const version = ++generacion.current;
+    setConfirmacion(null);
+    setMensaje(null);
+    if (!usuario || !puedeReservar) { setDatos([]); setCargando(false); return; }
     setError(null);
     setCargando(true);
-    const guardadas = await reservasGuardadas(usuario.id).catch(() => []);
+    const guardadas = await reservasGuardadas(usuario.id).catch(() => null);
     if (version !== generacion.current) return;
-    setDatos(guardadas); setLocal(true); setCargando(false);
+    setDatos(guardadas ?? []); setLocal(true); setCargando(false);
+    if (!guardadas) setError('No pudimos leer las reservas guardadas en este teléfono.');
     try {
       if (sinRed) return;
       const vigentes = () => version === generacion.current;
@@ -48,7 +51,7 @@ export default function MisReservasScreen() {
       if (!vigentes()) return;
       setDatos(actuales.datos);
       setLocal(!actuales.actualizada);
-      if (!actuales.guardadas) setError('No pudimos actualizar la copia sin conexión.');
+      setError(actuales.guardadas ? null : 'No pudimos actualizar la copia sin conexión.');
       if (actuales.cambios.length) {
         setMensaje(actuales.cambios.map(d => [
           d.espacio?.nombre ?? 'Cancha',
@@ -70,19 +73,31 @@ export default function MisReservasScreen() {
   }, [cargar]));
 
   const cancelar = async () => {
-    if (!puedeReservar || !confirmacion || ocupado.current || local || sinRed) return;
+    if (!puedeReservar || !confirmacion || confirmacion.reserva.usuarioId !== usuario?.id || ocupado.current) return;
+    if (local || sinRed) {
+      setConfirmacion(null);
+      setMensaje('Conectate para cancelar la reserva.');
+      return;
+    }
     if (Date.now() > Date.parse(confirmacion.reserva.cancelableHasta)) {
       setConfirmacion(null);
       setMensaje('El plazo para cancelar terminó. Contactá al encargado.');
       return;
     }
     ocupado.current = true; setCancelando(true);
+    const version = generacion.current;
     try {
       const resultado = await cancelarReserva(confirmacion);
+      if (version !== generacion.current) return;
       setDatos(prev => prev.map(d => d.reserva.id === resultado.reserva.id ? { ...d, reserva: resultado.reserva } : d));
       setConfirmacion(null);
       setMensaje(resultado.guardadaLocalmente ? 'La reserva fue cancelada.' : 'Reserva cancelada. No pudimos actualizar la copia del teléfono.');
-    } catch (e) { setConfirmacion(null); setMensaje(e instanceof Error ? e.message : 'No se pudo cancelar la reserva.'); }
+    } catch (e) {
+      if (version === generacion.current) {
+        setConfirmacion(null);
+        setMensaje(e instanceof Error ? e.message : 'No se pudo cancelar la reserva.');
+      }
+    }
     finally { ocupado.current = false; setCancelando(false); }
   };
 
@@ -136,7 +151,7 @@ export default function MisReservasScreen() {
         {esProxima(item) && <Text selectable variant="label">Código: {item.reserva.codigoQr}</Text>}
         <Text variant="label" tone="muted">Personas: {item.reserva.cantidadPersonas}</Text>
         {esProxima(item) && (ahora <= new Date(item.reserva.cancelableHasta)
-          ? <Button title="Cancelar reserva" variant="destructive" disabled={local || cancelando} onPress={() => setConfirmacion(item)} />
+          ? <Button title="Cancelar reserva" variant="destructive" disabled={local || sinRed || cancelando} onPress={() => setConfirmacion(item)} />
           : <Text tone="muted">Contactá al encargado para cancelar.</Text>)}
         {item.espacio && <Button title="Cómo llegar" variant="secondary" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: item.espacio!.id } })} />}
       </Surface>} />
