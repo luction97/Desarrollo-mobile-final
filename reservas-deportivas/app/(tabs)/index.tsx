@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Network from 'expo-network';
 import { Badge, Button, PressableSurface, Screen, StateView, Text, uiLayout } from '../../src/components/ui';
@@ -150,30 +150,34 @@ export default function DisponibilidadScreen() {
           <Text numberOfLines={1}>{filtroDeporte === 'todos' ? 'DEPORTE' : deportes.find(d => d.id === filtroDeporte)?.nombre ?? filtroDeporte}</Text>
           <Text tone="muted">▼</Text>
         </PressableSurface>
-        {abiertoDeporte && (
-          <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
-              <PressableSurface key={dep} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
-                <Text>{dep === 'todos' ? 'DEPORTE' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
-              </PressableSurface>
-            ))}
-          </View>
-        )}
+        <Modal visible={abiertoDeporte} transparent animationType="fade" onRequestClose={() => setAbiertoDeporte(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoDeporte(false)}>
+            <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
+              {['todos', ...new Set(espacios.map(e => e.deporteId))].map(dep => (
+                <PressableSurface key={dep} style={styles.opcion} onPress={() => { setFiltroDeporte(dep); setAbiertoDeporte(false); }}>
+                  <Text>{dep === 'todos' ? 'DEPORTE' : deportes.find(d => d.id === dep)?.nombre ?? dep}</Text>
+                </PressableSurface>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       </View>
       <View style={styles.filtroCol}>
         <PressableSurface style={[styles.desplegable, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => { setAbiertoComplejo(v => !v); setAbiertoDeporte(false); }}>
           <Text numberOfLines={1}>{filtroComplejo === 'todos' ? 'COMPLEJO' : filtroComplejo}</Text>
           <Text tone="muted">▼</Text>
         </PressableSurface>
-        {abiertoComplejo && (
-          <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            {complejosDisponibles.map(comp => (
-              <PressableSurface key={comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
-                <Text>{comp === 'todos' ? 'COMPLEJO' : comp}</Text>
-              </PressableSurface>
-            ))}
-          </View>
-        )}
+        <Modal visible={abiertoComplejo} transparent animationType="fade" onRequestClose={() => setAbiertoComplejo(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setAbiertoComplejo(false)}>
+            <View style={[styles.menu, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 110 }]}>
+              {complejosDisponibles.map(comp => (
+                <PressableSurface key={comp} style={styles.opcion} onPress={() => { setFiltroComplejo(comp); setAbiertoComplejo(false); }}>
+                  <Text>{comp === 'todos' ? 'COMPLEJO' : comp}</Text>
+                </PressableSurface>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       </View>
     </View>
 
@@ -184,7 +188,7 @@ export default function DisponibilidadScreen() {
           <PressableSurface key={e.id} style={styles.card} onPress={() => { setEspacioId(e.id); void preferencias.setItem('ultimoEspacio', e.id).catch(() => undefined); }}>
             {foto && <Image source={foto} style={styles.cardImage} accessibilityLabel={`Foto de ${e.nombre}`} />}
             <View style={styles.cardInfo}>
-              <Text variant="subtitle" numberOfLines={1}>{e.nombre}</Text>
+              <Text variant="subtitle" numberOfLines={1}>{e.nombre.split(/[—-]/)[0].trim()}</Text>
               <Text variant="label" tone="muted" numberOfLines={1}>{deportes.find(d => d.id === e.deporteId)?.nombre ?? e.deporteId}</Text>
               <Text numeric variant="action" tone="primary">
                 {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(e.precioPorHora)} / hora
@@ -246,7 +250,8 @@ const styles = StyleSheet.create({
   filtrosRow: { flexDirection: 'row', gap: spacing.md },
   filtroCol: { flex: 1, gap: spacing.xs, position: 'relative', zIndex: 1 },
   desplegable: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.input, borderWidth: 1 },
-  menu: { position: 'absolute', top: 46, left: 0, right: 0, borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs, borderWidth: 1, elevation: 8, zIndex: 20 },
+  menu: { borderRadius: radius.card, padding: spacing.sm, gap: spacing.xs, borderWidth: 1, elevation: 8, zIndex: 20 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-start', paddingTop: spacing.xl },
   opcion: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.input },
   cardsRow: { gap: spacing.md, paddingVertical: spacing.sm },
   card: { width: 220, padding: spacing.none, overflow: 'hidden', borderRadius: radius.card },
