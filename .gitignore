@@ -6,6 +6,11 @@
 !/reservas-deportivas/
 !/LICENSE
 !/README.md
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/frontend.yml
 
 # Documentación local
 /docs/

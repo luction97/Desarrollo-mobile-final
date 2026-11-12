@@ -1,0 +1,31 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - 'reservas-deportivas/**'
+      - '.github/workflows/frontend.yml'
+  push:
+    paths:
+      - 'reservas-deportivas/**'
+      - '.github/workflows/frontend.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reservas-deportivas
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: reservas-deportivas/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
