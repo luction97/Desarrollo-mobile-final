@@ -10,7 +10,7 @@ import { Espacio } from '../../src/tipos';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Mapa } from '../../src/components/Mapa';
-import { PuntoMapa, puntosDeEspacios } from '../../src/mapa/modelo';
+import { PuntoMapa, enlacesDestino, puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales, obtenerPuntosLocales } from '../../src/services/mapas';
 import { fotoDeCancha } from '../../src/canchas/imagenes';
 
@@ -142,8 +142,10 @@ export default function EspacioDetalleScreen() {
         <View style={uiLayout.row}>
           <Button title="Ver disponibilidad" onPress={() => router.push({ pathname: '/(tabs)', params: { espacioId: espacio.id } })} />
           <Button variant="secondary" title="Cómo llegar" onPress={() => {
-            const { latitud, longitud } = espacio.coordenadas;
-            void Linking.openURL(`https://www.openstreetmap.org/?mlat=${latitud}&mlon=${longitud}#map=17/${latitud}/${longitud}`);
+            // La lógica de enlaces por plataforma vive en el módulo de mapa (única fuente).
+            const punto = { id: espacio.id, nombre: espacio.nombre, latitud: espacio.coordenadas?.latitud, longitud: espacio.coordenadas?.longitud };
+            const [destino] = enlacesDestino(punto, Platform.OS);
+            if (destino) void Linking.openURL(destino);
           }} />
         </View>
 
