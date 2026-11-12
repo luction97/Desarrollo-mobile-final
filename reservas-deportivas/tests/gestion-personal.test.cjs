@@ -52,7 +52,7 @@ test('bloqueos: lista con filtros y baja por id', async () => {
   assert.equal(eliminada, '/bloqueos/blo-1');
 });
 
-test('la agenda consulta reservas del día y datos del titular por id', async () => {
+test('la agenda consulta turnos, reservas y datos del titular por id', async () => {
   let consultas = [];
   const { operacionesService: servicio } = cargar('src/services/operaciones.ts', {
     './api': {
@@ -63,9 +63,10 @@ test('la agenda consulta reservas del día y datos del titular por id', async ()
     },
     '../utils/horarios': horarios,
   });
+  await servicio.listarAgenda('2026-11-10');
   await servicio.listarReservasDelDia('2026-11-10');
   await servicio.obtenerUsuario('usr-207');
-  assert.deepEqual(consultas, ['/reservas?fecha=2026-11-10', '/usuarios/usr-207']);
+  assert.deepEqual(consultas, ['/agenda?fecha=2026-11-10', '/reservas?fecha=2026-11-10', '/usuarios/usr-207']);
 });
 
 test('fijas: listado filtrado por espacio y activas', async () => {

@@ -152,9 +152,10 @@ test('agenda no consulta reservas ni titulares al entrar como invitado o jugador
       '../src/components/ui': entorno.ui, '../src/theme': entorno.theme,
       '../src/context/AuthContext': { useAuth: () => ({ usuario: usuario(rol) }) },
       '../src/utils/permisos': permisos, '../src/utils/etiquetas': etiquetas, '../src/utils/fechas': fechas,
-      '../src/components/CodigoQr': { CodigoQr: 'CodigoQr' }, '../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+      '../src/hooks/useHorarioActual': { useHorarioActual: () => new Date() },
+      '../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
       '../src/services/espacios': { obtenerEspacios: async () => ({ datos: [cancha] }) },
-      '../src/services/operaciones': { operacionesService: { listarReservasDelDia: async () => { consultas++; return []; } } },
+      '../src/services/operaciones': { operacionesService: { listarAgenda: async () => [], listarReservasDelDia: async () => { consultas++; return []; } } },
     }).default;
     let vista;
     try {

@@ -3,8 +3,9 @@ import { ActivityIndicator, AppState, FlatList, Linking, StyleSheet, View } from
 import { Button, PressableSurface, Screen, StateView, Text, TextField, uiLayout } from '../src/components/ui';
 import { layout, radius, spacing, useTheme } from '../src/theme';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useSinRed } from '../src/hooks/useSinRed';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
 import { autenticarPersonal } from '../src/services/biometria';
 import { obtenerEspacios } from '../src/services/espacios';
@@ -16,6 +17,8 @@ import { ZONA } from '../src/utils/fechas';
 
 export default function EscanerScreen() {
   const { colors } = useTheme();
+  const { espacioId } = useLocalSearchParams<{ espacioId?: string }>();
+  const sinRed = useSinRed();
   const { usuario, cargando: cargandoSesion } = useAuth();
   const { puedeGestionar: autorizado } = permisosDe(usuario);
   const [permission, requestPermission, getPermission] = useCameraPermissions();
@@ -66,7 +69,9 @@ export default function EscanerScreen() {
     setError(null);
     try {
       const { datos } = await obtenerEspacios();
-      setEspacios(datos.filter((item) => item.activo));
+      const activos = datos.filter(item => item.activo);
+      setEspacios(activos);
+      if (espacioId) setEspacio(activos.find(item => item.id === espacioId) ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'No se pudieron cargar las canchas.');
     } finally {
@@ -76,10 +81,10 @@ export default function EscanerScreen() {
 
   useEffect(() => {
     if (autorizado) void cargarEspacios();
-  }, [autorizado]);
+  }, [autorizado, espacioId]);
 
   const habilitarEscaner = async () => {
-    if (!autorizado || !espacio || ocupado.current) return;
+    if (!autorizado || !espacio || ocupado.current || sinRed) return;
     ocupado.current = true;
     setProcesando(true);
     setError(null);
@@ -101,7 +106,7 @@ export default function EscanerScreen() {
   };
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (ocupado.current || !autorizado || !autenticado || !espacio || !enFoco) return;
+    if (ocupado.current || !autorizado || !autenticado || !espacio || !enFoco || sinRed) return;
     ocupado.current = true;
     setProcesando(true);
     setError(null);
@@ -135,6 +140,7 @@ export default function EscanerScreen() {
         <Text variant="title" accessibilityRole="header">Registrar ingreso</Text>
         <Text tone="muted">Elegí la cancha donde estás recibiendo a los jugadores.</Text>
         {espacio && <Text variant="subtitle">{espacio.nombre}</Text>}
+        {sinRed && <Text accessibilityLiveRegion="polite" tone="warning">Conectate a internet para registrar ingresos.</Text>}
         {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
         {resultado && <Text selectable accessibilityLiveRegion="polite" tone="success">{resultado}</Text>}
       </View>
@@ -160,7 +166,7 @@ export default function EscanerScreen() {
           {!autenticado ? (
             <View style={styles.panel}>
               {usarContrasena && <TextField label="Contraseña de tu cuenta" value={contrasena} onChangeText={setContrasena} secureTextEntry autoComplete="current-password" editable={!procesando} />}
-              <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={procesando || (usarContrasena && !contrasena)} onPress={habilitarEscaner} />
+              <Button title={procesando ? 'Procesando…' : 'Confirmar identidad y escanear'} disabled={sinRed || procesando || (usarContrasena && !contrasena)} onPress={habilitarEscaner} />
               <Button variant="ghost" title={usarContrasena ? 'Usar huella o rostro' : 'Usar contraseña'} disabled={procesando}
                 onPress={() => { setUsarContrasena(v => !v); setContrasena(''); setError(null); }} />
             </View>
@@ -172,7 +178,7 @@ export default function EscanerScreen() {
                 void accion.catch(() => setError('No se pudo abrir el permiso de cámara. Revisá los ajustes del dispositivo.'));
               }} />
             </View>
-          ) : enFoco && !procesando && (
+          ) : enFoco && !procesando && !sinRed && (
             <CameraView
               style={styles.camera}
               facing="back"

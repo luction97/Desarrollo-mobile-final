@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
-import { operacionesService } from '../../services/operaciones';
+import { operacionesService, type EntradaBloqueo } from '../../services/operaciones';
 import { errorDeFecha, errorDeRangoHorario } from '../../utils/horarios';
-import { fechaArgentina, fechaLegible } from '../../utils/fechas';
+import { fechaArgentina, fechaLegible, horarioDeReserva, instanteTurno } from '../../utils/fechas';
 import { spacing, useTheme } from '../../theme';
 import type { Bloqueo, Espacio } from '../../tipos';
 
@@ -29,7 +29,9 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [confirmar, setConfirmar] = useState(false);
+  const [confirmar, setConfirmar] = useState<{ entrada: EntradaBloqueo; afectados: string[] } | null>(null);
+  const operando = useRef(false);
+  const generacion = useRef(0);
   const [aCancelar, setACancelar] = useState<Bloqueo | null>(null);
 
   useEffect(() => {
@@ -40,20 +42,27 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   }, [espacios]);
 
   const cargarBloqueos = useCallback(async () => {
-    if (!seleccionados.length) { setBloqueos([]); return; }
-    setCargando(true); setError(null);
+    const version = ++generacion.current;
+    setBloqueos([]);
+    setError(null);
+    setCargando(seleccionados.length > 0);
+    if (!seleccionados.length) return;
     try {
       const listas = await Promise.all(seleccionados.map(id => operacionesService.listarBloqueos(id, fechaArgentina())));
+      if (version !== generacion.current) return;
       setBloqueos(listas.flat().sort((a, b) =>
         a.fecha.localeCompare(b.fecha) || (a.inicio ?? '').localeCompare(b.inicio ?? '') || a.id.localeCompare(b.id)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar los bloqueos.');
+      if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudieron cargar los bloqueos.');
     } finally {
-      setCargando(false);
+      if (version === generacion.current) setCargando(false);
     }
   }, [seleccionados]);
 
-  useEffect(() => { void cargarBloqueos(); }, [cargarBloqueos]);
+  useEffect(() => {
+    void cargarBloqueos();
+    return () => { generacion.current++; };
+  }, [cargarBloqueos]);
 
   const alternar = (id: string) => {
     setSeleccionados(vigentes => vigentes.includes(id)
@@ -61,8 +70,8 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       : [...vigentes, id]);
   };
 
-  const abrirConfirmacion = () => {
-    if (ocupado) return;
+  const abrirConfirmacion = async () => {
+    if (operando.current || !seleccionados.length) return;
     if (!motivo.trim()) { setAviso('Escribí un motivo para el bloqueo.'); return; }
     const errorFecha = errorDeFecha(fecha);
     if (errorFecha) { setAviso(errorFecha); return; }
@@ -72,21 +81,40 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
     }
     const errorHoras = diaEntero ? null : errorDeRangoHorario(inicio.trim() || null, fin.trim() || null);
     if (errorHoras) { setAviso(errorHoras); return; }
-    setConfirmar(true);
+    const entrada: EntradaBloqueo = {
+      espacioIds: seleccionados, fecha, motivo,
+      inicio: diaEntero ? undefined : inicio.trim(),
+      fin: diaEntero ? undefined : fin.trim(),
+    };
+    operando.current = true;
+    setOcupado(true);
+    try {
+      const reservas = await operacionesService.listarReservasDelDia(fecha);
+      const ahora = Date.now();
+      const afectados = reservas.flatMap(reserva => {
+        if (reserva.estado !== 'confirmada' || !entrada.espacioIds.includes(reserva.espacioId)) return [];
+        const horario = horarioDeReserva(reserva.cancelableHasta);
+        if (!horario || horario.fecha !== fecha || instanteTurno(fecha, horario.fin).getTime() <= ahora) return [];
+        if (entrada.inicio && entrada.fin && (horario.inicio < entrada.inicio || horario.inicio >= entrada.fin)) return [];
+        return [nombreDe(reserva.espacioId) + ' · ' + horario.inicio];
+      });
+      setConfirmar({ entrada, afectados });
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : 'No pudimos consultar las reservas afectadas.');
+    } finally {
+      setOcupado(false);
+      operando.current = false;
+    }
   };
 
   const crear = async () => {
-    if (ocupado) return;
-    setConfirmar(false);
+    if (operando.current || !confirmar) return;
+    const { entrada } = confirmar;
+    operando.current = true;
+    setConfirmar(null);
     setOcupado(true);
     try {
-      const creados = await operacionesService.bloquear({
-        espacioIds: seleccionados,
-        fecha,
-        motivo,
-        inicio: diaEntero ? undefined : inicio.trim() || undefined,
-        fin: diaEntero ? undefined : fin.trim() || undefined,
-      });
+      const creados = await operacionesService.bloquear(entrada);
       setMotivo(''); setInicio(''); setFin(''); setDiaEntero(true);
       setAviso(creados.length === 1
         ? 'Bloqueo creado. Las reservas afectadas fueron canceladas.'
@@ -96,11 +124,13 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       setAviso(e instanceof Error ? e.message : 'No se pudo crear el bloqueo.');
     } finally {
       setOcupado(false);
+      operando.current = false;
     }
   };
 
   const cancelar = async () => {
-    if (!aCancelar || ocupado) return;
+    if (!aCancelar || operando.current) return;
+    operando.current = true;
     setOcupado(true);
     try {
       await operacionesService.cancelarBloqueo(aCancelar.id);
@@ -112,6 +142,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       setAviso(e instanceof Error ? e.message : 'No se pudo cancelar el bloqueo.');
     } finally {
       setOcupado(false);
+      operando.current = false;
     }
   };
 
@@ -140,7 +171,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
           keyboardType="numbers-and-punctuation" maxLength={5} placeholder="24:00" autoCapitalize="none" />
       </View>
     </View>}
-    <Button title="Bloquear" variant="destructive" disabled={ocupado || !seleccionados.length} onPress={abrirConfirmacion} />
+    <Button title="Bloquear" variant="destructive" loading={ocupado} disabled={!seleccionados.length} onPress={abrirConfirmacion} />
 
     {cargando && <ActivityIndicator color={colors.primary} />}
     {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
@@ -155,9 +186,18 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
     </View>)}
     {!cargando && !error && !bloqueos.length && <Text tone="muted">Sin bloqueos vigentes en las canchas elegidas.</Text>}
 
-    {confirmar && <DialogoAviso titulo="Bloquear" mensaje="Se cancelarán las reservas afectadas."
-      detalle={`${seleccionados.length === 1 ? nombreDe(seleccionados[0]) : `${seleccionados.length} canchas`} · ${fechaLegible(fecha)}${diaEntero ? ' · día entero' : ` · ${inicio.trim()}–${fin.trim()}`}`}
-      destructivo accionPrincipal="Confirmar bloqueo" accionSecundaria="Volver" onConfirmar={crear} onCerrar={() => setConfirmar(false)} />}
+    {confirmar && <DialogoAviso titulo="Confirmar bloqueo"
+      mensaje={confirmar.afectados.length
+        ? 'Se cancelarán las reservas afectadas según la disponibilidad al confirmar.'
+        : 'La consulta no encontró reservas afectadas.'}
+      detalle={[
+        fechaLegible(confirmar.entrada.fecha),
+        confirmar.entrada.inicio ? `${confirmar.entrada.inicio}–${confirmar.entrada.fin}` : 'Día entero',
+        confirmar.entrada.espacioIds.map(nombreDe).join(', '),
+        `${confirmar.afectados.length} reservas afectadas`,
+        ...confirmar.afectados,
+      ].join('\n')}
+      destructivo accionPrincipal="Bloquear" accionSecundaria="Volver" onConfirmar={crear} onCerrar={() => setConfirmar(null)} />}
     {aCancelar && <DialogoAviso titulo="Dar de baja bloqueo"
       detalle={`${nombreDe(aCancelar.espacioId)} · ${fechaLegible(aCancelar.fecha)}`}
       mensaje="Las reservas que este bloqueo canceló siguen canceladas." accionPrincipal="Dar de baja"

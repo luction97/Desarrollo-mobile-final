@@ -1,6 +1,6 @@
 import { api } from './api';
 import { errorDeFecha, errorDeRangoHorario } from '../utils/horarios';
-import type { Bloqueo, Espacio, Reserva, Usuario } from '../tipos';
+import type { Bloqueo, Espacio, Reserva, Turno, Usuario } from '../tipos';
 
 export interface EntradaBloqueo {
   espacioIds: string[];
@@ -13,6 +13,14 @@ export interface EntradaBloqueo {
 export const operacionesService = {
   marcarAusente(id: string): Promise<Reserva> {
     return api.post<Reserva>(`/reservas/${encodeURIComponent(id)}/ausente`, {});
+  },
+
+  cancelarReserva(id: string): Promise<Reserva> {
+    return api.post<Reserva>(`/reservas/${encodeURIComponent(id)}/cancelacion`, {});
+  },
+
+  listarAgenda(fecha: string): Promise<Turno[]> {
+    return api.listarTodo<Turno>(`/agenda?fecha=${encodeURIComponent(fecha)}`);
   },
 
   cambiarPrecio(espacioId: string, precioPorHora: number): Promise<Espacio> {

@@ -75,7 +75,7 @@ export default function AdminScreen() {
       <BloqueosPanel espacios={espacios} />
 
       {espacio && <>
-        <FijasPanel espacioId={espacio.id} editable={esAdmin} />
+        <FijasPanel key={`${usuario?.id}:${espacio.id}`} espacioId={espacio.id} editable={esAdmin} />
         {esAdmin && <Surface style={uiLayout.section}>
           <Text variant="subtitle">Cambiar precio por hora</Text>
           <Text numeric>Precio actual: {precioLegible(espacio.precioPorHora)}</Text>

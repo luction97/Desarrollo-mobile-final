@@ -95,8 +95,8 @@ export default function DisponibilidadScreen() {
   }, [params.espacioId, intentoCatalogo]);
 
   useEffect(() => {
-    if (params.fecha && dias.some(d => d.fecha === params.fecha)) setFecha(params.fecha);
-  }, [params.fecha, dias]);
+    if (params.fecha) setFecha(params.fecha);
+  }, [params.fecha]);
 
   useEffect(() => { setVerAnteriores(false); }, [fecha, espacioId]);
 
