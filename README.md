@@ -1,201 +1,127 @@
-# Reservas Deportivas
+# Reservas Deportivas — Deporturnos
 
-Aplicación móvil para consultar y reservar espacios deportivos municipales de Villaguay. Trabajo final de **Desarrollo para Móviles — UNER**.
+Aplicación móvil para consultar y reservar canchas deportivas de Villaguay. Trabajo final de
+**Desarrollo para Móviles — UNER**.
 
-El repositorio contiene el frontend en desarrollo y la API proporcionada por la cátedra. La aplicación todavía tiene funcionalidades pendientes; no se considera lista para producción.
-
-## Tecnologías y estructura
-
-| Componente | Tecnologías | Carpeta |
+| Componente | Stack | Carpeta |
 |---|---|---|
-| Aplicación móvil | Expo SDK 54, React Native 0.81.5, React 19.1, TypeScript, Expo Router | `reservas-deportivas/` |
-| Backend de la cátedra | NestJS 12, TypeORM, SQLite por defecto | `api-reservas-deportivas/` |
-| Persistencia móvil | `expo-sqlite` | `reservas-deportivas/src/services/` |
-| Mapas sin API Key | WebView 13.15.0, Leaflet 1.9.4 local y teselas OpenStreetMap | `reservas-deportivas/src/mapa/` |
+| App móvil | Expo SDK 54, React Native 0.81, TypeScript, Expo Router | `reservas-deportivas/` |
+| API (cátedra) | NestJS 12, TypeORM, SQLite | `api-reservas-deportivas/` |
+| Persistencia local | `expo-sqlite` + `expo-secure-store` | `reservas-deportivas/src/services/` |
 
-```text
-reservas-deportivas/
-  app/                Rutas y pantallas
-  src/components/     Componentes de la aplicación
-  src/context/        Contexto de sesión
-  src/services/       HTTP, autenticación y persistencia
-  src/tipos/          Tipos del dominio
-  src/mocks/          Datos de prueba
-  .env.example        Plantilla del entorno del frontend
-api-reservas-deportivas/
-  README.md           Documentación del backend de la cátedra
-```
-
-El frontend se comunica con el backend por HTTP; no accede directamente a su base de datos. SQLite del servidor guarda los datos centrales y SQLite del teléfono sirve para persistencia local. **No hace falta Docker** para el arranque descrito aquí.
+La app se comunica con la API por HTTP; no accede a la base del servidor. La API pertenece a la
+cátedra: su código y su contrato no se modifican.
 
 ## Requisitos
 
-- **Node.js 24.15.0**, versión comprobada y registrada en `reservas-deportivas/.nvmrc`.
-- npm incluido con esa instalación de Node para el frontend.
-- **pnpm 10.34.6** para el backend, según su `packageManager`.
-- Para celular: computadora y teléfono en la misma red, y un cliente compatible con **Expo SDK 54**.
-- Para emulador Android: Android Studio con un dispositivo virtual configurado y las herramientas Android disponibles en el sistema.
-
-Si usás NVM para Windows:
+- **Node.js 24.15.0** (ver `reservas-deportivas/.nvmrc`) con npm, para la app.
+- **Docker Desktop**, para la API.
+- **Expo Go compatible con SDK 54** en el celular, y PC + celular en la **misma red Wi-Fi**.
 
 ```powershell
 nvm install 24.15.0
 nvm use 24.15.0
 node --version
-npm --version
 ```
 
-La instalación de Node se hace una sola vez. No mezcles una instalación independiente de Node con la administrada por NVM. Para diagnosticar rutas en Windows: `where.exe node` y `where.exe npm`.
+## Levantar el proyecto
 
-Si pnpm no está disponible, podés instalar la versión requerida:
+Dos terminales, desde la raíz del repositorio.
 
-```powershell
-npm install --global pnpm@10.34.6
-```
-
-## Instalación inicial
-
-Los siguientes comandos utilizan **PowerShell** y parten de la raíz del repositorio. Cada proyecto tiene su propio gestor y lockfile; no ejecutar `npm ci` en la raíz ni usar pnpm para instalar el frontend.
-
-### 1. Preparar el backend
+### Terminal 1 — API (Docker)
 
 ```powershell
 cd api-reservas-deportivas
-pnpm install --frozen-lockfile
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+docker compose up
 ```
 
-La plantilla permite desarrollo con SQLite. Al arrancar con su configuración predeterminada, la API crea el esquema y carga datos de demo si la base está vacía. Los datos quedan en `datos/api.sqlite` y los archivos en `archivos/`, dentro del backend.
+- API: <http://localhost:3000> · Salud: <http://localhost:3000/salud> · Docs: <http://localhost:3000/docs>
+- Levanta sola el esquema y carga los datos de demo. No hace falta `pnpm install` ni `.env` del backend.
+- Apagar: `Ctrl+C` o `docker compose down`. Resetear datos: `docker compose down -v` y volver a `up`.
 
-**No ejecutar `pnpm db:reiniciar` para el arranque habitual:** elimina y reconstruye el esquema. La API pertenece a la cátedra; su código y contrato no se modifican como parte del desarrollo del frontend.
-
-### 2. Preparar el frontend
-
-Desde la raíz, en otra terminal:
+### Terminal 2 — app
 
 ```powershell
 cd reservas-deportivas
 npm ci
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-```
-
-Estos comandos respetan los lockfiles y no sobrescriben un `.env` existente. `npm ci` reinstala las dependencias locales: no es necesario ejecutarlo cada vez que iniciás la aplicación.
-
-### 3. Configurar la URL de la API
-
-Editar `reservas-deportivas/.env` según dónde se ejecutará la aplicación:
-
-| Destino | `EXPO_PUBLIC_API_URL` |
-|---|---|
-| Navegador en la misma PC que el backend | `http://localhost:3000` |
-| Emulador Android estándar de Android Studio | `http://10.0.2.2:3000` |
-| Celular físico | `http://<IPv4-local-de-la-PC>:3000` |
-| Servicio publicado | URL HTTPS del backend |
-
-Ejemplo para celular, reemplazando la IP por la de tu computadora:
-
-```dotenv
-EXPO_PUBLIC_API_URL=http://192.168.0.100:3000
-```
-
-En Windows, obtener la IPv4 de la interfaz Wi-Fi o Ethernet activa con `ipconfig`. **`localhost` en el celular apunta al celular, no a la PC.** Si la IP cambia, actualizar el `.env` local y reiniciar Metro.
-
-## Iniciar el proyecto
-
-Se necesitan **dos terminales abiertas**, una por proceso. Los comandos parten de la raíz del repositorio y suponen que la instalación inicial ya está completa.
-
-### Terminal 1: backend
-
-```powershell
-cd api-reservas-deportivas
-pnpm dev
-```
-
-- Salud: `http://localhost:3000/salud`
-- Documentación interactiva: `http://localhost:3000/docs`
-
-### Terminal 2: frontend
-
-```powershell
-cd reservas-deportivas
 npm start
 ```
 
-Metro muestra un QR y las opciones de apertura. Al guardar cambios del frontend, Fast Refresh normalmente los muestra sin reiniciar todo el proyecto. Para detener cada servidor, usar `Ctrl+C` en su terminal.
+Metro muestra un QR: escanearlo con Expo Go. `npm ci` respeta el lockfile y solo hace falta la
+primera vez.
 
-### Abrir en un celular
+## URL de la API
 
-1. Conectar PC y celular a la misma red Wi-Fi.
-2. Desde el navegador del celular, abrir `http://<IPv4-local-de-la-PC>:3000/salud`. Debe devolver `datos.estado: "ok"`.
-3. Usar **Expo Go compatible con SDK 54** y abrir el proyecto mediante el QR de Metro.
+Con **Expo Go no hay que configurar nada**: la app toma la IP de la PC del host de Metro y prueba
+después `10.0.2.2` (emulador) y `localhost` como alternativas.
 
-**Compatibilidad:** Expo Go para SDK 58 no puede abrir este proyecto SDK 54. En Android se puede descargar un cliente compatible desde [expo.dev/go](https://expo.dev/go). En un iPhone físico no se puede asumir la disponibilidad de una versión anterior: se necesita un cliente admitido o preparar un development build compatible. No actualizar el SDK solo para hacer coincidir el Expo Go instalado.
+Si preferís fijarla, editá `reservas-deportivas/.env`:
 
-### Abrir en el emulador Android
+| Destino | `EXPO_PUBLIC_API_URL` |
+|---|---|
+| Navegador en la PC | `http://localhost:3000` |
+| Emulador Android | `http://10.0.2.2:3000` |
+| Celular físico | `http://<IPv4-de-la-PC>:3000` |
 
-1. Iniciar un dispositivo virtual desde **Android Studio → Device Manager**.
-2. Configurar `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000` y reiniciar Metro si estaba abierto.
-3. Con el backend activo y Metro iniciado, presionar **`a`** en la terminal de Expo. También se puede ejecutar `npm run android` en lugar de `npm start`.
-4. Si aparece incompatibilidad de SDK, instalar Expo Go para SDK 54 en el emulador desde [expo.dev/go](https://expo.dev/go).
+`localhost` en el celular apunta al celular. La IPv4 de la PC sale de `ipconfig`. Cambiar el `.env`
+requiere reiniciar Metro.
 
-El cliente de desarrollo no reemplaza la prueba en dispositivo: cámara, biometría y notificaciones requieren validaciones específicas. **Push en Android no se valida con Expo Go para SDK 54**; requiere un development build y credenciales. Un development build también exige preparación adicional y no está listo solo por existir un perfil en `eas.json`.
+## Verificar
 
-## Comandos disponibles
+```powershell
+curl http://localhost:3000/salud
+```
 
-Ejecutar dentro de `reservas-deportivas/`:
+## Si no conecta
+
+- **Firewall de Windows**: permitir `node.exe` (Metro/Expo) y **Docker Desktop**
+  (`com.docker.backend.exe`), que expone la API en el puerto 3000. No desactivar el firewall completo.
+- Celular y PC en la misma red; confirmá desde el navegador del celular
+  `http://<IPv4-de-la-PC>:3000/salud`.
+- Expo Go de otro SDK no abre este proyecto: usá el cliente de SDK 54 de [expo.dev/go](https://expo.dev/go).
+
+## Comandos
+
+Dentro de `reservas-deportivas/`:
 
 | Comando | Función |
 |---|---|
 | `npm start` | Inicia Metro |
 | `npm run android` | Inicia Expo e intenta abrir Android |
-| `npm run ios` | Inicia Expo e intenta abrir el simulador iOS; requiere macOS y su entorno |
-| `npm run web` | Inicia la versión web de desarrollo |
-| `npm run typecheck` | Verifica TypeScript sin generar archivos |
-| `npm test` | Pruebas automatizadas con node:test |
-| `npm run mapas:assets` | Regenera JS/CSS/imágenes Leaflet incluidos en la app |
+| `npm run web` | Versión web de desarrollo |
+| `npm run typecheck` | Verifica TypeScript |
+| `npm test` | Pruebas automatizadas (node:test) |
+| `npm run mapas:assets` | Regenera los recursos de Leaflet incluidos en la app |
 
-Los comandos Android/iOS anteriores **no generan un build de producción**. El frontend tiene pruebas automatizadas, pero todavía no tiene lint integral configurado. La versión web no sustituye las pruebas de las capacidades nativas.
-
-## Mapas sin tarjeta ni facturación
-
-El catálogo permite abrir un mapa de complejos y la ficha muestra la ubicación del espacio. Usa Leaflet dentro de WebView en Android/iOS y un iframe en web. Leaflet, CSS e imágenes viajan en `assets/leaflet/bundle.json`, con licencia conservada; no dependen de un CDN. No se utiliza Google Maps Platform ni API Key.
-
-Las teselas estándar de OpenStreetMap se solicitan por HTTPS solo para la vista consultada. Es un servicio comunitario sin cuenta, pagos ni garantía de disponibilidad: respetar su [política de uso](https://operations.osmfoundation.org/policies/tiles/), atribución visible, identificación de la app y caché HTTP normal. No agregar descargas de áreas ni precarga masiva.
-
-La ubicación personal es opcional y se solicita al tocar el control correspondiente; rechazarla no oculta los complejos. Cómo llegar abre una aplicación externa, sin APIs de rutas. Nombres y coordenadas consultados se conservan localmente; sin red se muestran con un aviso, **sin prometer cartografía offline**. La ubicación personal no se persiste.
-
-Para regenerar los recursos al cambiar la versión de Leaflet: `npm run mapas:assets`. Para comprobar que coinciden con la dependencia instalada: `node scripts/bundle-leaflet.cjs --check`. No eliminar los avisos legales de terceros.
-
-Para los comandos y opciones del backend, consultar su [README](api-reservas-deportivas/README.md).
+Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/README.md).
 
 ## Problemas frecuentes
 
 | Problema | Comprobación |
 |---|---|
-| `Class extends value undefined…` al ejecutar npm | Revisar Node/npm/NVM y sus rutas. En este entorno se resolvió con una instalación limpia de Node 24.15.0 en NVM, sin borrar las otras versiones. |
-| `ERR_PNPM_NO_LOCKFILE` dentro del frontend | Usar `npm ci`; su lockfile es `package-lock.json`. |
-| `pnpm dev` no existe dentro del frontend | Usar `npm start`. `pnpm dev` corresponde al backend. |
-| Expo Go informa SDK incompatible | Instalar el cliente correspondiente o preparar un development build; no cambiar dependencias indiscriminadamente. |
-| El teléfono no llega a la API | Verificar IP, misma red, backend activo y permisos de firewall en red privada. No desactivar el firewall completo. |
-| El emulador no llega al backend | Usar `10.0.2.2`, no `localhost`. |
-| Puerto 3000 u 8081 ocupado | Revisar si ya está activo el servidor correspondiente antes de iniciar otro. |
-| Metro muestra código viejo | Recargar la app; si persiste, detener Metro y ejecutar `npm start -- --clear`. |
+| El celular no llega a la API | Misma red, IP correcta, firewall para `node.exe` y Docker Desktop |
+| El emulador no llega al backend | Usar `10.0.2.2`, no `localhost` |
+| Expo Go informa SDK incompatible | Instalar el cliente de SDK 54; no cambiar el SDK del proyecto |
+| `ERR_PNPM_NO_LOCKFILE` en el frontend | Usar `npm ci`: su lockfile es `package-lock.json` |
+| Puerto 3000 u 8081 ocupado | Verificar si ya está activo ese servidor antes de iniciar otro |
+| Metro muestra código viejo | Recargar la app; si persiste, `npm start -- --clear` |
 
-`npm start -- --tunnel` puede facilitar la conexión con Metro, pero **no publica la API del backend**.
+## Estado de la entrega
 
-## Seguridad y estado de la entrega
-
-- Versionar `.env.example`, nunca `.env`, claves privadas, credenciales de firma o bases locales.
-- Las variables `EXPO_PUBLIC_*` quedan incorporadas a la aplicación y **no son secretas**. No incluir claves JWT, contraseñas de base de datos ni credenciales privadas del servidor.
-- Los secretos y usuarios de demo del backend son para desarrollo; no reutilizarlos en producción.
-- El objetivo funcional incluye catálogo, disponibilidad, reservas, QR offline y operación del personal. Su presencia en una pantalla no significa que todos esos flujos estén completos o validados.
-- La API incluye la consigna pendiente de notificaciones push. Consultar su documentación; no asumir que los avisos remotos ya funcionan.
-- La entrega requiere validación Android/iOS y build de producción con EAS. Tener Metro activo o un bundle generado no certifica ejecución nativa ni preparación para producción.
+- Objetivo funcional: catálogo, disponibilidad, reservas, QR offline y operación del personal.
+- La API incluye la consigna pendiente de notificaciones push: los avisos remotos no funcionan
+  todavía. Con Expo Go no hay push remota (SDK 53+); los recordatorios locales sí.
+- Cámara, biometría, háptica y notificaciones requieren validación en dispositivo físico y un
+  build de producción con EAS (`eas.json`).
+- Los mapas usan Leaflet local y teselas de OpenStreetMap, sin API Key ni tarjeta.
+- Versionar `.env.example`, nunca `.env`. Las variables `EXPO_PUBLIC_*` viajan en la app y no son secretas.
 
 ## Contribuciones
 
-Trabajar en una rama distinta de `main`, mantener los tipos del contrato y separar las pantallas de los servicios. Antes de enviar cambios, ejecutar `npm run typecheck`, probar el flujo afectado y revisar que el diff no incluya secretos ni archivos generados. No actualizar dependencias ni modificar la API de la cátedra sin acuerdo previo.
+Trabajar en una rama distinta de `main`, no modificar la API de la cátedra ni los tipos del contrato,
+y antes de enviar cambios ejecutar `npm run typecheck` y `npm test`.
 
 ## Licencia
 
-Consultar [LICENSE](LICENSE) y las condiciones particulares declaradas por los componentes incluidos. El backend de la cátedra declara `UNLICENSED` en su `package.json`.
+Consultar [LICENSE](LICENSE). El backend de la cátedra declara `UNLICENSED` en su `package.json`.
