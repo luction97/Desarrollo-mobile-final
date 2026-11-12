@@ -9,5 +9,10 @@ export const layout = {
   tabBarMinHeight: 56,
   codeSize: 200,
   compactCodeSize: 120,
-  courtThumbnail: 56,
+  /** Tarjeta compacta del carrusel de canchas: alto fijo y ancho adaptativo a la pantalla. */
+  courtCardHeight: 132,
+  courtCardImageHeight: 56,
+  courtCardMinWidth: 148,
+  courtCardMaxWidth: 216,
+  courtCardGap: 10,
 } as const;

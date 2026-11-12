@@ -107,28 +107,43 @@ const jugador = { id: 'usr-prueba', nombre: 'Jugador', rol: 'jugador', espaciosF
 const boton = (vista, nombre) => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === nombre);
 const textoVisible = vista => vista.root.findAllByType('NativeText').flatMap(n => n.props.children).flat(Infinity).filter(v => typeof v === 'string').join(' ');
 const carrusel = vista => vista.root.findAllByType('ScrollView').find(n => n.props.accessibilityLabel === 'Carrusel de canchas');
+const layout = shared.theme.layout;
+const estilos = n => Object.assign({}, ...[n.props.style({ pressed: false })].flat(3).filter(o => o && typeof o === 'object'));
+const anchoTarjetaDe = ancho => Math.min(Math.max(ancho * 0.46, layout.courtCardMinWidth), layout.courtCardMaxWidth);
 
-test('deslizar selecciona la cancha visible y actualiza horarios y detalle', async () => {
+test('deslizar cambia la cancha, mantiene el tamaño fijo de la tarjeta y actualiza el detalle', async () => {
   const caso = await montar({ canchas: [espacio, otraCancha] });
   try {
     const lista = caso.vista.root.findByType('FlatList');
     const marco = caso.vista.root.findByProps({ testID: 'marco-canchas' });
     await act(async () => { marco.props.onLayout({ nativeEvent: { layout: { width: 335 } } }); });
-    await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 335 } } }); });
+    const ancho = anchoTarjetaDe(335);
+    const tarjeta = () => caso.vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel?.startsWith('Cancha 2,'));
+    assert.ok(tarjeta());
+    assert.equal(estilos(tarjeta()).height, layout.courtCardHeight);
+    assert.equal(Math.round(estilos(tarjeta()).width), Math.round(ancho));
+    await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: ancho + layout.courtCardGap } } }); });
     assert.equal(lista, caso.vista.root.findByType('FlatList'));
     assert.equal(lista.props.data[0].espacioId, otraCancha.id);
     assert.ok(textoVisible(caso.vista).includes('Seleccionada · 2 de 2'));
+    assert.ok(textoVisible(caso.vista).includes('Cancha 3'));
+    assert.ok(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Ver detalles'));
     assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel?.startsWith('Cambiar cancha')), false);
-    await act(async () => { boton(caso.vista, 'Cancha anterior').props.onPress(); });
+    assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Cancha anterior'), false);
+    assert.equal(caso.vista.root.findAllByType('Pressable').some(n => n.props.accessibilityLabel === 'Cancha siguiente'), false);
+    await act(async () => { carrusel(caso.vista).props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 0 } } }); });
     assert.equal(lista.props.data[0].espacioId, espacio.id);
     const dias = caso.vista.root.findAllByType('Pressable').filter(n => n.props.accessibilityLabel?.includes('15/01/2099'));
     assert.ok(dias.length > 0);
   } finally { await caso.cerrar(); }
 });
 
-test('los filtros de la pantalla actualizan carrusel y horarios y permiten recuperar el vacío', async () => {
+test('los filtros se despliegan, actualizan carrusel y horarios y permiten recuperar el vacío', async () => {
   const caso = await montar({ usuario: jugador, canchas: [espacio, otraCancha] });
   try {
+    assert.equal(boton(caso.vista, 'Solo favoritos'), undefined);
+    await act(async () => { boton(caso.vista, 'Mostrar filtros').props.onPress(); });
+    assert.ok(boton(caso.vista, 'Solo favoritos'));
     await act(async () => { boton(caso.vista, 'Solo favoritos').props.onPress(); });
     assert.equal(caso.consultas.at(-1), otraCancha.id);
     await act(async () => { boton(caso.vista, 'Fútbol 5').props.onPress(); });
@@ -141,9 +156,10 @@ test('los filtros de la pantalla actualizan carrusel y horarios y permiten recup
   } finally { await caso.cerrar(); }
 });
 
-test('cerrar sesión quita el filtro privado', async () => {
+test('cerrar sesión quita el filtro privado y vuelve a la primera cancha', async () => {
   const caso = await montar({ usuario: jugador, canchas: [espacio, otraCancha] });
   try {
+    await act(async () => { boton(caso.vista, 'Mostrar filtros').props.onPress(); });
     await act(async () => { boton(caso.vista, 'Solo favoritos').props.onPress(); });
     await caso.cambiarUsuario(null);
     assert.equal(boton(caso.vista, 'Solo favoritos'), undefined);

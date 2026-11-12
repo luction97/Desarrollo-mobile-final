@@ -60,9 +60,11 @@ export default function DisponibilidadScreen() {
   const [filtroDeporte, setFiltroDeporte] = useState<string>('todos');
   const [filtroComplejo, setFiltroComplejo] = useState<string>('todos');
   const [soloFavoritos, setSoloFavoritos] = useState(false);
-  const [anchoCarrusel, setAnchoCarrusel] = useState(0);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  const [anchoContenedor, setAnchoContenedor] = useState(0);
   const carrusel = useRef<ScrollView>(null);
   const reposo = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const seleccionManual = useRef(false);
   const operando = useRef(false);
   const generacion = useRef(0);
   const espaciosFavoritos = usuario?.espaciosFavoritos;
@@ -73,18 +75,32 @@ export default function DisponibilidadScreen() {
   [espacios, filtroDeporte, filtroComplejo, soloFavoritos, espaciosFavoritos]);
   const indiceCancha = Math.max(0, espaciosFiltrados.findIndex(e => e.id === espacioElegidoId));
   const espacio = espaciosFiltrados[indiceCancha] ?? null;
-  const seleccionarCancha = (indice: number) => {
+  /** Ancho de la tarjeta del carrusel: se adapta al ancho disponible con topes fijos. */
+  const anchoTarjeta = Math.min(
+    Math.max(anchoContenedor * 0.46, layout.courtCardMinWidth),
+    layout.courtCardMaxWidth,
+  );
+  const paso = anchoTarjeta + layout.courtCardGap;
+  const indiceDesdeOffset = (x: number) => {
+    if (!espaciosFiltrados.length) return 0;
+    return Math.min(Math.max(Math.round(x / paso), 0), espaciosFiltrados.length - 1);
+  };
+  const seleccionarCancha = (indice: number, manual = false) => {
     const elegida = espaciosFiltrados[indice];
     if (!elegida || elegida.id === espacio?.id) return;
+    seleccionManual.current = manual;
     setEspacioId(elegida.id);
     void preferencias.setItem('ultimoEspacio', elegida.id).catch(() => undefined);
   };
 
   useEffect(() => {
     clearTimeout(reposo.current);
-    if (anchoCarrusel) carrusel.current?.scrollTo({ x: indiceCancha * anchoCarrusel, animated: false });
+    if (!anchoContenedor) return;
+    // El deslizamiento del usuario manda: no se vuelve a posicionar el carrusel.
+    if (seleccionManual.current) { seleccionManual.current = false; return; }
+    carrusel.current?.scrollTo({ x: indiceCancha * paso, animated: false });
     return () => clearTimeout(reposo.current);
-  }, [anchoCarrusel, espaciosFiltrados, indiceCancha]);
+  }, [anchoContenedor, espaciosFiltrados, indiceCancha, paso]);
   const espacioId = espacio?.id ?? '';
 
   useEffect(() => { setSoloFavoritos(false); setEspacioId(''); }, [usuario?.id]);
@@ -248,6 +264,13 @@ export default function DisponibilidadScreen() {
 
   const deporteDe = (id: string) => deportes.find(d => d.id === id)?.nombre ?? 'Espacio deportivo';
   const cantidadLibres = grilla.slice(anteriores.length).filter(t => t.estado === 'libre').length;
+  const deportesDisponibles = [...new Set(espacios.map(e => e.deporteId))];
+  const filtrosActivos = [
+    filtroDeporte !== 'todos' ? deporteDe(filtroDeporte) : null,
+    filtroComplejo !== 'todos' ? filtroComplejo : null,
+    soloFavoritos ? 'Favoritas' : null,
+  ].filter(Boolean) as string[];
+  const fotoSeleccionada = espacio ? fotoDeCancha(espacio) : null;
 
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
@@ -266,64 +289,83 @@ export default function DisponibilidadScreen() {
     </View>}
 
     {espacios.length > 0 && <View style={styles.filtros}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por deporte">
-        <Chip accessibilityLabel="Todos los deportes" selected={filtroDeporte === 'todos'} onPress={() => setFiltroDeporte('todos')}>Todos</Chip>
-        {[...new Set(espacios.map(e => e.deporteId))].map(id =>
-          <Chip key={id} accessibilityLabel={deporteDe(id)} selected={id === filtroDeporte}
-            onPress={() => setFiltroDeporte(id)}>{deporteDe(id)}</Chip>)}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por complejo">
-        {complejosDisponibles.map(comp => <Chip key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp}
-          selected={comp === filtroComplejo} onPress={() => setFiltroComplejo(comp)}>
-          {comp === 'todos' ? 'Todos los complejos' : comp}
-        </Chip>)}
-        {usuario && <Chip accessibilityLabel="Solo favoritos" selected={soloFavoritos} onPress={() => setSoloFavoritos(v => !v)}>Favoritos</Chip>}
-      </ScrollView>
-    </View>}
-    {espacio && <View onLayout={evento => setAnchoCarrusel(evento.nativeEvent.layout.width)} testID="marco-canchas">
-      <ScrollView ref={carrusel} horizontal pagingEnabled directionalLockEnabled
-        showsHorizontalScrollIndicator={false} accessibilityLabel="Carrusel de canchas"
-        scrollEventThrottle={32}
-        onScroll={evento => {
-          const x = evento.nativeEvent.contentOffset.x;
-          clearTimeout(reposo.current);
-          reposo.current = setTimeout(() => {
-            if (anchoCarrusel) seleccionarCancha(Math.round(x / anchoCarrusel));
-          }, 160);
-        }}
-        onMomentumScrollEnd={evento => {
-          clearTimeout(reposo.current);
-          if (anchoCarrusel) seleccionarCancha(Math.round(evento.nativeEvent.contentOffset.x / anchoCarrusel));
-        }}>
-        {(anchoCarrusel ? espaciosFiltrados : [espacio]).map(e => {
-          const foto = fotoDeCancha(e);
-          const elegida = e.id === espacio.id;
-          return <Surface key={e.id} padding="none" variant="outlined"
-            accessibilityState={{ selected: elegida }}
-            style={[styles.seleccion, { width: anchoCarrusel || undefined, borderColor: elegida ? colors.primary : colors.border }]}>
-            {foto && <Image source={foto} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
-            <View style={styles.resumenCancha}>
-              <View style={uiLayout.row}>
-                <View style={uiLayout.grow}>
-                  <Text variant="title" accessibilityRole="header">{e.nombre}</Text>
-                  <Text variant="label" tone="muted">{e.complejo && e.complejo !== '—' ? e.complejo + ' · ' : ''}{precioLegible(e.precioPorHora)}/h</Text>
-                  <Text variant="label" tone="muted">{deporteDe(e.deporteId)} · {e.superficie} · {e.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
-                </View>
-                <FavoritoToggle espacioId={e.id} nombre={e.nombre} />
-              </View>
-              <Button variant="secondary" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: e.id } })} />
-            </View>
-          </Surface>;
-        })}
-      </ScrollView>
-      <View style={uiLayout.row}>
-        <Button variant="ghost" size="sm" title="‹" accessibilityLabel="Cancha anterior"
-          disabled={indiceCancha === 0} onPress={() => seleccionarCancha(indiceCancha - 1)} />
-        <Text variant="label" tone="primary" accessibilityLiveRegion="polite">{`Seleccionada · ${indiceCancha + 1} de ${espaciosFiltrados.length}`}</Text>
-        <Button variant="ghost" size="sm" title="›" accessibilityLabel="Cancha siguiente"
-          disabled={indiceCancha >= espaciosFiltrados.length - 1} onPress={() => seleccionarCancha(indiceCancha + 1)} />
+      <View style={styles.filaFiltros}>
+        <PressableSurface onPress={() => setFiltrosAbiertos(v => !v)}
+          accessibilityLabel={filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'}
+          accessibilityState={{ expanded: filtrosAbiertos }} style={styles.botonFiltros}>
+          <Ionicons name="options-outline" size={spacing.lg} color={colors.primary} />
+          <Text variant="label" tone="primary">Filtros</Text>
+          {filtrosActivos.length > 0 && <Badge size="sm" variant="neutral">{String(filtrosActivos.length)}</Badge>}
+          <Ionicons name={filtrosAbiertos ? 'chevron-up' : 'chevron-down'} size={spacing.lg} color={colors.primary} />
+        </PressableSurface>
+        {filtrosActivos.length > 0 && <Button variant="ghost" size="sm" title="Limpiar" onPress={limpiarFiltros} />}
       </View>
+      {filtrosActivos.length > 0 && <Text variant="caption" tone="muted" numberOfLines={1}>{filtrosActivos.join(' · ')}</Text>}
+      {filtrosAbiertos && <Surface variant="outlined" style={styles.panelFiltros}>
+        <Text variant="label" tone="muted">Deporte</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por deporte">
+          <Chip accessibilityLabel="Todos los deportes" selected={filtroDeporte === 'todos'} onPress={() => setFiltroDeporte('todos')}>Todos</Chip>
+          {deportesDisponibles.map(id =>
+            <Chip key={id} accessibilityLabel={deporteDe(id)} selected={id === filtroDeporte}
+              onPress={() => setFiltroDeporte(id)}>{deporteDe(id)}</Chip>)}
+        </ScrollView>
+        <Text variant="label" tone="muted">Complejo</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Filtrar por complejo">
+          {complejosDisponibles.map(comp => <Chip key={comp} accessibilityLabel={comp === 'todos' ? 'Todos los complejos' : comp}
+            selected={comp === filtroComplejo} onPress={() => setFiltroComplejo(comp)}>
+            {comp === 'todos' ? 'Todos los complejos' : comp}
+          </Chip>)}
+        </ScrollView>
+        {usuario && <Chip accessibilityLabel="Solo favoritos" selected={soloFavoritos} onPress={() => setSoloFavoritos(v => !v)}>Solo favoritos</Chip>}
+      </Surface>}
     </View>}
+    {espacio && <View style={styles.canchas}>
+      <View onLayout={evento => setAnchoContenedor(evento.nativeEvent.layout.width)} testID="marco-canchas">
+        <ScrollView ref={carrusel} horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carrusel} accessibilityLabel="Carrusel de canchas"
+          snapToInterval={paso} snapToAlignment="start" decelerationRate="fast"
+          scrollEventThrottle={32}
+          onScroll={evento => {
+            const x = evento.nativeEvent.contentOffset.x;
+            clearTimeout(reposo.current);
+            reposo.current = setTimeout(() => seleccionarCancha(indiceDesdeOffset(x), true), 160);
+          }}
+          onMomentumScrollEnd={evento => {
+            clearTimeout(reposo.current);
+            seleccionarCancha(indiceDesdeOffset(evento.nativeEvent.contentOffset.x), true);
+          }}>
+          {(anchoContenedor ? espaciosFiltrados : [espacio]).map((e, indice) => {
+            const foto = fotoDeCancha(e);
+            const elegida = e.id === espacio.id;
+            const complejo = e.complejo && e.complejo !== '—' ? e.complejo : deporteDe(e.deporteId);
+            return <PressableSurface key={e.id} selected={elegida}
+              accessibilityLabel={`${e.nombre}, ${complejo}, ${precioLegible(e.precioPorHora)} por hora${elegida ? ', seleccionada' : ''}`}
+              onPress={() => seleccionarCancha(indice)} style={[styles.tarjetaCancha, { width: anchoTarjeta }]}>
+              {foto && <Image source={foto} style={styles.miniaturaCancha} resizeMode="cover" accessible={false} />}
+              <View style={styles.datosCancha}>
+                <Text variant="label" numberOfLines={2}>{e.nombre}</Text>
+                <Text variant="caption" tone="primary">{precioLegible(e.precioPorHora)}/h</Text>
+              </View>
+            </PressableSurface>;
+          })}
+        </ScrollView>
+      </View>
+      <Text variant="caption" tone="muted" accessibilityLiveRegion="polite">{`Seleccionada · ${indiceCancha + 1} de ${espaciosFiltrados.length}`}</Text>
+    </View>}
+    {espacio && <Surface padding="none" variant="outlined" style={styles.detalle}>
+      {fotoSeleccionada && <Image source={fotoSeleccionada} style={styles.fotoPrincipal} resizeMode="cover" accessible={false} />}
+      <View style={styles.resumenCancha}>
+        <View style={uiLayout.row}>
+          <View style={uiLayout.grow}>
+            <Text variant="title" accessibilityRole="header">{espacio.nombre}</Text>
+            <Text variant="label" tone="muted">{espacio.complejo && espacio.complejo !== '—' ? espacio.complejo + ' · ' : ''}{precioLegible(espacio.precioPorHora)}/h</Text>
+            <Text variant="label" tone="muted">{deporteDe(espacio.deporteId)} · {espacio.superficie} · {espacio.iluminacion ? 'Con luz' : 'Sin luz'}</Text>
+          </View>
+          <FavoritoToggle espacioId={espacio.id} nombre={espacio.nombre} />
+        </View>
+        <Button variant="secondary" title="Ver detalles" onPress={() => router.push({ pathname: '/espacio/[id]', params: { id: espacio.id } })} />
+      </View>
+    </Surface>}
     {espacio && <>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontal} accessibilityLabel="Días disponibles">
         {dias.map(d => <PressableSurface key={d.fecha} selected={d.fecha === fecha} accessibilityLabel={d.nombre + ' ' + fechaLegible(d.fecha)}
@@ -394,8 +436,23 @@ export default function DisponibilidadScreen() {
 
 const styles = StyleSheet.create({
   cabecera: { paddingTop: spacing.md, paddingBottom: spacing.sm, gap: spacing.md },
-  seleccion: { overflow: 'hidden' },
-  filtros: { gap: spacing.xs },
+  filtros: { gap: spacing.sm },
+  filaFiltros: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  botonFiltros: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.input, borderCurve: borders.curve,
+  },
+  panelFiltros: { gap: spacing.sm, padding: spacing.md },
+  canchas: { gap: spacing.xs },
+  carrusel: { gap: layout.courtCardGap, paddingVertical: spacing.xs },
+  tarjetaCancha: {
+    padding: 0, height: layout.courtCardHeight, overflow: 'hidden',
+    borderRadius: radius.card, borderCurve: borders.curve,
+  },
+  miniaturaCancha: { width: '100%', height: layout.courtCardImageHeight },
+  datosCancha: { flex: 1, padding: spacing.sm, gap: 2 },
+  detalle: { overflow: 'hidden' },
   fotoPrincipal: { width: '100%', aspectRatio: 1.6, maxHeight: layout.mapHeight },
   resumenCancha: { padding: spacing.md, gap: spacing.sm },
   horizontal: { gap: spacing.xs },

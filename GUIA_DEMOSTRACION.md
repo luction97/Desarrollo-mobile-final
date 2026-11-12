@@ -31,7 +31,7 @@ Usá esta lista para ensayar antes de grabar. Marcá cada caso después de obten
 ## Lista de pruebas para la demostración
 
 1. [ ] **Catálogo como invitado.** Abrí la app sin iniciar sesión. Recorré los 11 espacios del catálogo demo y verificá que las tarjetas muestran deporte, superficie, iluminación y tarifa.
-2. [ ] **Filtros y ficha.** Combiná deporte y complejo, probá una combinación vacía y quitá los filtros. Abrí una ficha y recorré sus fotos, capacidad, características, reglamento, precio y acceso a horarios.
+2. [ ] **Filtros y ficha.** Abrí el panel Filtros, combiná deporte y complejo, probá una combinación vacía y usá Limpiar para quitar los filtros. Abrí una ficha y recorré sus fotos, capacidad, características, reglamento, precio y acceso a horarios.
 3. [ ] **Mapa y ubicación.** Abrí el mapa general y el de una cancha. Probá «Cómo llegar», ubicación concedida y ubicación denegada. Verificá que, con permiso, se identifica el complejo más cercano cuando hay varias opciones. Con el permiso denegado deben seguir disponibles el catálogo, los horarios y el mapa general.
 4. [ ] **Disponibilidad.** Cambiá de cancha y fecha. Revisá hoy y los seis días siguientes, las 16 franjas de 08:00 a 24:00, el orden por hora y los estados libre, reservado, fijo y mantenimiento. Solo deben poder elegirse horarios libres vigentes. Abrí «Ver anteriores» cuando corresponda.
 5. [ ] **Registro y retorno a la reserva.** Como invitado elegí turno y personas, y tocá la acción para ingresar. Probá el regreso desde login y desde registro. Se recupera la selección si sigue libre. Si otra cuenta la ocupa durante el ingreso, la app pide elegir otro horario.
