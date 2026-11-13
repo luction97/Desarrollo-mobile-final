@@ -21,6 +21,14 @@ export function fechaLegible(fecha: string): string {
   return fecha.split('-').reverse().join('/');
 }
 
+/** Último día del mes de una fecha "AAAA-MM-DD". Sirve para las reservas fijas que cubren el mes. */
+export function finDeMes(fecha: string): string | null {
+  const [anio, mes] = fecha.split('-').map(Number);
+  if (!anio || !mes || mes < 1 || mes > 12) return null;
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`;
+}
+
 export function horarioDeReserva(cancelableHasta: string) {
   // SPECIFICATION R10: cancelableHasta es exactamente inicio menos cuatro horas.
   const inicio = new Date(new Date(cancelableHasta).getTime() + 4 * 60 * 60 * 1000);

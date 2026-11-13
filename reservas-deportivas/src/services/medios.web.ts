@@ -6,3 +6,6 @@ export async function guardarDescarga(_tipo: 'imagen' | 'video', _id: string, _u
   throw new Error('La descarga para ver sin datos está disponible en la app móvil.');
 }
 export async function borrarDescarga(_tipo: 'imagen' | 'video', _id: string, _url: string): Promise<void> {}
+export async function obtenerVideoGrabado(_espacioId: string): Promise<{ uri: string; url: string } | null> { return null; }
+export async function guardarVideoGrabado(_espacioId: string, uri: string, _url: string): Promise<string> { return uri; }
+export async function borrarVideoGrabado(_espacioId: string): Promise<void> {}

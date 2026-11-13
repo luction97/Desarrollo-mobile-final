@@ -13,6 +13,15 @@ test('la ventana de fechas sigue el día de Villaguay y atraviesa fin de año', 
   assert.equal(fechas.diasDeReserva(fechas.fechaArgentina(despues)).at(-1).fecha, '2026-01-07');
 });
 
+test('calcula el fin de mes para las reservas fijas que ocupan todo el mes', () => {
+  assert.equal(fechas.finDeMes('2026-03-01'), '2026-03-31');
+  assert.equal(fechas.finDeMes('2026-02-10'), '2026-02-28');
+  assert.equal(fechas.finDeMes('2024-02-10'), '2024-02-29');
+  assert.equal(fechas.finDeMes('2026-12-05'), '2026-12-31');
+  assert.equal(fechas.finDeMes('sin-fecha'), null);
+  assert.equal(fechas.finDeMes('2026-13-01'), null);
+});
+
 test('la grilla solo anuncia liberaciones futuras observadas y guarda la respuesta vacía', async () => {
   let previos = [{ ...turno, estado: 'reservado' }];
   let remotos = [{ ...turno, estado: 'libre' }, { ...turno, id: 'tur-nuevo', estado: 'libre' }];

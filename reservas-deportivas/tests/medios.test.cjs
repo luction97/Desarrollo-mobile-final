@@ -45,6 +45,19 @@ test('recupera fotos y videos descargados y borra solamente el archivo seleccion
   assert.equal(archivos.has(video), true);
 });
 
+test('guarda el video grabado por el personal con la direccion del archivo subido', async () => {
+  const { medios, archivos } = almacenamiento();
+  archivos.set('file:///grabado.mp4', 2048);
+  const uri = await medios.guardarVideoGrabado('esp-01', 'file:///grabado.mp4', 'https://ejemplo.test/videos/cancha.mp4');
+  const guardado = await medios.obtenerVideoGrabado('esp-01');
+  assert.equal(guardado?.url, 'https://ejemplo.test/videos/cancha.mp4');
+  assert.equal(guardado?.uri, uri);
+  assert.equal(archivos.has(uri), true);
+  await medios.borrarVideoGrabado('esp-01');
+  assert.equal(await medios.obtenerVideoGrabado('esp-01'), null);
+  assert.equal(archivos.has(uri), false);
+});
+
 test('una descarga interrumpida no deja el parcial ni registra una descarga lista', async () => {
   const { medios, archivos, preferencias, interrumpir } = almacenamiento();
   interrumpir();

@@ -11,8 +11,9 @@ import { layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { obtenerEspacio, obtenerEspacioLocal } from '../../src/services/espacios';
-import { borrarDescarga, borrarFoto, guardarDescarga, guardarFoto, obtenerDescarga, obtenerFoto } from '../../src/services/medios';
-import { subirFoto } from '../../src/services/archivos';
+import { borrarDescarga, borrarFoto, borrarVideoGrabado, guardarDescarga, guardarFoto, guardarVideoGrabado, obtenerDescarga, obtenerFoto, obtenerVideoGrabado } from '../../src/services/medios';
+import { subirFoto, subirVideo } from '../../src/services/archivos';
+import { GrabarVideoCancha } from '../../src/components/GrabarVideoCancha';
 import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
 import { guardarPuntosLocales } from '../../src/services/mapas';
@@ -43,6 +44,8 @@ function Detalle({ id }: { id: string }) {
   const [fotoDescargada, setFotoDescargada] = useState<string | null>(null);
   const [fotoFallida, setFotoFallida] = useState<string | null>(null);
   const [videoDescargado, setVideoDescargado] = useState<string | null>(null);
+  const [videoGrabado, setVideoGrabado] = useState<{ uri: string; url: string } | null>(null);
+  const [grabandoVideo, setGrabandoVideo] = useState(false);
   const [intentoVideo, setIntentoVideo] = useState(0);
   const [aviso, setAviso] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -103,6 +106,14 @@ function Detalle({ id }: { id: string }) {
     }).catch(() => undefined);
     return () => { activo = false; };
   }, [id, urlVideo]);
+
+  useEffect(() => {
+    let activo = true;
+    void obtenerVideoGrabado(id).then(video => {
+      if (activo) setVideoGrabado(video);
+    }).catch(() => undefined);
+    return () => { activo = false; };
+  }, [id]);
 
   const gestionarMedio = async (accion: () => Promise<void>) => {
     if (operando.current) return;
@@ -199,22 +210,36 @@ function Detalle({ id }: { id: string }) {
       <Text variant="subtitle" style={styles.sectionTitle}>Ubicación</Text>
       <Mapa puntos={puntosDeEspacios([espacio])} />
 
-      {urlVideo && <>
+      <View style={uiLayout.section}>
         <Text variant="subtitle" style={styles.sectionTitle}>Video de la cancha</Text>
-        {fuenteVideo ? <VideoDeCancha key={fuenteVideo + ':' + intentoVideo} fuente={fuenteVideo}
-          reintentar={() => setIntentoVideo(n => n + 1)} />
-          : <Text tone="muted">El video requiere conexión o una descarga previa.</Text>}
-        {Platform.OS !== 'web' && <Button variant="secondary"
-          title={videoDescargado ? 'Borrar video descargado' : 'Guardar video sin conexión'}
-          disabled={guardando || (sinRed && !videoDescargado)}
-          onPress={() => alternarDescarga('video', urlVideo, videoDescargado)} />}
-      </>}
+        {videoGrabado ? <>
+          <Text variant="label" tone="muted">Video grabado por el personal y subido al servidor.</Text>
+          <VideoDeCancha key={'grabado:' + videoGrabado.uri} fuente={videoGrabado.uri}
+            reintentar={() => setIntentoVideo(n => n + 1)} />
+          <Text selectable variant="label">{videoGrabado.url}</Text>
+          {puedeActualizarFoto && <Button variant="ghost" title="Quitar el video grabado" disabled={guardando}
+            onPress={() => void gestionarMedio(async () => {
+              await borrarVideoGrabado(id);
+              setVideoGrabado(null);
+            })} />}
+        </> : urlVideo ? <>
+          {fuenteVideo ? <VideoDeCancha key={fuenteVideo + ':' + intentoVideo} fuente={fuenteVideo}
+            reintentar={() => setIntentoVideo(n => n + 1)} />
+            : <Text tone="muted">El video requiere conexión o una descarga previa.</Text>}
+          {Platform.OS !== 'web' && <Button variant="secondary"
+            title={videoDescargado ? 'Borrar video descargado' : 'Guardar video sin conexión'}
+            disabled={guardando || (sinRed && !videoDescargado)}
+            onPress={() => alternarDescarga('video', urlVideo, videoDescargado)} />}
+        </> : <Text tone="muted">Este espacio todavía no tiene video.</Text>}
+      </View>
 
       {puedeActualizarFoto && <View style={uiLayout.section}>
         <Text variant="subtitle">Registro del estado de la cancha</Text>
         <Text variant="label" tone="muted">Podés guardar una foto y subirla como archivo independiente de la galería.</Text>
         <Button variant="secondary" title="Tomar foto" disabled={guardando} onPress={() => elegirFoto(true)} />
         <Button variant="ghost" title="Elegir de la galería" disabled={guardando} onPress={() => elegirFoto(false)} />
+        <Button variant="secondary" title="Grabar video de la cancha (máx. 30 s)" disabled={guardando}
+          onPress={() => setGrabandoVideo(true)} />
         {fotoLocal && <>
           <Image source={{ uri: fotoLocal }} style={styles.photo} accessibilityLabel={'Foto guardada de ' + espacio.nombre} />
           <Button variant="secondary" title="Subir archivo" disabled={guardando || sinRed || !!archivoSubido}
@@ -233,6 +258,14 @@ function Detalle({ id }: { id: string }) {
       </View>}
       {guardando && <ActivityIndicator color={colors.primary} accessibilityLabel="Procesando archivo" />}
       {aviso && <Text accessibilityLiveRegion="polite">{aviso}</Text>}
+      <GrabarVideoCancha visible={grabandoVideo} onCerrar={() => setGrabandoVideo(false)}
+        onGrabar={async uri => {
+          const archivo = await subirVideo(uri);
+          const localUri = await guardarVideoGrabado(id, uri, archivo.url);
+          setVideoGrabado({ uri: localUri, url: archivo.url });
+          setIntentoVideo(n => n + 1);
+          setAviso('Video subido al servidor. La ficha conserva el video publicado: este queda disponible en el teléfono.');
+        }} />
     </View>
   </ScrollScreen>;
 }

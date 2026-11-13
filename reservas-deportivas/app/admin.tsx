@@ -77,6 +77,7 @@ export default function AdminScreen() {
 
       {espacio && <>
         <FijasPanel key={`${usuario?.id}:${espacio.id}`} espacioId={espacio.id} editable={esAdmin} />
+        {!esAdmin && <Text variant="caption" tone="muted">Consultás las reservas fijas. El administrador las carga y las edita.</Text>}
         {esAdmin && <Surface style={uiLayout.section}>
           <Text variant="subtitle">Cambiar precio por hora</Text>
           <Text numeric>Precio actual: {precioLegible(espacio.precioPorHora)}</Text>

@@ -4,7 +4,7 @@ import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
 import { fijasService, type DatosFija } from '../../services/fijas';
 import { DIAS_SEMANA } from '../../utils/horarios';
-import { fechaLegible } from '../../utils/fechas';
+import { fechaLegible, finDeMes } from '../../utils/fechas';
 import { spacing, useTheme } from '../../theme';
 import type { ReservaFija } from '../../tipos';
 
@@ -160,6 +160,13 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
           <TextField label="Hasta (opcional)" value={formulario.hasta} onChangeText={hasta => setFormulario(f => ({ ...f, hasta }))}
             editable={!ocupado} maxLength={10} placeholder="2026-12-31" />
         </View>
+      </View>
+      <View style={uiLayout.row}>
+        <Chip selected={formulario.hasta === finDeMes(formulario.desde)} disabled={ocupado || !finDeMes(formulario.desde)}
+          accessibilityLabel="Ocupar todo el mes" onPress={() => setFormulario(f => ({ ...f, hasta: finDeMes(f.desde) ?? '' }))}>
+          Todo el mes
+        </Chip>
+        <Text variant="caption" tone="muted">Ocupar el día y horario elegidos durante todo el mes.</Text>
       </View>
       <View style={uiLayout.row}>
         <Button title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'} disabled={ocupado || cargando || !!error} loading={ocupado} onPress={() => void guardar()} />

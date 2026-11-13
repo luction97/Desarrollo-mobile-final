@@ -26,10 +26,10 @@ const cancha = {
 const usuario = rol => rol ? { id: 'usr-prueba', rol, nombre: 'Persona', email: 'persona@ejemplo.test', espaciosFavoritos: [], ausencias: 0, cancelacionesTardias: 0 } : null;
 const boton = (vista, nombre) => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === nombre);
 
-test('permisos: jugador reserva; personal gestiona; sólo administrador registra fotos y cambia precios', () => {
+test('permisos: jugador reserva; el personal gestiona y documenta la cancha; sólo el administrador cambia precios', () => {
   for (const [rol, esperado] of [
     [null, [false, false, false, false]], ['jugador', [true, false, false, false]],
-    ['encargado', [false, true, false, false]], ['administrador', [false, true, true, true]],
+    ['encargado', [false, true, false, true]], ['administrador', [false, true, true, true]],
   ]) assert.deepEqual(Object.values(permisos.permisosDe(usuario(rol))), esperado);
 });
 
@@ -62,6 +62,9 @@ async function montarDetalle(rol) {
       obtenerFoto: async () => { llamadas.push('leerFoto'); return 'file:///privada.jpg'; },
       obtenerDescarga: async () => null,
       guardarFoto: async () => { llamadas.push('guardarFoto'); return 'file:///nueva.jpg'; },
+      obtenerVideoGrabado: async () => null,
+      guardarVideoGrabado: async () => 'file:///video.mp4',
+      borrarVideoGrabado: async () => { llamadas.push('borrarVideo'); },
     },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario: actual, conSelectorNativo: abrir => abrir() }) },
     '../../src/utils/permisos': permisos,
@@ -69,6 +72,7 @@ async function montarDetalle(rol) {
     '../../src/mapa/modelo': { puntosDeEspacios: () => [] },
     '../../src/services/mapas': { obtenerPuntosLocales: async () => [], guardarPuntosLocales: async () => {} },
     '../../src/components/favoritos': { FavoritoToggle: 'FavoritoToggle' },
+    '../../src/components/GrabarVideoCancha': { GrabarVideoCancha: 'GrabarVideoCancha' },
     '../../src/utils/dinero': dinero,
     '../../src/canchas/imagenes': { fotoDeDeporte: () => null, portadaDeEjemplo: () => null },
     '../../src/canchas/modelo': cargar('src/canchas/modelo.ts', {}),
@@ -81,12 +85,13 @@ async function montarDetalle(rol) {
   };
 }
 
-test('jugador, invitado y encargado ven la cancha sin herramientas ni fotos privadas del administrador', async () => {
-  for (const rol of [null, 'jugador', 'encargado']) {
+test('jugador e invitado ven la cancha sin herramientas; el encargado documenta el estado', async () => {
+  for (const rol of [null, 'jugador']) {
     const caso = await montarDetalle(rol);
     try {
       assert.equal(boton(caso.vista, 'Tomar foto'), undefined);
       assert.equal(boton(caso.vista, 'Elegir de la galería'), undefined);
+      assert.equal(boton(caso.vista, 'Grabar video de la cancha (máx. 30 s)'), undefined);
       assert.deepEqual(caso.llamadas, []);
       assert.ok(boton(caso.vista, 'Ver horarios'));
       assert.deepEqual(caso.vista.root.findAllByType('Image').map(n => n.props.source.uri), cancha.imagenes);
@@ -94,6 +99,12 @@ test('jugador, invitado y encargado ven la cancha sin herramientas ni fotos priv
       assert.ok(!JSON.stringify(caso.vista.toJSON()).includes('dep-futbol5'));
     } finally { await caso.cerrar(); }
   }
+  const caso = await montarDetalle('encargado');
+  try {
+    assert.ok(boton(caso.vista, 'Tomar foto'));
+    assert.ok(boton(caso.vista, 'Grabar video de la cancha (máx. 30 s)'));
+    assert.deepEqual(caso.llamadas, ['leerFoto']);
+  } finally { await caso.cerrar(); }
 });
 
 test('administrador registra una foto local, sin presentar el guardado como una publicación', async () => {
