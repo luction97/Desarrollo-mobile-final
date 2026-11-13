@@ -1,6 +1,9 @@
 export async function obtenerFoto(_espacioId: string): Promise<string | null> { return null; }
 export async function guardarFoto(_espacioId: string, uri: string): Promise<string> { return uri; }
 export async function borrarFoto(_espacioId: string): Promise<void> {}
+export async function obtenerFotoEstado(_espacioId: string): Promise<{ uri: string; url: string; fecha: string } | null> { return null; }
+export async function guardarFotoEstado(_espacioId: string, uri: string, _url: string): Promise<string> { return uri; }
+export async function borrarFotoEstado(_espacioId: string): Promise<void> {}
 export async function obtenerDescarga(_tipo: 'imagen' | 'video', _id: string, _url: string): Promise<string | null> { return null; }
 export async function guardarDescarga(_tipo: 'imagen' | 'video', _id: string, _url: string): Promise<string> {
   throw new Error('La descarga para ver sin datos está disponible en la app móvil.');

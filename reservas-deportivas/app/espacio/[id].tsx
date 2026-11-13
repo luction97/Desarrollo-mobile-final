@@ -11,8 +11,8 @@ import { layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { obtenerEspacio, obtenerEspacioLocal } from '../../src/services/espacios';
-import { borrarVideoGrabado, guardarDescarga, guardarVideoGrabado, obtenerDescarga, obtenerVideoGrabado } from '../../src/services/medios';
-import { subirVideo } from '../../src/services/archivos';
+import { borrarFotoEstado, borrarVideoGrabado, guardarDescarga, guardarFotoEstado, guardarVideoGrabado, obtenerDescarga, obtenerFotoEstado, obtenerVideoGrabado } from '../../src/services/medios';
+import { subirFoto, subirVideo } from '../../src/services/archivos';
 import { GrabarVideoCancha } from '../../src/components/GrabarVideoCancha';
 import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
@@ -43,6 +43,7 @@ function Detalle({ id }: { id: string }) {
   const [fotoFallida, setFotoFallida] = useState<string | null>(null);
   const [videoDescargado, setVideoDescargado] = useState<string | null>(null);
   const [videoGrabado, setVideoGrabado] = useState<{ uri: string; url: string } | null>(null);
+  const [fotoEstado, setFotoEstado] = useState<{ uri: string; url: string; fecha: string } | null>(null);
   const [grabandoVideo, setGrabandoVideo] = useState(false);
   const [intentoVideo, setIntentoVideo] = useState(0);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -184,7 +185,32 @@ function Detalle({ id }: { id: string }) {
       <Text variant="subtitle" style={styles.sectionTitle}>Ubicación</Text>
       <Mapa puntos={puntosDeEspacios([espacio])} />
 
-      <View style={uiLayout.section}>
+            <View style={uiLayout.section}>
+        <Text variant="subtitle" style={styles.sectionTitle}>Estado de la cancha</Text>
+        <Text variant="label" tone="muted">Foto reportada por el personal del complejo, con la fecha del reporte.</Text>
+        {fotoEstado ? <>
+          <Image source={{ uri: fotoEstado.uri }} style={styles.photo} accessibilityLabel={'Estado de ' + espacio.nombre} />
+          <Text variant="caption" tone="muted">Reportado el {new Date(fotoEstado.fecha).toLocaleString()}.</Text>
+          {puedeActualizarFoto && <Button variant="ghost" title="Quitar la foto del estado" disabled={guardando}
+            onPress={() => void gestionarMedio(async () => {
+              await borrarFotoEstado(id);
+              setFotoEstado(null);
+            })} />}
+        </> : <Text tone="muted">Todavía no hay una foto del estado de la cancha.</Text>}
+        {puedeActualizarFoto && <Button variant="secondary" title="Agregar foto del estado de la cancha" disabled={guardando}
+          onPress={() => void gestionarMedio(async () => {
+            const opciones = { mediaTypes: ['images'] as any, quality: 0.7,
+              preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible };
+            const foto = await conSelectorNativo(() => ImagePicker.launchImageLibraryAsync(opciones));
+            if (foto.canceled) return;
+            const archivo = await subirFoto(foto.assets[0].uri);
+            const localUri = await guardarFotoEstado(id, foto.assets[0].uri, archivo.url);
+            setFotoEstado({ uri: localUri, url: archivo.url, fecha: new Date().toISOString() });
+            setAviso('Foto del estado subida al servidor. Queda disponible en la ficha de esta cancha.');
+          })} />}
+      </View>
+
+<View style={uiLayout.section}>
         <Text variant="subtitle" style={styles.sectionTitle}>Video de la cancha</Text>
         {videoGrabado ? <>
           <Text variant="label" tone="muted">Video grabado por el personal y subido al servidor.</Text>

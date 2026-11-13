@@ -60,6 +60,9 @@ async function montarDetalle(rol) {
     '../../src/services/espacios': { obtenerEspacioLocal: async () => null, obtenerEspacio: async () => ({ datos: cancha, local: false }) },
     '../../src/services/medios': {
       obtenerFoto: async () => { llamadas.push('leerFoto'); return 'file:///privada.jpg'; },
+      obtenerFotoEstado: async () => { llamadas.push('leerFotoEstado'); return null; },
+      guardarFotoEstado: async () => { llamadas.push('guardarFotoEstado'); return 'file:///estado.jpg'; },
+      borrarFotoEstado: async () => { llamadas.push('borrarFotoEstado'); },
       obtenerDescarga: async () => null,
       guardarDescarga: async (tipo, idEspacio, url) => { llamadas.push(['guardarDescarga', url]); return 'file:///descarga.jpg'; },
       guardarFoto: async () => { llamadas.push('guardarFoto'); return 'file:///nueva.jpg'; },
@@ -102,6 +105,7 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   const caso = await montarDetalle('encargado');
   try {
     assert.ok(boton(caso.vista, 'Grabar video de la cancha'));
+    assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
 
     assert.ok(caso.llamadas.some(([nombre]) => nombre === 'guardarDescarga'));
   } finally { await caso.cerrar(); }
