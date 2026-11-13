@@ -25,10 +25,14 @@ test('preview es APK release con URL explícita y sin dev client', () => {
   assert.equal(eas.build.preview.distribution, 'internal');
   assert.equal(eas.build.preview.node, '24.15.0');
   assert.equal(app.android.package, 'com.luction97.reservasdeportivas');
-  assert.ok(app.android.blockedPermissions.includes('android.permission.RECORD_AUDIO'));
-  assert.ok(!app.android.permissions.includes('android.permission.RECORD_AUDIO'));
+  assert.ok(app.android.permissions.includes('android.permission.RECORD_AUDIO'));
+  assert.ok(!app.android.blockedPermissions?.includes('android.permission.RECORD_AUDIO'));
+  const plugins = Object.fromEntries(app.plugins.filter(Array.isArray).map(([nombre, config]) => [nombre, config]));
+  assert.equal(plugins['expo-camera'].recordAudioAndroid, true);
+  assert.ok(plugins['expo-camera'].microphonePermission);
+  assert.notEqual(plugins['expo-image-picker'].microphonePermission, false);
   assert.equal(eas.build.preview.environment, 'preview');
-  assert.equal(eas.build.preview.env.EXPO_PUBLIC_API_URL, undefined);
+  assert.match(eas.build.preview.env.EXPO_PUBLIC_API_URL, /^https:\/\/[^/]+$/);
   conEntorno({ ...eas.build.preview.env, EXPO_PUBLIC_API_URL: 'https://api.example.org' }, () => {
     assert.equal(configure({ config: app }), app);
   });

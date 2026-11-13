@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Platform, StyleSheet, View } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Linking, Modal, Platform, StyleSheet, View } from 'react-native';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Button, StateView, Surface, Text, uiLayout } from './ui';
 import { spacing, useTheme } from '../theme';
 
@@ -20,12 +20,33 @@ interface GrabarVideoCanchaProps {
  */
 export function GrabarVideoCancha({ visible, onCerrar, onGrabar }: GrabarVideoCanchaProps) {
   const { colors } = useTheme();
-  const [permiso, pedirPermiso] = useCameraPermissions();
+  const [permisoCamara, pedirPermisoCamara] = useCameraPermissions();
+  const [permisoMicrofono, pedirPermisoMicrofono] = useMicrophonePermissions();
   const camara = useRef<CameraView>(null);
   const [grabando, setGrabando] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pedirPermisos = useCallback(async () => {
+    setError(null);
+    try {
+      const permisoCamaraActual = permisoCamara?.granted
+        ? permisoCamara
+        : await pedirPermisoCamara();
+      if (!permisoCamaraActual.granted) return;
+
+      if (!permisoMicrofono?.granted) await pedirPermisoMicrofono();
+    } catch {
+      setError('No pudimos solicitar los permisos. Revisá los ajustes de la aplicación.');
+    }
+  }, [permisoCamara, pedirPermisoCamara, permisoMicrofono, pedirPermisoMicrofono]);
+
+  const abrirAjustes = useCallback(() => {
+    void Linking.openSettings().catch(() => {
+      setError('No pudimos abrir los ajustes. Habilitá cámara y micrófono desde la configuración del teléfono.');
+    });
+  }, []);
 
   useEffect(() => {
     if (!visible) { setGrabando(false); setSegundos(0); setError(null); setProcesando(false); }
@@ -59,7 +80,11 @@ export function GrabarVideoCancha({ visible, onCerrar, onGrabar }: GrabarVideoCa
 
   const detener = useCallback(() => { camara.current?.stopRecording(); }, []);
 
-  const sinPermiso = permiso?.granted === false;
+  const permisosCargados = permisoCamara !== null && permisoMicrofono !== null;
+  const permisosConcedidos = permisoCamara?.granted === true && permisoMicrofono?.granted === true;
+  const necesitaAjustes = (permisoCamara?.granted === false && !permisoCamara.canAskAgain)
+    || (permisoMicrofono?.granted === false && !permisoMicrofono.canAskAgain);
+  const sinPermiso = permisosCargados && !permisosConcedidos;
   const soportado = Platform.OS !== 'web';
 
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onCerrar}>
@@ -70,9 +95,21 @@ export function GrabarVideoCancha({ visible, onCerrar, onGrabar }: GrabarVideoCa
           <Button size="sm" variant="ghost" title="Cerrar" disabled={grabando || procesando} onPress={onCerrar} />
         </View>
         {!soportado ? <Text tone="muted">La grabación de video se hace desde el teléfono: abrí la app en Android o iPhone.</Text>
+          : !permisosCargados ? <StateView>
+            <Text tone="muted" accessibilityLiveRegion="polite">Comprobando permisos de cámara y micrófono…</Text>
+          </StateView>
           : sinPermiso ? <StateView>
-            <Text tone="muted" accessibilityRole="alert">Necesitamos la cámara para grabar el video de la cancha.</Text>
-            <Button title="Permitir cámara" onPress={() => void pedirPermiso()} />
+            <Text tone="muted" accessibilityRole="alert">
+              {!permisoCamara?.granted && !permisoMicrofono?.granted
+                ? 'Necesitamos acceso a la cámara y al micrófono para grabar el video con sonido.'
+                : !permisoCamara?.granted
+                  ? 'Necesitamos acceso a la cámara para grabar el video de la cancha.'
+                  : 'Necesitamos acceso al micrófono para grabar el video con sonido.'}
+            </Text>
+            <Button title={necesitaAjustes ? 'Abrir ajustes'
+              : !permisoCamara?.granted && !permisoMicrofono?.granted ? 'Permitir cámara y micrófono'
+                : permisoCamara?.granted ? 'Permitir micrófono' : 'Permitir cámara'}
+              onPress={necesitaAjustes ? abrirAjustes : () => void pedirPermisos()} />
           </StateView>
           : <View style={styles.camara}>
             <CameraView ref={camara} style={styles.previa} mode="video" facing="back" />
@@ -81,7 +118,7 @@ export function GrabarVideoCancha({ visible, onCerrar, onGrabar }: GrabarVideoCa
             </Text>
           </View>}
         {error && <Text selectable tone="danger" accessibilityRole="alert">{error}</Text>}
-        {soportado && !sinPermiso && <View style={uiLayout.row}>
+        {soportado && permisosConcedidos && <View style={uiLayout.row}>
           {grabando
             ? <Button variant="secondary" style={uiLayout.grow} title="Detener" onPress={detener} />
             : <Button style={uiLayout.grow} title="Grabar" loading={procesando} disabled={procesando} onPress={() => void iniciar()} />}
