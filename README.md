@@ -29,8 +29,8 @@ Para preparar y grabar la demostración, seguí la [guía de permisos y pruebas 
 ## Requisitos
 
 - **Node.js 24.15.0** (ver `reservas-deportivas/.nvmrc`) con npm, para la app.
-- **Docker Desktop instalado y abierto**, para la API.
-- **Expo Go compatible con SDK 54** en el celular, y PC + celular en la **misma red Wi-Fi**.
+- Para grabar con la API compartida: **conexión a Internet**. No hace falta Docker ni que la PC del equipo quede encendida.
+- Para desarrollar con Expo Go: **Expo Go compatible con SDK 54** y PC + celular en la misma red Wi-Fi.
 
 Instalá Node.js 24.15.0 desde [nodejs.org](https://nodejs.org/) si todavía no lo tenés. Si usás
 `nvm`, podés seleccionar esa versión así:
@@ -41,44 +41,52 @@ nvm use 24.15.0
 node --version
 ```
 
-## Levantar el proyecto
+## Probar la app con el backend compartido (recomendado para la grabación)
 
-Se necesitan **dos terminales**. Abrilas en la raíz del repositorio y seguí el orden: primero la
-API y, cuando esté lista, la app.
+La API de demostración está publicada en Render y el frontend ya usa esa URL en el perfil EAS
+`preview` y en `.env.example`:
 
-### 1. Terminal de la API
+<https://api-reservas-deportivas-crsl.onrender.com>
+
+Antes de grabar, abrí <https://api-reservas-deportivas-crsl.onrender.com/salud> y esperá la
+respuesta `estado: ok`. El servicio gratuito puede dormir por inactividad; su primer acceso puede
+tardar alrededor de un minuto. La API de demostración usa SQLite temporal: los integrantes
+comparten las reservas mientras la instancia siga activa, pero un reinicio puede borrar los cambios
+y volver a cargar los datos de demostración.
+
+### Usar el APK
+
+Instalá el mismo APK `preview` en cada teléfono Android. No requiere Expo Go, Metro ni Docker; sí
+necesita Internet para consultar la API. Antes de iniciar la grabación, abrí la app y esperá que
+cargue el catálogo si Render estaba dormido.
+
+### Usar Expo Go
+
+Cloná o actualizá el repositorio. Desde `reservas-deportivas/`, prepará el entorno local y arrancá
+Expo:
+
+```powershell
+npm ci
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npx expo start --clear --go --lan
+```
+
+`npm ci` instala las dependencias según el lockfile. Metro muestra un QR: escanealo con Expo Go
+compatible con el SDK del proyecto. `.env.example` configura la API compartida de Render. El archivo
+`.env` local no se versiona.
+
+## Desarrollo con API local (opcional)
+
+Solo si necesitás trabajar sin Internet o probar una API local, levantá Docker en la PC:
 
 ```powershell
 cd api-reservas-deportivas
 docker compose up
 ```
 
-Esperá a que termine de iniciar y comprobá <http://localhost:3000/salud>. La API crea el esquema y
-carga los datos de demo. **Dejá esta terminal abierta** mientras usás la app. No hace falta instalar
-pnpm ni crear un `.env` para el backend.
-
-API: <http://localhost:3000> · Salud: <http://localhost:3000/salud> · Documentación: <http://localhost:3000/docs>
-
-### 2. Terminal de la app
-
-Abrí otra terminal nueva en la raíz del repositorio; no cierres la terminal de la API.
-
-```powershell
-cd reservas-deportivas
-npm ci
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-npm start -- --go --lan
-```
-
-`npm ci` instala las dependencias según el lockfile. Metro muestra un QR: escanealo con Expo Go
-compatible con el SDK del proyecto. Para apagar los servicios, detené cada terminal con `Ctrl+C`.
-
-## URL de la API
-
-Si `EXPO_PUBLIC_API_URL` está vacía, Expo Go intenta usar el host de Metro en el puerto 3000.
-Desde el celular, comprobá que podés abrir `http://<IPv4-de-la-PC>:3000/salud`.
-
-Si preferís fijarla, editá `reservas-deportivas/.env`:
+Comprobá <http://localhost:3000/salud>. Para que Expo Go use esa API, editá
+`reservas-deportivas/.env` y configurá `EXPO_PUBLIC_API_URL` con una dirección accesible desde el
+dispositivo:
 
 | Destino | `EXPO_PUBLIC_API_URL` |
 |---|---|
@@ -87,8 +95,7 @@ Si preferís fijarla, editá `reservas-deportivas/.env`:
 | Celular físico | `http://<IPv4-de-la-PC>:3000` |
 
 `localhost` en el celular apunta al celular. La IPv4 de la PC sale de `ipconfig`. Cambiar el `.env`
-requiere reiniciar Metro. `npm start -- --tunnel` solo tuneliza Metro: la API sigue estando en la
-IP de la PC.
+requiere reiniciar Metro. `--tunnel` solo tuneliza Metro; no hace pública la API local.
 
 ### Puerto 3000 ocupado
 
@@ -111,8 +118,8 @@ curl http://localhost:3000/salud
 
 ## Si no conecta
 
-- **Firewall de Windows**: permitir `node.exe` (Metro/Expo) y **Docker Desktop**
-  (`com.docker.backend.exe`), que expone la API en el puerto 3000. No desactivar el firewall completo.
+- **Con API compartida**, el teléfono necesita Internet. Para Expo Go por LAN, permitir `node.exe`
+  (Metro/Expo) en el firewall. Docker Desktop solo necesita permiso cuando se usa la API local.
 - Celular y PC en la misma red; confirmá desde el navegador del celular
   `http://<IPv4-de-la-PC>:3000/salud`.
 - Expo Go debe ser compatible con SDK 54. En Android podés obtener versiones anteriores desde
@@ -134,24 +141,25 @@ Dentro de `reservas-deportivas/`:
 
 Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/README.md).
 
-### APK de entrega
+### APK de entrega y código fuente
 
-Cuando se autorice la compilación, vinculá el proyecto a EAS si falta y configurá
-`EXPO_PUBLIC_API_URL` en el entorno EAS `preview` con la URL pública HTTPS de la API.
-Desde `reservas-deportivas/` ejecutá:
+El perfil `preview` genera una APK de Android y ya contiene la URL pública de la API. Desde
+`reservas-deportivas/`, cuando corresponda compilar, ejecutá:
 
 ```powershell
 npx eas-cli@latest build --platform android --profile preview
 ```
 
-Instalá el APK y verificá el inicio, el acceso a la API y una reserva con Metro y la PC
-apagados. Para la configuración del perfil, consultá la [guía de distribución interna de Expo](https://docs.expo.dev/build/internal-distribution/).
+La entrega de código fuente es el repositorio Git e incluye `reservas-deportivas/eas.json` y
+`reservas-deportivas/app.json`; no incluye `node_modules`. Para una demostración autónoma, instalá
+el APK y verificá el inicio, el acceso a la API y una reserva con Metro y la PC apagados. Consultá
+la [guía de distribución interna de Expo](https://docs.expo.dev/build/internal-distribution/).
 
 ## Problemas frecuentes
 
 | Problema | Comprobación |
 |---|---|
-| El celular no llega a la API | Misma red, IP correcta, firewall para `node.exe` y Docker Desktop |
+| El celular no llega a la API local | Misma red, IP correcta, firewall para `node.exe` y Docker Desktop |
 | El emulador no llega al backend | Usar `10.0.2.2`, no `localhost` |
 | Expo Go informa SDK incompatible | En Android, obtener Expo Go SDK 54 desde `expo.dev/go`; en iOS, usar un development build si la versión de App Store no es compatible |
 | `ERR_PNPM_NO_LOCKFILE` en el frontend | Usar `npm ci`: su lockfile es `package-lock.json` |
