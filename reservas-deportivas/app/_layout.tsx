@@ -9,6 +9,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { AperturaNotificacion } from '../src/components/AperturaNotificacion';
 import { OfrecimientoBiometrico } from '../src/components/OfrecimientoBiometrico';
+import { ReingresoAutomatico } from '../src/components/ReingresoAutomatico';
 import { useTheme } from '../src/theme';
 
 export {
@@ -73,6 +74,7 @@ function RootLayoutNav() {
         <AperturaNotificacion />
         <OfrecimientoBiometrico />
         <ReingresoBiometrico />
+        <ReingresoAutomatico />
       </ThemeProvider>
     </AuthProvider>
   );

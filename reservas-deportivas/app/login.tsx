@@ -64,7 +64,7 @@ export default function LoginScreen() {
           {reingreso ? <>
             <View style={styles.bloque}>
               <Text variant="title" accessibilityRole="header">¡Bienvenido de nuevo!</Text>
-              <Text tone="muted">{usuarioGuardado?.nombre}. Usá tu huella o tu rostro para entrar.</Text>
+              <Text tone="muted">Ingresá con tu huella o rostro, o usá tu contraseña.</Text>
             </View>
             {error !== '' && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
             <Button title="Ingresar con huella o rostro" onPress={usarBiometria} loading={cargando} disabled={cargando || restaurando} />

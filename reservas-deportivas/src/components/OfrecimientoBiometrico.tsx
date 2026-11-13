@@ -16,7 +16,7 @@ export function OfrecimientoBiometrico() {
   ) : null;
 
   return <DialogoAviso titulo="¿Querés ingresar más rápido con tu huella o rostro?"
-    mensaje={usuario ? `La próxima vez vas a poder entrar a Deporturnos con ${usuario.nombre.split(' ')[0]} sin escribir tu contraseña.` : 'La próxima vez vas a poder entrar sin escribir tu contraseña.'}
+    mensaje="La próxima vez vas a poder entrar sin escribir tu contraseña."
     detalle="Podés activarlo o desactivarlo cuando quieras desde Cuenta."
     accionPrincipal="Activar" accionSecundaria="Ahora no"
     onConfirmar={() => { void resolverOferta(true); setMensaje('Listo. La próxima vez entrás con tu huella o tu rostro.'); }}
