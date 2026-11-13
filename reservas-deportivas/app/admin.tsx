@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Chip, ScrollScreen, Screen, StateView, Text, uiLayout } from '../src/components/ui';
 import { DialogoAviso } from '../src/components/DialogoAviso';
@@ -54,10 +54,10 @@ export default function AdminScreen() {
       <View style={uiLayout.row}>
         <Text variant="title" style={uiLayout.grow}>Gestión del complejo</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.secciones}>
+      <View style={styles.secciones}>
         {SECCIONES.map(s => <Chip key={s.id} accessibilityLabel={s.nombre} selected={s.id === seccion}
           onPress={() => setSeccion(s.id)}>{s.nombre}</Chip>)}
-      </ScrollView>
+      </View>
       {cargandoEspacios && <ActivityIndicator color={colors.primary} />}
       {!cargandoEspacios && !espacios.length && <Button title="Reintentar carga" onPress={cargar} />}
 
@@ -73,5 +73,5 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
-  secciones: { gap: spacing.xs },
+  secciones: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
 });

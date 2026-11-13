@@ -38,7 +38,8 @@ const espacio = {
 const fechas = cargar('src/utils/fechas.ts', {});
 const modeloCanchas = cargar('src/canchas/modelo.ts', {});
 const imagenesCanchas = { fotoDeCancha: () => ({ uri: 'https://ejemplo.test/cancha.jpg' }), portadaDeEjemplo: () => null };
-const filtrosCancha = cargar('src/components/FiltrosCancha.tsx', { 'react-native': nativos });
+const hojaModal = cargar('src/components/admin/HojaModal.tsx', { 'react-native': nativos });
+const filtrosCancha = cargar('src/components/FiltrosCancha.tsx', { 'react-native': nativos, './admin/HojaModal': hojaModal });
 
 async function montar({ fallar = false, usuario = null, canchas = [espacio], params = {}, estado = 'libre' } = {}) {
   const navegaciones = [];

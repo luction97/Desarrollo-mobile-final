@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
+import { CalendarioCancha } from './CalendarioCancha';
+import { HojaModal } from './HojaModal';
 import { SelectorCancha } from './SelectorCancha';
+import { SelectorFranjas } from './SelectorFranjas';
 import { fijasService, type DatosFija } from '../../services/fijas';
 import { ApiError } from '../../services/api';
 import { DIAS_SEMANA, errorDeFecha, errorDeRangoHorario } from '../../utils/horarios';
-import { diasDeReserva, fechaArgentina, fechaLegible, finDeMes } from '../../utils/fechas';
-import { borders, layout, radius, spacing, useTheme } from '../../theme';
+import { fechaArgentina, fechaLegible, finDeMes } from '../../utils/fechas';
+import { nombreCorto } from '../../canchas/modelo';
+import { spacing, useTheme } from '../../theme';
 import type { Espacio, ReservaFija } from '../../tipos';
 
 interface FijasPanelProps {
@@ -16,21 +20,9 @@ interface FijasPanelProps {
   editable: boolean;
 }
 
-interface Formulario { titular: string; dia: number; inicio: string; fin: string; desde: string; hasta: string }
-
-const FORMULARIO_VACIO: Formulario = { titular: '', dia: 1, inicio: '', fin: '', desde: '', hasta: '' };
-
-/** Suma horas a una hora en punto ("20:00" + 2 = "22:00"). */
-function sumarHoras(hora: string, horas: number): string {
-  if (!/^\d{2}:\d{2}$/.test(hora)) return '';
-  const total = Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5)) + horas * 60;
-  if (total > 24 * 60) return '';
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-}
-
 /**
- * Reservas fijas de una cancha: lista de las series vigentes y alta o edición en
- * una hoja aparte, para que el formulario no ocupe toda la pantalla.
+ * Reservas fijas del complejo: lista de las series vigentes y alta o edición en
+ * una hoja, con calendario, franjas seleccionables y un resumen legible.
  */
 export function FijasPanel({ espacios, editable }: FijasPanelProps) {
   const { colors } = useTheme();
@@ -38,7 +30,12 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
   const [fijas, setFijas] = useState<ReservaFija[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formulario, setFormulario] = useState<Formulario>(FORMULARIO_VACIO);
+  const [titular, setTitular] = useState('');
+  const [dia, setDia] = useState(1);
+  const [inicio, setInicio] = useState<string | null>(null);
+  const [fin, setFin] = useState<string | null>(null);
+  const [desde, setDesde] = useState(fechaArgentina());
+  const [hasta, setHasta] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [hojaAbierta, setHojaAbierta] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -46,7 +43,6 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
   const [aBajar, setABajar] = useState<ReservaFija | null>(null);
   const generacion = useRef(0);
   const operando = useRef(false);
-  const dias = useMemo(() => diasDeReserva(fechaArgentina()), []);
 
   useEffect(() => {
     if (!espacios.some(e => e.id === espacioId)) setEspacioId(espacios[0]?.id ?? '');
@@ -71,40 +67,48 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
     return () => { generacion.current++; };
   }, [cargar]);
 
+  const nombreDe = (id: string) => {
+    const espacio = espacios.find(e => e.id === id);
+    return espacio ? nombreCorto(espacio) : id;
+  };
+
   const abrirNueva = () => {
     setEditandoId(null);
-    setFormulario({ ...FORMULARIO_VACIO, desde: dias[0]?.fecha ?? '' });
+    setTitular(''); setDia(1); setInicio(null); setFin(null);
+    setDesde(fechaArgentina()); setHasta(null);
     setHojaAbierta(true);
   };
 
   const editar = (fija: ReservaFija) => {
     setEditandoId(fija.id);
-    setFormulario({ titular: fija.titular, dia: fija.dia, inicio: fija.inicio, fin: fija.fin, desde: fija.desde, hasta: fija.hasta ?? '' });
+    setTitular(fija.titular); setDia(fija.dia); setInicio(fija.inicio); setFin(fija.fin);
+    setDesde(fija.desde); setHasta(fija.hasta ?? null);
     setHojaAbierta(true);
   };
 
   const guardar = async () => {
     if (!editable || operando.current || !espacioId || cargando || error) return;
     if (editandoId && !fijas.some(fija => fija.id === editandoId && fija.espacioId === espacioId)) return;
-    const problemaFecha = errorDeFecha(formulario.desde.trim());
+    if (!titular.trim()) { setAviso('Escribí el titular de la reserva.'); return; }
+    const problemaFecha = errorDeFecha(desde);
     if (problemaFecha) { setAviso(problemaFecha); return; }
-    if (formulario.hasta.trim()) {
-      const problemaHasta = errorDeFecha(formulario.hasta.trim());
+    if (hasta) {
+      const problemaHasta = errorDeFecha(hasta);
       if (problemaHasta) { setAviso(problemaHasta); return; }
+      if (hasta < desde) { setAviso('La fecha final no puede ser anterior a la inicial.'); return; }
     }
-    const problemaHoras = errorDeRangoHorario(formulario.inicio.trim() || null, formulario.fin.trim() || null);
+    const problemaHoras = errorDeRangoHorario(inicio, fin);
     if (problemaHoras) { setAviso(problemaHoras); return; }
-    if (!formulario.titular.trim()) { setAviso('Escribí el titular de la reserva.'); return; }
     operando.current = true;
     setOcupado(true);
     const datos: DatosFija = {
       espacioId,
-      titular: formulario.titular.trim(),
-      dia: formulario.dia as DatosFija['dia'],
-      inicio: formulario.inicio.trim(),
-      fin: formulario.fin.trim(),
-      desde: formulario.desde.trim(),
-      hasta: formulario.hasta.trim() || null,
+      titular: titular.trim(),
+      dia: dia as DatosFija['dia'],
+      inicio: inicio ?? '',
+      fin: fin ?? '',
+      desde,
+      hasta: hasta ?? null,
     };
     try {
       if (editandoId) {
@@ -115,8 +119,6 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
         setAviso('Reserva fija creada.');
       }
       setHojaAbierta(false);
-      setFormulario(FORMULARIO_VACIO);
-      setEditandoId(null);
       await cargar();
     } catch (e) {
       setAviso(e instanceof ApiError && e.codigo === 'SIN_PERMISO'
@@ -148,25 +150,23 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
     }
   };
 
-  const aplicarDuracion = (horas: number) => setFormulario(f => ({ ...f, fin: sumarHoras(f.inicio, horas) }));
+  const hastaPorDefecto = useMemo(() => finDeMes(desde), [desde]);
 
-  return <Surface style={uiLayout.section}>
+  return <View style={styles.contenedor}>
     <View style={uiLayout.row}>
-      <Text variant="subtitle" style={uiLayout.grow}>Reservas fijas</Text>
-      {editable && <Button size="sm" title="Nueva" onPress={abrirNueva} />}
+      <Text variant="subtitle" style={uiLayout.grow}>Fijas vigentes</Text>
+      {editable && <Button size="sm" title="Nueva reserva fija" onPress={abrirNueva} />}
     </View>
-    <SelectorCancha espacios={espacios} seleccionado={espacioId} onSelect={setEspacioId} />
+    <SelectorCancha espacios={espacios} seleccionados={espacioId ? [espacioId] : []}
+      onChange={ids => setEspacioId(ids[0] ?? '')} />
 
     {cargando && <ActivityIndicator color={colors.primary} />}
-    {error && <>
-      <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>
-      <Button title="Reintentar" variant="secondary" onPress={cargar} />
-    </>}
+    {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     {!cargando && !error && !fijas.length && <Text tone="muted">Esta cancha no tiene reservas fijas activas.</Text>}
-    {!cargando && !error && fijas.map(fija => <View key={fija.id} style={[uiLayout.fila, { borderColor: colors.border }]}>
+    {fijas.map(fija => <View key={fija.id} style={[styles.fija, { borderColor: colors.border }]}>
       <View style={uiLayout.grow}>
         <Text variant="label">{fija.titular}</Text>
-        <Text numeric variant="label" tone="primary">{DIAS_SEMANA[fija.dia]} · {fija.inicio}-{fija.fin}</Text>
+        <Text numeric variant="caption" tone="primary">{DIAS_SEMANA[fija.dia]} · {fija.inicio}–{fija.fin}</Text>
         <Text variant="caption" tone="muted">
           {fija.hasta ? `Del ${fechaLegible(fija.desde)} al ${fechaLegible(fija.hasta)}` : `Desde ${fechaLegible(fija.desde)}`}
         </Text>
@@ -177,87 +177,65 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       </>}
     </View>)}
 
-    <Modal visible={hojaAbierta} transparent animationType="slide" onRequestClose={() => setHojaAbierta(false)}>
-      <View style={[styles.velo, { backgroundColor: colors.scrim }]}>
-        <Surface style={styles.hoja} accessibilityViewIsModal>
-          <View style={uiLayout.row}>
-            <Text variant="title" accessibilityRole="header" style={uiLayout.grow}>
-              {editandoId ? 'Editar reserva fija' : 'Nueva reserva fija'}
-            </Text>
-            <Button size="sm" variant="ghost" title="Cerrar" disabled={ocupado} onPress={() => setHojaAbierta(false)} />
-          </View>
-          <ScrollView contentContainerStyle={styles.opciones} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <TextField label="Titular" value={formulario.titular} onChangeText={titular => setFormulario(f => ({ ...f, titular }))}
-              editable={!ocupado} placeholder="Grupo de los martes" />
-            <Text variant="label" tone="muted">Día de la semana</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {DIAS_SEMANA.map((nombre, dia) => <Chip key={nombre} selected={formulario.dia === dia} disabled={ocupado}
-                onPress={() => setFormulario(f => ({ ...f, dia }))}>{nombre}</Chip>)}
-            </ScrollView>
-            <View style={uiLayout.row}>
-              <View style={uiLayout.grow}>
-                <TextField label="Hora inicio" value={formulario.inicio} onChangeText={inicio => setFormulario(f => ({ ...f, inicio }))}
-                  editable={!ocupado} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="21:00" autoCapitalize="none" />
-              </View>
-              <View style={uiLayout.grow}>
-                <TextField label="Hora fin" value={formulario.fin} onChangeText={fin => setFormulario(f => ({ ...f, fin }))}
-                  editable={!ocupado} keyboardType="numbers-and-punctuation" maxLength={5} placeholder="22:00" autoCapitalize="none" />
-              </View>
-            </View>
-            <View style={styles.chips}>
-              <Chip selected={false} disabled={ocupado || !formulario.inicio} onPress={() => aplicarDuracion(1)}>1 hora</Chip>
-              <Chip selected={false} disabled={ocupado || !formulario.inicio} onPress={() => aplicarDuracion(2)}>2 horas</Chip>
-            </View>
-            <Text variant="label" tone="muted">Vigencia</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {dias.map(d => <Chip key={d.fecha} selected={formulario.desde === d.fecha} disabled={ocupado}
-                onPress={() => setFormulario(f => ({ ...f, desde: d.fecha }))}>{`${d.nombre} ${d.fecha.slice(-2)}`}</Chip>)}
-            </ScrollView>
-            <View style={uiLayout.row}>
-              <View style={uiLayout.grow}>
-                <TextField label="Desde (año-mes-día)" value={formulario.desde} onChangeText={desde => setFormulario(f => ({ ...f, desde }))}
-                  editable={!ocupado} maxLength={10} placeholder="2026-03-01" />
-              </View>
-              <View style={uiLayout.grow}>
-                <TextField label="Hasta (opcional)" value={formulario.hasta} onChangeText={hasta => setFormulario(f => ({ ...f, hasta }))}
-                  editable={!ocupado} maxLength={10} placeholder="2026-12-31" />
-              </View>
-            </View>
-            <View style={styles.chips}>
-              <Chip selected={!!formulario.hasta && formulario.hasta === finDeMes(formulario.desde)} disabled={ocupado || !finDeMes(formulario.desde)}
-                accessibilityLabel="Ocupar todo el mes" onPress={() => setFormulario(f => ({ ...f, hasta: finDeMes(f.desde) ?? '' }))}>
-                Todo el mes
-              </Chip>
-              <Chip selected={!formulario.hasta} disabled={ocupado} accessibilityLabel="Sin fecha de fin"
-                onPress={() => setFormulario(f => ({ ...f, hasta: '' }))}>
-                Sin fin
-              </Chip>
-            </View>
-          </ScrollView>
-          <View style={uiLayout.row}>
-            <Button variant="ghost" style={uiLayout.grow} title="Cancelar" disabled={ocupado} onPress={() => setHojaAbierta(false)} />
-            <Button style={uiLayout.grow} title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'}
-              loading={ocupado} disabled={ocupado} onPress={() => void guardar()} />
-          </View>
-        </Surface>
+    <HojaModal visible={hojaAbierta} titulo={editandoId ? 'Editar reserva fija' : 'Nueva reserva fija'}
+      onCerrar={() => setHojaAbierta(false)}
+      pie={<View style={uiLayout.row}>
+        <Button variant="ghost" style={uiLayout.grow} title="Cancelar" disabled={ocupado} onPress={() => setHojaAbierta(false)} />
+        <Button style={uiLayout.grow} title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'}
+          loading={ocupado} disabled={ocupado} onPress={() => void guardar()} />
+      </View>}>
+      <SelectorCancha espacios={espacios} seleccionados={espacioId ? [espacioId] : []}
+        onChange={ids => setEspacioId(ids[0] ?? '')} />
+
+      <TextField label="Titular" value={titular} onChangeText={setTitular} placeholder="Grupo de los martes" />
+
+      <View style={styles.bloque}>
+        <Text variant="label" tone="muted">Día de la semana</Text>
+        <View style={styles.chips}>
+          {DIAS_SEMANA.map((nombre, indice) => <Chip key={nombre} selected={dia === indice}
+            onPress={() => setDia(indice)}>{nombre}</Chip>)}
+        </View>
       </View>
-    </Modal>
+
+      <View style={styles.bloque}>
+        <Text variant="label" tone="muted">Horario</Text>
+        <SelectorFranjas inicio={inicio} fin={fin} onChange={(nuevoInicio, nuevoFin) => { setInicio(nuevoInicio); setFin(nuevoFin); }} />
+      </View>
+
+      <View style={styles.bloque}>
+        <Text variant="label" tone="muted">Vigencia</Text>
+        <CalendarioCancha valor={desde} onChange={setDesde} minimo={fechaArgentina()} />
+        <View style={styles.chips}>
+          <Chip selected={!hasta} onPress={() => setHasta(null)}>Sin fin</Chip>
+          <Chip selected={hasta === hastaPorDefecto} disabled={!hastaPorDefecto}
+            onPress={() => setHasta(hastaPorDefecto)}>Fin de mes</Chip>
+        </View>
+        {hasta && <CalendarioCancha valor={hasta} onChange={setHasta} minimo={desde} />}
+      </View>
+
+      <Surface variant="outlined" style={styles.resumen}>
+        <Text variant="label">Resumen</Text>
+        <Text variant="caption" tone="muted">
+          {nombreDe(espacioId)} · {DIAS_SEMANA[dia]} {inicio ?? '--:--'}–{fin ?? '--:--'} ·{' '}
+          {desde === hastaPorDefecto && !hasta ? 'desde el fin de mes' : `desde ${fechaLegible(desde)}`}
+          {hasta ? ` hasta ${fechaLegible(hasta)}` : ''}
+          {titular.trim() ? ` · ${titular.trim()}` : ''}
+        </Text>
+      </Surface>
+    </HojaModal>
 
     {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="La serie dejará de ocupar esos horarios. Los demás bloqueos y reservas se conservan."
       detalle={`${aBajar.titular} · ${DIAS_SEMANA[aBajar.dia]} ${aBajar.inicio}-${aBajar.fin}`} destructivo
       accionPrincipal="Dar de baja" accionSecundaria="Volver" onConfirmar={darDeBaja} onCerrar={() => setABajar(null)} />}
     {aviso && <DialogoAviso titulo="Reservas fijas" mensaje={aviso} accionPrincipal="Entendido"
       onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}
-  </Surface>;
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  velo: { flex: 1, justifyContent: 'flex-end' },
-  hoja: {
-    width: '100%', maxWidth: layout.formWidth, alignSelf: 'center',
-    borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card,
-    borderCurve: borders.curve, gap: spacing.md, paddingBottom: spacing.xl,
-  },
-  opciones: { gap: spacing.sm, paddingBottom: spacing.md },
+  contenedor: { gap: spacing.md },
+  fija: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1 },
+  bloque: { gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  resumen: { gap: spacing.xs, padding: spacing.md },
 });
