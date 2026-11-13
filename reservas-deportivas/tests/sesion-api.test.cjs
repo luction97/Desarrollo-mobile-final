@@ -44,3 +44,13 @@ test('un 401 tardío conserva la sesión más reciente y las solicitudes de ingr
   assert.equal(valores.size, 0);
   assert.equal(invalidaciones, 1);
 });
+
+test('la sesión no se cierra al volver pronto: sólo tras un rato largo en segundo plano', () => {
+  const { debeBloquearSesion, MINUTOS_BLOQUEO_SESION } = cargar('src/utils/sesion.ts', {});
+  const ahora = 1_000_000_000;
+  assert.equal(debeBloquearSesion(null, ahora), false);
+  assert.equal(debeBloquearSesion(ahora, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - 30_000, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - 4 * 60_000, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - (MINUTOS_BLOQUEO_SESION + 1) * 60_000, ahora), true);
+});

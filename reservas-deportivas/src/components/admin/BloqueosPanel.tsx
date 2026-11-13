@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
 import { operacionesService, type EntradaBloqueo } from '../../services/operaciones';
 import { errorDeFecha, errorDeRangoHorario } from '../../utils/horarios';
-import { fechaArgentina, fechaLegible, horarioDeReserva, instanteTurno } from '../../utils/fechas';
+import { nombreCorto } from '../../canchas/modelo';
+import { diasDeReserva, fechaArgentina, fechaLegible, horarioDeReserva, instanteTurno } from '../../utils/fechas';
 import { spacing, useTheme } from '../../theme';
 import type { Bloqueo, Espacio } from '../../tipos';
+
+/** Motivos frecuentes del complejo: lluvia y mantenimiento. */
+const MOTIVOS = ['Lluvia', 'Mantenimiento', 'Cancha anegada'];
 
 interface BloqueosPanelProps {
   espacios: Espacio[];
@@ -33,6 +37,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   const operando = useRef(false);
   const generacion = useRef(0);
   const [aCancelar, setACancelar] = useState<Bloqueo | null>(null);
+  const dias = useMemo(() => diasDeReserva(fechaArgentina()), []);
 
   useEffect(() => {
     setSeleccionados(vigentes => {
@@ -152,11 +157,22 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
     <Text variant="subtitle">Bloqueos de mantenimiento</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
       {espacios.map(e => <Chip key={e.id} selected={seleccionados.includes(e.id)} disabled={ocupado}
-        onPress={() => alternar(e.id)}>{e.nombre}</Chip>)}
+        onPress={() => alternar(e.id)}>{nombreCorto(e)}</Chip>)}
     </ScrollView>
 
-    <TextField label="Fecha (año-mes-día)" value={fecha} onChangeText={setFecha} editable={!ocupado} maxLength={10} />
-    <TextField label="Motivo" value={motivo} onChangeText={setMotivo} editable={!ocupado} />
+    <Text variant="label" tone="muted">Fecha</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+      {dias.map(d => <Chip key={d.fecha} selected={d.fecha === fecha} disabled={ocupado}
+        onPress={() => setFecha(d.fecha)}>{`${d.nombre} ${d.fecha.slice(-2)}`}</Chip>)}
+    </ScrollView>
+    <TextField label="Otra fecha (año-mes-día)" value={fecha} onChangeText={setFecha} editable={!ocupado} maxLength={10} />
+    <Text variant="label" tone="muted">Motivo</Text>
+    <View style={styles.motivos}>
+      {MOTIVOS.map(motivo => <Chip key={motivo} selected={motivo === motivo.trim()} disabled={ocupado}
+        onPress={() => setMotivo(motivo)}>{motivo}</Chip>)}
+    </View>
+    <TextField label="Motivo escrito" value={motivo} onChangeText={setMotivo} editable={!ocupado}
+      placeholder="Cancha anegada" />
     <View style={uiLayout.row}>
       <Chip selected={diaEntero} disabled={ocupado} onPress={() => setDiaEntero(true)}>Día entero</Chip>
       <Chip selected={!diaEntero} disabled={ocupado} onPress={() => setDiaEntero(false)}>Por horario</Chip>
@@ -206,3 +222,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}
   </Surface>;
 }
+
+const styles = StyleSheet.create({
+  motivos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+});

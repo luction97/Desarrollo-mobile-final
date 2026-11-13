@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { Usuario } from '../tipos';
+import { debeBloquearSesion } from '../utils/sesion';
 import { authService } from '../services/auth';
 import type { DatosRegistro } from '../services/auth';
 import { autenticarConBiometria, biometriaDisponible } from '../services/biometria';
@@ -23,6 +24,7 @@ interface AuthContextType {
   conSelectorNativo: <T>(abrir: () => Promise<T>) => Promise<T>;
 }
 
+
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sesionVersion = useRef(0);
   const perfilActual = useRef<Usuario | null>(null);
   const selectoresActivos = useRef(0);
+  const enSegundoPlano = useRef<number | null>(null);
   const conSelectorNativo = async <T,>(abrir: () => Promise<T>) => {
     selectoresActivos.current++;
     try { return await abrir(); }
@@ -88,13 +91,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // La sesión sobrevive al segundo plano: sólo se bloquea tras un rato largo
+    // fuera de la app, para no exigir biometría en cada regreso.
     const listener = AppState.addEventListener('change', estado => {
-      if (estado === 'background' && tieneBiometria && selectoresActivos.current === 0) {
-        perfilVersion.current++;
-        sesionVersion.current++;
-        perfilActual.current = null;
-        setUsuario(null);
-      }
+      if (estado === 'background') { enSegundoPlano.current = Date.now(); return; }
+      if (estado !== 'active') return;
+      const desde = enSegundoPlano.current;
+      enSegundoPlano.current = null;
+      if (!debeBloquearSesion(desde, Date.now())) return;
+      if (!tieneBiometria || selectoresActivos.current > 0) return;
+      perfilVersion.current++;
+      sesionVersion.current++;
+      perfilActual.current = null;
+      setUsuario(null);
     });
     return () => listener.remove();
   }, [tieneBiometria]);

@@ -313,6 +313,7 @@ test('AuthContext: arranque invitado sin carga nativa; restauración con reserva
       '../services/auth': { authService: { obtenerPerfil: async () => guardado, restaurarSesion: async () => guardado, logout: async () => { cerrada = true; } } },
       '../services/biometria': { biometriaDisponible: async () => false },
       '../services/favoritos': { favoritosService: {} },
+      '../utils/sesion': { debeBloquearSesion: () => false },
       '../services/sesionEventos': { escucharSesionInvalidada: () => () => {} },
       '../services/notificaciones': { notificacionesService: caso.servicio },
       '../services/reservas': reservas,

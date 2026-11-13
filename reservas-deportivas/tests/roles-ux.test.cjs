@@ -152,17 +152,27 @@ test('Administración: el personal ve fijas y precio, y el servidor define el al
       '../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
       '../src/components/admin/BloqueosPanel': { BloqueosPanel: 'BloqueosPanel' },
       '../src/components/admin/FijasPanel': { FijasPanel: 'FijasPanel' },
+      '../src/components/admin/PanelTarifa': { PanelTarifa: 'PanelTarifa' },
       '../src/services/api': { ApiError: class ApiError extends Error {} },
+      '../src/services/notificaciones': { avisosDisponibles: () => true },
       '../src/services/espacios': { obtenerEspacios: async () => { consultas++; return { datos: [cancha] }; } },
       '../src/services/operaciones': { operacionesService: {} },
     }).default;
     let vista;
+    const esPersonal = ['encargado', 'administrador'].includes(rol);
     try {
       await act(async () => { vista = create(React.createElement(Pantalla)); });
-      assert.equal(!!boton(vista, 'Actualizar precio'), ['encargado', 'administrador'].includes(rol));
-      assert.equal(consultas, ['encargado', 'administrador'].includes(rol) ? 1 : 0);
+      assert.equal(consultas, esPersonal ? 1 : 0);
+      if (!esPersonal) { assert.equal(boton(vista, 'Bloqueos'), undefined); continue; }
+      assert.ok(boton(vista, 'Bloqueos'));
+      assert.ok(boton(vista, 'Reservas fijas'));
+      assert.ok(boton(vista, 'Tarifa'));
+      await act(async () => { boton(vista, 'Reservas fijas').props.onPress(); });
       const panel = vista.root.findAllByType('FijasPanel');
-      if (panel.length) assert.equal(panel[0].props.editable, ['encargado', 'administrador'].includes(rol));
+      if (panel.length) assert.equal(panel[0].props.editable, true);
+      await act(async () => { boton(vista, 'Tarifa').props.onPress(); });
+      const tarifa = vista.root.findAllByType('PanelTarifa');
+      if (tarifa.length) assert.equal(tarifa[0].props.puedeCambiar, true);
     } finally { if (vista) await act(async () => { vista.unmount(); }); }
   }
 });
