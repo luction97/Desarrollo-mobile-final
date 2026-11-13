@@ -288,7 +288,8 @@ export default function DisponibilidadScreen() {
   const cabecera = <View style={styles.cabecera}>
     <View style={uiLayout.row}>
       <View style={uiLayout.grow}>
-        <Text variant="display" accessibilityRole="header">Canchas</Text>
+        <Text variant="display" accessibilityRole="header">Deporturnos</Text>
+        <Text variant="label" tone="muted">Reservas Deportivas Villaguay</Text>
       </View>
       <Button variant="ghost" size="sm" title="Mapa" accessibilityLabel="Mapa de complejos" onPress={() => router.push('/mapa')} />
       {!usuario && <Button size="sm" title="Entrar" onPress={() => router.push('/login')} />}

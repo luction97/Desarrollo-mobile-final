@@ -48,22 +48,22 @@ test('incluye los once espacios activos de ejemplo', () => {
   assert.deepEqual(canchas.map(c => c.id), ['esp-01','esp-02','esp-03','esp-04','esp-05','esp-06','esp-07','esp-08','esp-09','esp-10','esp-11']);
 });
 
-test('las portadas locales de los ejemplos prevalecen y el gimnasio conserva su imagen de API', () => {
-  const imagenes = Object.fromEntries(['futbol', 'basquet', 'voley', 'tenis'].map(deporte => [
+test('las portadas locales de los once ejemplos prevalecen sobre las imagenes de la API', () => {
+  const imagenes = Object.fromEntries(['futbol', 'basquet', 'voley', 'tenis', 'gimnasio'].map(deporte => [
     '../../assets/images/canchas/cancha-' + deporte + '.png', deporte,
   ]));
   const { fotoDeCancha } = cargarModulo('src/canchas/imagenes.ts', { './modelo': { familiaDeDeporte }, ...imagenes });
   const remota = 'https://ejemplo.test/imagen.png';
   assert.deepEqual(semillas().map(e => fotoDeCancha({ ...e, imagenes: [remota] })), [
-    'futbol', 'futbol', 'futbol', 'basquet', 'basquet', 'basquet', 'voley', 'voley', 'tenis', 'tenis', { uri: remota },
+    'futbol', 'futbol', 'futbol', 'basquet', 'basquet', 'basquet', 'voley', 'voley', 'tenis', 'tenis', 'gimnasio',
   ]);
 });
 
 test('fútbol 5 y fútbol 11 comparten la misma foto registrada', () => {
   assert.equal(familiaDeDeporte('dep-futbol5'), 'futbol');
   assert.equal(familiaDeDeporte('dep-futbol11'), 'futbol');
-  // El gimnasio no tiene foto propia: usa la imagen que publica la API.
-  assert.equal(familiaDeDeporte('dep-gimnasio'), null);
+  // El gimnasio tiene su propia foto registrada.
+  assert.equal(familiaDeDeporte('dep-gimnasio'), 'gimnasio');
 });
 
 test('descarta las canchas inactivas y mantiene las activas', () => {
@@ -85,7 +85,7 @@ test('no modifica el arreglo original y tolera listas vacías', () => {
 test('cada deporte del ejemplo tiene su archivo de foto local', () => {
   const imagenes = fs.readFileSync(path.join(__dirname, '../src/canchas/imagenes.ts'), 'utf8');
   const rutas = [...imagenes.matchAll(/require\('([^']+\.png)'\)/g)].map(m => m[1]);
-  assert.equal(rutas.length, 4);
+  assert.equal(rutas.length, 5);
   for (const ruta of rutas) {
     assert.ok(fs.existsSync(path.join(__dirname, '..', 'src', 'canchas', ruta)), `Falta ${ruta}`);
   }

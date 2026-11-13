@@ -1,7 +1,7 @@
 import type { Espacio } from '../tipos';
 
 /** Deporte que identifica la foto registrada de una cancha. */
-export type FamiliaDeporte = 'futbol' | 'basquet' | 'voley' | 'tenis';
+export type FamiliaDeporte = 'futbol' | 'basquet' | 'voley' | 'tenis' | 'gimnasio';
 
 const FAMILIA_POR_DEPORTE: Record<string, FamiliaDeporte> = {
   'dep-futbol5': 'futbol',
@@ -9,16 +9,17 @@ const FAMILIA_POR_DEPORTE: Record<string, FamiliaDeporte> = {
   'dep-basquet': 'basquet',
   'dep-voley': 'voley',
   'dep-tenis': 'tenis',
+  'dep-gimnasio': 'gimnasio',
 };
 
-/** Familia de la foto registrada para un deporte. `null` cuando no hay foto propia (gimnasio). */
+/** Familia de la foto registrada para un deporte. `null` cuando el deporte no tiene foto propia. */
 export function familiaDeDeporte(deporteId: string): FamiliaDeporte | null {
   return FAMILIA_POR_DEPORTE[deporteId] ?? null;
 }
 
 /**
  * Catálogo visible de la app: los espacios activos, en orden estable por id.
- * Incluye los once de ejemplo (el gimnasio usa la foto que publica la API).
+ * Incluye los once de ejemplo con su foto local registrada.
  */
 export function catalogoDeEspacios(espacios: Espacio[]): Espacio[] {
   return [...espacios].filter(e => e.activo).sort((a, b) => a.id.localeCompare(b.id));

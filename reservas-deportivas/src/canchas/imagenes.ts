@@ -11,13 +11,17 @@ const FOTO_POR_DEPORTE: Record<FamiliaDeporte, ImageSourcePropType> = {
   basquet: require('../../assets/images/canchas/cancha-basquet.png'),
   voley: require('../../assets/images/canchas/cancha-voley.png'),
   tenis: require('../../assets/images/canchas/cancha-tenis.png'),
+  gimnasio: require('../../assets/images/canchas/cancha-gimnasio.png'),
 };
+
+/** Espacios del catálogo demo con foto local registrada: las once canchas. */
+const ESPACIOS_CON_FOTO_LOCAL = /^esp-(0[1-9]|1[01])$/;
 
 /**
  * Usa la foto local en los espacios de ejemplo y la imagen publicada en los demás.
  */
 export function portadaDeEjemplo(espacio: Pick<Espacio, 'id' | 'deporteId'>): ImageSourcePropType | null {
-  if (!/^esp-(0[1-9]|10)$/.test(espacio.id)) return null;
+  if (!ESPACIOS_CON_FOTO_LOCAL.test(espacio.id)) return null;
   const familia = familiaDeDeporte(espacio.deporteId);
   return familia ? FOTO_POR_DEPORTE[familia] : null;
 }
