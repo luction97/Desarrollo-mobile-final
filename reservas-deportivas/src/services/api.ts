@@ -92,7 +92,8 @@ async function requestSobre<T>(method: string, endpoint: string, data?: unknown)
         if (token && error.response.status === 401 && error.response.data?.error?.codigo === 'NO_AUTENTICADO') {
           await cambiarSesion(async () => {
             if (await storage.getItem('token') !== token) return;
-            await Promise.allSettled([storage.deleteItem('token'), storage.deleteItem('usuario')]);
+            // Caduca el token, no la sesión: el usuario sigue registrado en la app.
+            await storage.deleteItem('token');
             invalidarSesion();
           });
         }

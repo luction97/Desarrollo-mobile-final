@@ -1,6 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { Usuario } from '../tipos';
-import { debeBloquearSesion } from '../utils/sesion';
 import { authService } from '../services/auth';
 import type { DatosRegistro } from '../services/auth';
 import { autenticarConBiometria, biometriaDisponible } from '../services/biometria';
@@ -17,6 +16,10 @@ interface AuthContextType {
   tieneBiometria: boolean;
   cargando: boolean;
   login: (email: string, contrasena: string) => Promise<void>;
+  /** Bloquea la app con biometría; el usuario sigue registrado. */
+  bloquear: () => void;
+  /** La sesión del usuario sigue viva pero el token caducó. */
+  sesionVencida: boolean;
   logout: () => Promise<void>;
   registro: (datos: DatosRegistro) => Promise<void>;
   desbloquear: () => Promise<boolean>;
@@ -32,12 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuarioGuardado, setUsuarioGuardado] = useState<Usuario | null>(null);
   const [tieneBiometria, setTieneBiometria] = useState(false);
   const [cargando, setCargando] = useState(true);
+  const [sesionVencida, setSesionVencida] = useState(false);
   const sinRed = useSinRed();
   const perfilVersion = useRef(0);
   const sesionVersion = useRef(0);
   const perfilActual = useRef<Usuario | null>(null);
   const selectoresActivos = useRef(0);
-  const enSegundoPlano = useRef<number | null>(null);
   const conSelectorNativo = async <T,>(abrir: () => Promise<T>) => {
     selectoresActivos.current++;
     try { return await abrir(); }
@@ -76,42 +79,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!activo) return;
       setTieneBiometria(biometria);
       setUsuarioGuardado(user);
-      setUsuario(biometria ? null : user);
-      perfilActual.current = biometria ? null : user;
+      setUsuario(user);
+      perfilActual.current = user;
       if (user) void prepararRecordatoriosGuardados(user.id).catch(() => undefined);
     }).catch(() => { if (activo) { setUsuario(null); setUsuarioGuardado(null); } })
       .finally(() => { if (activo) setCargando(false); });
     const dejarDeEscuchar = escucharSesionInvalidada(() => {
       perfilVersion.current++;
       sesionVersion.current++;
-      aplicarPerfil(null);
+      // El token caducó: la sesión del usuario se conserva hasta que cierre sesión.
+      setSesionVencida(true);
       void notificacionesService.cancelarTodos().catch(() => undefined);
     });
     return () => { activo = false; dejarDeEscuchar(); };
   }, []);
 
-  useEffect(() => {
-    // La sesión sobrevive al segundo plano: sólo se bloquea tras un rato largo
-    // fuera de la app, para no exigir biometría en cada regreso.
-    const listener = AppState.addEventListener('change', estado => {
-      if (estado === 'background') { enSegundoPlano.current = Date.now(); return; }
-      if (estado !== 'active') return;
-      const desde = enSegundoPlano.current;
-      enSegundoPlano.current = null;
-      if (!debeBloquearSesion(desde, Date.now())) return;
-      if (!tieneBiometria || selectoresActivos.current > 0) return;
-      perfilVersion.current++;
-      sesionVersion.current++;
-      perfilActual.current = null;
-      setUsuario(null);
-    });
-    return () => listener.remove();
-  }, [tieneBiometria]);
-
   const login = async (email: string, contrasena: string) => {
     const user = await authService.login(email, contrasena);
     sesionVersion.current++;
+    setSesionVencida(false);
     aplicarPerfil(user);
+  };
+
+  const bloquear = () => {
+    if (!usuario) return;
+    perfilVersion.current++;
+    sesionVersion.current++;
+    perfilActual.current = null;
+    setUsuario(null);
   };
 
   const registro = async (datos: DatosRegistro) => {
@@ -122,9 +117,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const desbloquear = async () => {
     if (!await autenticarConBiometria()) return false;
+    if (!await authService.sesionVigente()) throw new Error('La sesión venció. Ingresá con tu contraseña.');
     const user = await authService.restaurarSesion();
     if (!user) throw new Error('La sesión venció. Ingresá con tu contraseña.');
     sesionVersion.current++;
+    setSesionVencida(false);
     aplicarPerfil(user);
     return true;
   };
@@ -149,12 +146,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     perfilVersion.current++;
     sesionVersion.current++;
     await authService.logout();
+    setSesionVencida(false);
     aplicarPerfil(null);
     await notificacionesService.cancelarTodos().catch(() => undefined);
   };
 
   return (
-    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, login, registro, desbloquear, logout, cambiarFavorito, conSelectorNativo }}>
+    <AuthContext.Provider value={{ usuario, usuarioGuardado, tieneBiometria, cargando, sesionVencida, login, registro, desbloquear, bloquear, logout, cambiarFavorito, conSelectorNativo }}>
       {children}
     </AuthContext.Provider>
   );

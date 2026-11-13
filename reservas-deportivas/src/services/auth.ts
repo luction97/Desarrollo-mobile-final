@@ -62,10 +62,17 @@ export const authService = {
     });
   },
 
+  /** El token sigue siendo valido: sirve para reingresar sin contrasena. */
+  async sesionVigente(): Promise<boolean> {
+    const token = await storage.getItem('token');
+    return !!token && tokenVigente(token, Date.now());
+  },
+
   async restaurarSesion(): Promise<Usuario | null> {
     return cambiarSesion(async () => {
       const token = await storage.getItem('token');
-      if (!token || !tokenVigente(token, Date.now())) return null;
+      if (!token) return null;
+      // La sesión sobrevive al cierre de la app aunque el token haya caducado.
       return authService.obtenerUsuarioGuardado();
     });
   },
