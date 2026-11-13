@@ -402,7 +402,14 @@ export default function DisponibilidadScreen() {
         const estado = pasado ? 'Pasado' : etiquetasTurno[item.estado];
         return <PressableSurface onPress={() => elegir(item)} disabled={deshabilitado}
           accessibilityState={{ disabled: deshabilitado }}
-          style={[styles.filaTurno, { borderColor: colors.border, backgroundColor: deshabilitado ? colors.background : colors.surface }]}
+          style={[styles.filaTurno, {
+            borderColor: colors.border,
+            backgroundColor: deshabilitado
+              ? (item.estado === 'fijo' ? colors.primaryContainer
+                : item.estado === 'mantenimiento' ? colors.warningContainer
+                  : colors.background)
+              : colors.surface,
+          }]}
           accessibilityLabel={item.inicio + ' a ' + item.fin + '. ' + (pasado ? 'Turno pasado, no reservable' : estado + (item.estado === 'libre' ? '. ' + precio : ''))}>
           <View style={uiLayout.row}>
             <View style={uiLayout.grow}>
@@ -410,7 +417,7 @@ export default function DisponibilidadScreen() {
               {item.motivoBloqueo && <Text variant="label" tone="muted">{item.motivoBloqueo}</Text>}
               {!pasado && item.estado === 'libre' && <Text numeric variant="label" tone="muted">{precio}</Text>}
             </View>
-            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : 'warning'}>{estado}</Badge>
+            <Badge variant={pasado ? 'neutral' : item.estado === 'libre' ? 'success' : item.estado === 'reservado' ? 'danger' : item.estado === 'fijo' ? 'neutral' : 'warning'}>{estado}</Badge>
             {!deshabilitado && <Ionicons name="chevron-forward" size={spacing.lg} color={colors.primary} />}
           </View>
         </PressableSurface>;
