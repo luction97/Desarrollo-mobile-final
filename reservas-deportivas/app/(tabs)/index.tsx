@@ -4,6 +4,7 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
+import { alCambiarTurnos } from '../../src/services/invalidacionGrilla';
 import { Badge, Button, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
 import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { FiltrosCancha } from '../../src/components/FiltrosCancha';
@@ -65,8 +66,11 @@ export default function DisponibilidadScreen() {
   const [soloFavoritos, setSoloFavoritos] = useState(false);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [anchoContenedor, setAnchoContenedor] = useState(0);
+  const [recarga, setRecarga] = useState(0);
   const carrusel = useRef<ScrollView>(null);
   const reposo = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => alCambiarTurnos(() => setRecarga(v => v + 1)), []);
   const seleccionManual = useRef(false);
   const operando = useRef(false);
   const generacion = useRef(0);
@@ -201,7 +205,7 @@ export default function DisponibilidadScreen() {
       }
     } catch (e) { if (version === generacion.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la disponibilidad.'); }
     finally { if (version === generacion.current) setCargando(false); }
-  }, [espacioId, fecha, usuario?.id, puedeReservar, params.turnoId, params.espacioId, params.fecha, params.personas, router]);
+  }, [espacioId, fecha, usuario?.id, puedeReservar, params.turnoId, params.espacioId, params.fecha, params.personas, recarga, router]);
 
   useFocusEffect(useCallback(() => {
     void cargarGrilla();

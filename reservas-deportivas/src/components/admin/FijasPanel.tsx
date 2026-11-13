@@ -8,6 +8,7 @@ import { SelectorCancha } from './SelectorCancha';
 import { SelectorFranjas } from './SelectorFranjas';
 import { fijasService, type DatosFija } from '../../services/fijas';
 import { ApiError } from '../../services/api';
+import { invalidarGrillaLocal, notificarCambioDeTurnos } from '../../services/invalidacionGrilla';
 import { DIAS_SEMANA, errorDeFecha, errorDeRangoHorario } from '../../utils/horarios';
 import { fechaArgentina, fechaLegible, finDeMes } from '../../utils/fechas';
 import { nombreCorto } from '../../canchas/modelo';
@@ -120,6 +121,9 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       }
       setHojaAbierta(false);
       await cargar();
+      // La grilla debe reflejar la nueva fija: se invalida la copia local y se avisa.
+      await invalidarGrillaLocal(espacioId).catch(() => undefined);
+      notificarCambioDeTurnos();
     } catch (e) {
       setAviso(e instanceof ApiError && e.codigo === 'SIN_PERMISO'
         ? 'Sólo el administrador puede cargar y editar las reservas fijas.'
@@ -139,6 +143,8 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       setABajar(null);
       setAviso('Reserva fija dada de baja.');
       await cargar();
+      await invalidarGrillaLocal(espacioId).catch(() => undefined);
+      notificarCambioDeTurnos();
     } catch (e) {
       setABajar(null);
       setAviso(e instanceof ApiError && e.codigo === 'SIN_PERMISO'

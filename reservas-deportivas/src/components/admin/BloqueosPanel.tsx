@@ -7,6 +7,7 @@ import { HojaModal } from './HojaModal';
 import { SelectorCancha } from './SelectorCancha';
 import { SelectorFranjas } from './SelectorFranjas';
 import { operacionesService, type EntradaBloqueo } from '../../services/operaciones';
+import { invalidarGrillaLocal, notificarCambioDeTurnos } from '../../services/invalidacionGrilla';
 import { errorDeRangoHorario } from '../../utils/horarios';
 import { fechaArgentina, fechaLegible, horarioDeReserva, instanteTurno } from '../../utils/fechas';
 import { nombreCorto } from '../../canchas/modelo';
@@ -134,6 +135,8 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
         ? 'Bloqueo creado. Las reservas afectadas fueron canceladas.'
         : `${creados.length} bloqueos creados. Las reservas afectadas fueron canceladas.`);
       await cargarBloqueos();
+      await invalidarGrillaLocal(espacioIds[0] ?? '').catch(() => undefined);
+      notificarCambioDeTurnos();
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No se pudo crear el bloqueo.');
     } finally {
@@ -151,6 +154,8 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       setABajar(null);
       setAviso('Bloqueo dado de baja. Las reservas que canceló siguen canceladas.');
       await cargarBloqueos();
+      await invalidarGrillaLocal(espacioIds[0] ?? '').catch(() => undefined);
+      notificarCambioDeTurnos();
     } catch (e) {
       setABajar(null);
       setAviso(e instanceof Error ? e.message : 'No se pudo cancelar el bloqueo.');

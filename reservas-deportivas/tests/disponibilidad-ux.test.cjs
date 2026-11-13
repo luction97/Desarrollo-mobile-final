@@ -72,6 +72,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
     '../../src/canchas/imagenes': imagenesCanchas,
     '../../src/services/reservas': { crearReserva: async () => assert.fail('El invitado no debe crear reservas') },
     '../../src/services/notificaciones': { avisosDisponibles: () => true },
+    '../../src/services/invalidacionGrilla': { alCambiarTurnos: () => () => undefined, notificarCambioDeTurnos: () => undefined, invalidarGrillaLocal: async () => undefined },
     '../../src/services/api': { ApiError: class ApiError extends Error {} },
     '../../src/services/preferencias': { default: { getItem: async () => null, setItem: async () => {} } },
     '../../src/context/AuthContext': { useAuth: () => ({ usuario, cargando: false, logout: async () => {} }) },
