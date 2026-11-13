@@ -89,9 +89,8 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   for (const rol of [null, 'jugador']) {
     const caso = await montarDetalle(rol);
     try {
-      assert.equal(boton(caso.vista, 'Tomar foto'), undefined);
-      assert.equal(boton(caso.vista, 'Elegir de la galería'), undefined);
-      assert.equal(boton(caso.vista, 'Grabar video de la cancha (máx. 30 s)'), undefined);
+      assert.equal(boton(caso.vista, 'Agregar foto del estado de la cancha'), undefined);
+      assert.equal(boton(caso.vista, 'Grabar video de la cancha'), undefined);
       assert.deepEqual(caso.llamadas, []);
       assert.ok(boton(caso.vista, 'Ver horarios'));
       assert.deepEqual(caso.vista.root.findAllByType('Image').map(n => n.props.source.uri), cancha.imagenes);
@@ -101,24 +100,24 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   }
   const caso = await montarDetalle('encargado');
   try {
-    assert.ok(boton(caso.vista, 'Tomar foto'));
-    assert.ok(boton(caso.vista, 'Grabar video de la cancha (máx. 30 s)'));
+    assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
+    assert.ok(boton(caso.vista, 'Grabar video de la cancha'));
     assert.deepEqual(caso.llamadas, ['leerFoto']);
   } finally { await caso.cerrar(); }
 });
 
-test('administrador registra una foto local, sin presentar el guardado como una publicación', async () => {
+test('el personal registra una foto del estado de la cancha sin presentarla como publicación', async () => {
   const caso = await montarDetalle('administrador');
   try {
-    assert.ok(JSON.stringify(caso.vista.toJSON()).includes('archivo independiente de la galería'));
-    await act(async () => { await boton(caso.vista, 'Tomar foto').props.onPress(); });
-    assert.deepEqual(caso.llamadas, ['leerFoto', 'permiso', 'elegirFoto', 'guardarFoto']);
+    assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
+    await act(async () => { await boton(caso.vista, 'Agregar foto del estado de la cancha').props.onPress(); });
+    assert.deepEqual(caso.llamadas, ['leerFoto', 'elegirFoto', 'guardarFoto']);
     assert.ok(caso.vista.root.findAllByType('Image').some(n => n.props.source.uri === 'file:///nueva.jpg'));
     await act(async () => { await boton(caso.vista, 'Subir archivo').props.onPress(); });
     assert.equal(caso.llamadas.at(-1), 'file:///nueva.jpg');
     assert.ok(JSON.stringify(caso.vista.toJSON()).includes('https://ejemplo.test/archivo'));
     await caso.cambiarRol('jugador');
-    assert.equal(boton(caso.vista, 'Tomar foto'), undefined);
+    assert.equal(boton(caso.vista, 'Agregar foto del estado de la cancha'), undefined);
     assert.ok(!caso.vista.root.findAllByType('Image').some(n => n.props.source.uri.startsWith('file:')));
   } finally { await caso.cerrar(); }
 });
@@ -142,7 +141,7 @@ test('Cuenta muestra historial del jugador y concentra el cierre de sesión', as
   }
 });
 
-test('Administración: encargado ve fijas sin edición; sólo administrador ve precios', async () => {
+test('Administración: el personal ve fijas y precio, y el servidor define el alcance del rol', async () => {
   for (const rol of [null, 'jugador', 'encargado', 'administrador']) {
     let consultas = 0;
     const Pantalla = cargar('app/admin.tsx', {
@@ -153,19 +152,21 @@ test('Administración: encargado ve fijas sin edición; sólo administrador ve p
       '../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
       '../src/components/admin/BloqueosPanel': { BloqueosPanel: 'BloqueosPanel' },
       '../src/components/admin/FijasPanel': { FijasPanel: 'FijasPanel' },
+      '../src/services/api': { ApiError: class ApiError extends Error {} },
       '../src/services/espacios': { obtenerEspacios: async () => { consultas++; return { datos: [cancha] }; } },
       '../src/services/operaciones': { operacionesService: {} },
     }).default;
     let vista;
     try {
       await act(async () => { vista = create(React.createElement(Pantalla)); });
-      assert.equal(!!boton(vista, 'Actualizar precio'), rol === 'administrador');
+      assert.equal(!!boton(vista, 'Actualizar precio'), ['encargado', 'administrador'].includes(rol));
       assert.equal(consultas, ['encargado', 'administrador'].includes(rol) ? 1 : 0);
       const panel = vista.root.findAllByType('FijasPanel');
-      if (panel.length) assert.equal(panel[0].props.editable, rol === 'administrador');
+      if (panel.length) assert.equal(panel[0].props.editable, ['encargado', 'administrador'].includes(rol));
     } finally { if (vista) await act(async () => { vista.unmount(); }); }
   }
 });
+
 
 test('agenda no consulta reservas ni titulares al entrar como invitado o jugador', async () => {
   for (const rol of [null, 'jugador', 'encargado']) {

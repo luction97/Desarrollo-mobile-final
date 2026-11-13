@@ -181,6 +181,7 @@ export default function MisReservasScreen() {
       {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
     </View>
     <FlatList data={visibles} keyExtractor={d => d.reserva.id} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={uiLayout.listContent}
+      refreshing={cargando && visibles.length > 0} onRefresh={() => void cargar()}
       ListEmptyComponent={<StateView><Text tone="muted">{local ? 'No hay reservas guardadas en el teléfono.' : pasadas ? 'No tenés reservas pasadas.' : 'No tenés reservas próximas.'}</Text>
         <Button title="Ver disponibilidad" variant="secondary" onPress={() => router.push('/(tabs)')} /></StateView>}
       renderItem={({ item }) => <Surface style={styles.reserva}>

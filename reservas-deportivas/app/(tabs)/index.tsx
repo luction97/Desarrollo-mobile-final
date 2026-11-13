@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, ScrollView, StyleSheet, View } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { Badge, Button, PressableSurface, Screen, StateView, Surface, Text, uiLayout } from '../../src/components/ui';
@@ -237,6 +238,7 @@ export default function DisponibilidadScreen() {
     try { const resultado = await crearReserva(seleccionado, espacio, cantidad, usuario.id);
       setTurnos(datos => datos.map(t => t.id === seleccionado.id ? { ...t, estado: 'reservado', reservaId: resultado.dato.reserva.id } : t));
       setSeleccionado(null);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       const mensajeQr = resultado.guardadaLocalmente ? 'Tu QR está guardado para verlo sin conexión.'
         : 'No pudimos guardar el QR en este teléfono. Abrí Mis reservas con conexión para guardarlo.';
       setAviso({ titulo: 'Reserva confirmada', mensaje: [
@@ -372,6 +374,7 @@ export default function DisponibilidadScreen() {
   return <Screen topInset>
     <FlatList data={!espacio || error ? [] : visibles} keyExtractor={t => t.id}
       contentInsetAdjustmentBehavior="automatic" contentContainerStyle={[uiLayout.listContent, styles.listaTurnos]}
+      refreshing={cargando && visibles.length > 0} onRefresh={() => void cargarGrilla()}
       ListHeaderComponent={cabecera} ListEmptyComponent={cargandoCatalogo || (cargando && !grilla.length) ? <StateView><ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando horarios...</Text></StateView>
         : error && (espacio || !espacios.length) ? <StateView><Text selectable accessibilityRole="alert" tone="danger">{error}</Text><Button title="Reintentar" onPress={() => espacios.length ? cargarGrilla() : setIntentoCatalogo(v => v + 1)} /></StateView>
         : !espacio && errorCatalogo ? null

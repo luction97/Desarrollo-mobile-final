@@ -8,6 +8,7 @@ import { FijasPanel } from '../src/components/admin/FijasPanel';
 import { useAuth } from '../src/context/AuthContext';
 import { operacionesService } from '../src/services/operaciones';
 import { guardarEspacioActualizado, obtenerEspacios } from '../src/services/espacios';
+import { ApiError } from '../src/services/api';
 import { precioLegible } from '../src/utils/dinero';
 import { permisosDe } from '../src/utils/permisos';
 import { spacing, useTheme } from '../src/theme';
@@ -41,7 +42,7 @@ export default function AdminScreen() {
   useEffect(() => { if (autorizado) void cargar(); }, [autorizado, cargar]);
 
   const cambiarPrecio = async () => {
-    if (!espacio || cambiandoPrecio || !esAdmin) return;
+    if (!espacio || cambiandoPrecio || !autorizado) return;
     if (!precio.trim() || !Number.isInteger(Number(precio)) || Number(precio) <= 0) {
       setMensaje('Ingresá un precio entero, mayor que cero.'); return;
     }
@@ -52,7 +53,9 @@ export default function AdminScreen() {
       await guardarEspacioActualizado(actualizado).catch(() => undefined);
       setPrecio(''); setMensaje('Precio actualizado.');
     } catch (e) {
-      setMensaje(e instanceof Error ? e.message : 'No se pudo cambiar el precio.');
+      setMensaje(e instanceof ApiError && e.codigo === 'SIN_PERMISO'
+        ? 'Sólo el administrador puede cambiar el precio por hora.'
+        : e instanceof Error ? e.message : 'No se pudo cambiar el precio.');
     } finally {
       setCambiandoPrecio(false);
     }
@@ -76,9 +79,8 @@ export default function AdminScreen() {
       <BloqueosPanel espacios={espacios} />
 
       {espacio && <>
-        <FijasPanel key={`${usuario?.id}:${espacio.id}`} espacioId={espacio.id} editable={esAdmin} />
-        {!esAdmin && <Text variant="caption" tone="muted">Consultás las reservas fijas. El administrador las carga y las edita.</Text>}
-        {esAdmin && <Surface style={uiLayout.section}>
+        <FijasPanel key={`${usuario?.id}:${espacio.id}`} espacioId={espacio.id} editable={autorizado} />
+        {autorizado && <Surface style={uiLayout.section}>
           <Text variant="subtitle">Cambiar precio por hora</Text>
           <Text numeric>Precio actual: {precioLegible(espacio.precioPorHora)}</Text>
           <TextField label="Nuevo precio" keyboardType="number-pad" value={precio} onChangeText={setPrecio} editable={!cambiandoPrecio} />

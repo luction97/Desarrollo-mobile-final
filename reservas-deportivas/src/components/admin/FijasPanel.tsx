@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
 import { fijasService, type DatosFija } from '../../services/fijas';
+import { ApiError } from '../../services/api';
 import { DIAS_SEMANA } from '../../utils/horarios';
 import { fechaLegible, finDeMes } from '../../utils/fechas';
 import { spacing, useTheme } from '../../theme';
@@ -10,7 +11,7 @@ import type { ReservaFija } from '../../tipos';
 
 interface FijasPanelProps {
   espacioId: string;
-  /** Sólo el administrador crea, edita o da de baja fijas (M5 de la API). */
+  /** El personal del complejo puede cargar y editar fijas; el servidor valida el rol (D6 de la API). */
   editable: boolean;
 }
 
@@ -87,7 +88,9 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       setFormulario(FORMULARIO_VACIO);
       await cargar();
     } catch (e) {
-      setAviso(e instanceof Error ? e.message : 'No se pudo guardar la reserva fija.');
+      setAviso(e instanceof ApiError && e.codigo === 'SIN_PERMISO'
+        ? 'Sólo el administrador puede cargar y editar las reservas fijas.'
+        : e instanceof Error ? e.message : 'No se pudo guardar la reserva fija.');
     } finally {
       setOcupado(false);
       operando.current = false;
@@ -105,7 +108,9 @@ export function FijasPanel({ espacioId, editable }: FijasPanelProps) {
       await cargar();
     } catch (e) {
       setABajar(null);
-      setAviso(e instanceof Error ? e.message : 'No se pudo dar de baja la reserva fija.');
+      setAviso(e instanceof ApiError && e.codigo === 'SIN_PERMISO'
+        ? 'Sólo el administrador puede dar de baja las reservas fijas.'
+        : e instanceof Error ? e.message : 'No se pudo dar de baja la reserva fija.');
     } finally {
       setOcupado(false);
       operando.current = false;

@@ -49,6 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!usuarioId || sinRed) return;
     let activo = true;
+    // El teléfono queda anotado para recibir los avisos de suspensión del servidor.
+    void notificacionesService.registrarDispositivo().catch(() => undefined);
     const refrescar = () => {
       const version = ++perfilVersion.current;
       void authService.obtenerPerfil().then(perfil => {

@@ -49,6 +49,7 @@ async function montar({ fallar = false, usuario = null, canchas = [espacio], par
     'react-native': { ...nativos, FlatList: props => React.createElement('FlatList', props,
       props.ListHeaderComponent, !props.data.length && props.ListEmptyComponent) },
     '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
+    'expo-haptics': { NotificationFeedbackType: { Success: 'success', Error: 'error' }, notificationAsync: async () => {} },
     'expo-router': {
       useRouter: () => router,
       useFocusEffect: callback => React.useEffect(callback, [callback]),

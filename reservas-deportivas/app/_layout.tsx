@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '../src/context/AuthContext';
+import { AperturaNotificacion } from '../src/components/AperturaNotificacion';
 import { useTheme } from '../src/theme';
 
 export {
@@ -68,6 +69,7 @@ function RootLayoutNav() {
           <Stack.Screen name="admin" options={{ title: 'Gestión del complejo' }} />
           <Stack.Screen name="mapa" options={{ title: 'Mapa de complejos' }} />
         </Stack>
+        <AperturaNotificacion />
       </ThemeProvider>
     </AuthProvider>
   );

@@ -26,14 +26,15 @@ function entorno({ os = 'android', permiso = { granted: true }, respuesta = perm
     scheduleNotificationAsync: async datos => { programadas.set(datos.identifier, datos); llamadas.push(['programar', datos]); return datos.identifier; },
     cancelScheduledNotificationAsync: async id => { programadas.delete(id); llamadas.push(['cancelar', id]); },
     cancelAllScheduledNotificationsAsync: async () => { llamadas.push(['cancelarTodos']); },
-    getExpoPushTokenAsync: () => assert.fail('No se deben solicitar tokens push'),
+    getExpoPushTokenAsync: async () => { llamadas.push(['token']); return { data: 'ExponentPushToken[prueba]' }; },
     getDevicePushTokenAsync: () => assert.fail('No se deben solicitar tokens del dispositivo'),
     addPushTokenListener: () => assert.fail('No se deben registrar listeners de tokens'),
     addNotificationReceivedListener: () => assert.fail('No se necesitan listeners de recepción'),
-    addNotificationResponseReceivedListener: () => assert.fail('No se necesitan listeners de respuesta'),
+    addNotificationResponseReceivedListener: (fn) => { llamadas.push(['respuesta']); return { remove: () => llamadas.push(['quitar']) }; },
   };
   const dependencias = {
     'react-native': { Platform: { OS: os } },
+    './api': { api: { post: async (endpoint, cuerpo) => { llamadas.push(['api', endpoint, cuerpo]); return { datos: cuerpo }; } } },
     '../utils/recordatorios': recordatorios,
     get 'expo-notifications'() {
       cargas++;
@@ -55,7 +56,7 @@ test('Android: programa el recordatorio local dos horas antes, con canal y sin t
   const caso = entorno();
   const inicio = inicioFuturo();
   assert.equal(await caso.servicio.programarRecordatorio('Cancha 2', inicio, 'res-1'), true);
-  assert.deepEqual(caso.llamadas.map(([nombre]) => nombre), ['handler', 'cancelar', 'canal', 'permisos', 'programar']);
+  assert.deepEqual(caso.llamadas.map(([nombre]) => nombre).slice(0, 5), ['handler', 'cancelar', 'canal', 'permisos', 'programar']);
   const programada = caso.llamadas.find(([nombre]) => nombre === 'programar')[1];
   assert.equal(programada.identifier, 'reserva-res-1');
   assert.deepEqual(programada.content, {
@@ -68,6 +69,35 @@ test('Android: programa el recordatorio local dos horas antes, con canal y sin t
   assert.deepEqual(await caso.handler.handleNotification(), {
     shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true,
   });
+});
+
+test('al tocar una notificación entrega los datos de la reserva', async () => {
+  const caso = entorno();
+  let datos = null;
+  const quitar = await caso.servicio.suscribirApertura(recibidos => { datos = recibidos; });
+  assert.ok(caso.llamadas.some(([nombre]) => nombre === 'respuesta'));
+  quitar();
+  assert.ok(caso.llamadas.some(([nombre]) => nombre === 'quitar'));
+});
+
+test('anota el teléfono en el servidor para recibir los avisos de suspensión', async () => {
+  const caso = entorno();
+  assert.equal(await caso.servicio.registrarDispositivo(), true);
+  const registro = caso.llamadas.find(([nombre]) => nombre === 'api');
+  assert.equal(registro[1], '/dispositivos');
+  assert.deepEqual(registro[2], { tokenExpo: 'ExponentPushToken[prueba]', plataforma: 'android' });
+});
+
+test('sin permiso de notificaciones no anota el teléfono', async () => {
+  const caso = entorno({ permiso: { granted: false } });
+  assert.equal(await caso.servicio.registrarDispositivo(), false);
+  assert.ok(!caso.llamadas.some(([nombre]) => nombre === 'api'));
+});
+
+test('en la web no pide token ni anota el teléfono', async () => {
+  const caso = entorno({ os: 'web' });
+  assert.equal(await caso.servicio.registrarDispositivo(), false);
+  assert.ok(!caso.llamadas.some(([nombre]) => nombre === 'token'));
 });
 
 test('inicializaciones concurrentes comparten carga y handler', async () => {

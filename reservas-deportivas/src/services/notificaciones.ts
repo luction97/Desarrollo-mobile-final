@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { api } from './api';
 import { fechaRecordatorio } from '../utils/recordatorios';
 
 let carga: Promise<typeof import('expo-notifications')> | undefined;
@@ -65,6 +66,8 @@ export const notificacionesService = {
         content: { title: 'Tu turno empieza en dos horas', body: `${nombre}. Llevá el QR para ingresar.`, data: { reservaId, programadoPara }, sound: true },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: fecha, channelId: 'recordatorios' },
       });
+      // Con el permiso concedido, el teléfono queda anotado para los avisos de suspensión.
+      void this.registrarDispositivo().catch(() => undefined);
       return true;
     });
   },
@@ -83,5 +86,40 @@ export const notificacionesService = {
       const Notifications = await cargarNotificaciones();
       await Notifications.cancelAllScheduledNotificationsAsync();
     });
+  },
+
+  /**
+   * Escucha el toque en una notificación para abrir la reserva correspondiente.
+   * Devuelve la función para dejar de escuchar.
+   */
+  async suscribirApertura(callback: (datos: Record<string, unknown>) => void): Promise<() => void> {
+    if (Platform.OS === 'web') return () => { };
+    const Notifications = await cargarNotificaciones();
+    const suscripcion = Notifications.addNotificationResponseReceivedListener(respuesta => {
+      const datos = respuesta.notification.request.content.data;
+      callback((datos ?? {}) as Record<string, unknown>);
+    });
+    return () => suscripcion.remove();
+  },
+
+  /**
+   * Anota el teléfono en el servidor para que pueda mandar los avisos de
+   * suspensión (lluvia o mantenimiento). Sin token de Expo la app sigue
+   * funcionando: los avisos quedan dentro de la app.
+   */
+  async registrarDispositivo(): Promise<boolean> {
+    if (Platform.OS === 'web') return false;
+    try {
+      const Notifications = await cargarNotificaciones();
+      const permisos = await Notifications.getPermissionsAsync();
+      const concedido = permisos.granted || permisos.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+      if (!concedido) return false;
+      const { data: token } = await Notifications.getExpoPushTokenAsync();
+      if (!token) return false;
+      await api.post('/dispositivos', { tokenExpo: token, plataforma: Platform.OS });
+      return true;
+    } catch {
+      return false;
+    }
   },
 };
