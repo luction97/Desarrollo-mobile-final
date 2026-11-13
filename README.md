@@ -33,7 +33,8 @@ Aplicación móvil para consultar y reservar canchas deportivas municipales de V
 |---|---|
 | Aplicación móvil | React Native 0.81, Expo SDK 54, TypeScript, Expo Router |
 | Integración | Axios y servicios propios para consumir la API REST |
-| Dispositivo | `expo-sqlite`, `expo-sqlite/kv-store`, `expo-secure-store` y módulos Expo para cámara, archivos, ubicación y notificaciones |
+| Dispositivo y multimedia | `expo-sqlite`, `expo-sqlite/kv-store`, `expo-secure-store`, `expo-local-authentication`, `expo-camera`, `expo-image-picker`, `expo-file-system`, `expo-location`, `expo-notifications`, `expo-haptics` y `expo-video` |
+| Mapas | OpenStreetMap + Leaflet, renderizado en `react-native-webview` |
 | API de la cátedra | NestJS 12, TypeORM y SQLite; se levanta localmente con Docker Compose |
 
 El frontend consume la API por HTTP; no se conecta directamente con la base de datos. La API es un proyecto separado y no se modifica desde la aplicación.
@@ -112,6 +113,4 @@ La app puede mostrar datos que ya guardó en el dispositivo, como el catálogo, 
 
 ## Documentación
 
-- [Guía de ejecución](docs/GUIA_EJECUCION.md)
 - [README de la API y Docker](api-reservas-deportivas/README.md)
-- [Especificación maestra](docs/Requisitos-obligatorios/ESPECIFICACION_MAESTRA_DEPORTURNOS.md)
