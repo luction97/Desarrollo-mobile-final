@@ -3,10 +3,10 @@
 ## Equipo de desarrollo
 
 - Lucas Siano
-- Maximiliano Ramón Merele
-- Verónica Haydeé Peluffo Bou
-- Martin Miguel Perero
 - Andrea Elizabeth Romero
+- Maximiliano Ramón Merele
+- Martin Miguel Perero
+- Verónica Haydeé Peluffo Bou
 - Agustin Vilaboa
 
 <p align="center">
