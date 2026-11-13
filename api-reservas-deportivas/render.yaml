@@ -4,6 +4,7 @@ services:
   - type: web
     name: api-reservas-deportivas
     runtime: docker
+    rootDir: api-reservas-deportivas
     plan: free
     healthCheckPath: /salud
     envVars:
