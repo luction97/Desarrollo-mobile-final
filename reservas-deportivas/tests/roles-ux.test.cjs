@@ -101,30 +101,13 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   }
   const caso = await montarDetalle('encargado');
   try {
-    assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
     assert.ok(boton(caso.vista, 'Grabar video de la cancha'));
-    assert.ok(caso.llamadas.includes('leerFoto'));
+
     assert.ok(caso.llamadas.some(([nombre]) => nombre === 'guardarDescarga'));
   } finally { await caso.cerrar(); }
 });
 
-test('el personal registra una foto del estado de la cancha sin presentarla como publicación', async () => {
-  const caso = await montarDetalle('administrador');
-  try {
-    assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
-    await act(async () => { await boton(caso.vista, 'Agregar foto del estado de la cancha').props.onPress(); });
-    assert.ok(caso.llamadas.includes('leerFoto'));
-    assert.ok(caso.llamadas.includes('elegirFoto'));
-    assert.ok(caso.llamadas.includes('guardarFoto'));
-    assert.ok(caso.vista.root.findAllByType('Image').some(n => n.props.source.uri === 'file:///nueva.jpg'));
-    await act(async () => { await boton(caso.vista, 'Subir archivo').props.onPress(); });
-    assert.equal(caso.llamadas.at(-1), 'file:///nueva.jpg');
-    assert.ok(JSON.stringify(caso.vista.toJSON()).includes('https://ejemplo.test/archivo'));
-    await caso.cambiarRol('jugador');
-    assert.equal(boton(caso.vista, 'Agregar foto del estado de la cancha'), undefined);
-    assert.ok(!caso.vista.root.findAllByType('Image').some(n => n.props.source.uri.startsWith('file:')));
-  } finally { await caso.cerrar(); }
-});
+
 
 test('Cuenta muestra historial del jugador y concentra el cierre de sesión', async () => {
   for (const rol of ['jugador', 'encargado', 'administrador']) {

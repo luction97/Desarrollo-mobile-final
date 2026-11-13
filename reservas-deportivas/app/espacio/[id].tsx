@@ -11,8 +11,8 @@ import { layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { obtenerEspacio, obtenerEspacioLocal } from '../../src/services/espacios';
-import { borrarFoto, borrarVideoGrabado, guardarDescarga, guardarFoto, guardarVideoGrabado, obtenerDescarga, obtenerFoto, obtenerVideoGrabado } from '../../src/services/medios';
-import { subirFoto, subirVideo } from '../../src/services/archivos';
+import { borrarVideoGrabado, guardarDescarga, guardarVideoGrabado, obtenerDescarga, obtenerVideoGrabado } from '../../src/services/medios';
+import { subirVideo } from '../../src/services/archivos';
 import { GrabarVideoCancha } from '../../src/components/GrabarVideoCancha';
 import { ApiError } from '../../src/services/api';
 import { puntosDeEspacios } from '../../src/mapa/modelo';
@@ -39,8 +39,6 @@ function Detalle({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
   const [indice, setIndice] = useState(-1);
-  const [fotoLocal, setFotoLocal] = useState<string | null>(null);
-  const [archivoSubido, setArchivoSubido] = useState<string | null>(null);
   const [fotoDescargada, setFotoDescargada] = useState<string | null>(null);
   const [fotoFallida, setFotoFallida] = useState<string | null>(null);
   const [videoDescargado, setVideoDescargado] = useState<string | null>(null);
@@ -78,16 +76,6 @@ function Detalle({ id }: { id: string }) {
     void cargar();
     return () => { activo = false; };
   }, [id, intento, sinRed]));
-
-  useEffect(() => {
-    let activo = true;
-    setFotoLocal(null);
-    setArchivoSubido(null);
-    if (puedeActualizarFoto) void obtenerFoto(id).then(uri => {
-      if (activo) setFotoLocal(uri);
-    }).catch(() => undefined);
-    return () => { activo = false; };
-  }, [id, puedeActualizarFoto, usuario?.id]);
 
   useEffect(() => {
     let activo = true;
@@ -138,16 +126,6 @@ function Detalle({ id }: { id: string }) {
     finally { operando.current = false; setGuardando(false); }
   };
 
-  const elegirFoto = () => gestionarMedio(async () => {
-    if (!puedeActualizarFoto) return;
-    const opciones: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7,
-      preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible };
-    const foto = await conSelectorNativo(() => ImagePicker.launchImageLibraryAsync(opciones));
-    if (foto.canceled) return;
-    setFotoLocal(await guardarFoto(id, foto.assets[0].uri));
-    setArchivoSubido(null);
-    setAviso(Platform.OS === 'web' ? 'Foto disponible mientras esta página esté abierta.' : 'Foto guardada en este teléfono.');
-  });
 
 
   if (!espacio) return <Screen><StateView>
@@ -182,25 +160,6 @@ function Detalle({ id }: { id: string }) {
       {uriFoto && fotoFallida === uriFoto && <Button variant="ghost" size="sm"
         title="Reintentar foto" disabled={sinRed && !fotoDescargada} onPress={() => setFotoFallida(null)} />}
 
-      {puedeActualizarFoto && <View style={uiLayout.section}>
-        <Button variant="secondary" size="sm" title="Agregar foto del estado de la cancha" disabled={guardando}
-          onPress={() => elegirFoto()} />
-        {fotoLocal && <>
-          <Image source={{ uri: fotoLocal }} style={styles.photo} accessibilityLabel={'Foto del estado de ' + espacio.nombre} />
-          <Button variant="secondary" size="sm" title="Subir archivo" disabled={guardando || sinRed || !!archivoSubido}
-            onPress={() => void gestionarMedio(async () => {
-              const archivo = await subirFoto(fotoLocal);
-              setArchivoSubido(archivo.url);
-              setAviso('Archivo subido. La galería conserva sus fotos publicadas.');
-            })} />
-          {archivoSubido && <Text selectable variant="label">{archivoSubido}</Text>}
-          <Button variant="ghost" size="sm" title="Quitar la foto" disabled={guardando} onPress={() => void gestionarMedio(async () => {
-            await borrarFoto(id);
-            setFotoLocal(null);
-            setArchivoSubido(null);
-          })} />
-        </>}
-      </View>}
       {local && <Text variant="label" tone="warning">Mostramos la última información guardada en el teléfono. Puede estar desactualizada.</Text>}
       {error && <Button title="Reintentar" variant="secondary" onPress={() => setIntento(n => n + 1)} />}
 
