@@ -24,7 +24,7 @@ export default function AdminScreen() {
   const { usuario } = useAuth();
   const { colors } = useTheme();
   const router = useRouter();
-  const { puedeGestionar: autorizado } = permisosDe(usuario);
+  const { puedeGestionar: autorizado, puedeAdministrar } = permisosDe(usuario);
   const [espacios, setEspacios] = useState<Espacio[]>([]);
   const [seccion, setSeccion] = useState<Seccion>('bloqueos');
   const [cargandoEspacios, setCargandoEspacios] = useState(false);
@@ -51,9 +51,6 @@ export default function AdminScreen() {
 
   return <KeyboardAvoidingView style={uiLayout.grow} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollScreen contentContainerStyle={{ gap: spacing.lg }}>
-      <View style={uiLayout.row}>
-        <Text variant="title" style={uiLayout.grow}>Gestión del complejo</Text>
-      </View>
       <View style={styles.secciones}>
         {SECCIONES.map(s => <Chip key={s.id} accessibilityLabel={s.nombre} selected={s.id === seccion}
           onPress={() => setSeccion(s.id)}>{s.nombre}</Chip>)}
@@ -63,8 +60,9 @@ export default function AdminScreen() {
 
       {espacios.length > 0 && <>
         {seccion === 'bloqueos' && <BloqueosPanel espacios={espacios} />}
-        {seccion === 'fijas' && <FijasPanel key={`${usuario?.id}:${espacios.length}`} espacios={espacios} editable={autorizado} />}
-        {seccion === 'tarifa' && <PanelTarifa espacios={espacios} puedeCambiar={autorizado} />}
+        {seccion === 'fijas' && <FijasPanel key={`${usuario?.id}:${espacios.length}`} espacios={espacios} editable={puedeAdministrar} />}
+        {seccion === 'tarifa' && <PanelTarifa espacios={espacios} puedeCambiar={puedeAdministrar}
+          onActualizar={actualizado => setEspacios(lista => lista.map(e => e.id === actualizado.id ? actualizado : e))} />}
       </>}
 
       {mensaje && <DialogoAviso titulo="Administración" mensaje={mensaje} accionPrincipal="Entendido" onConfirmar={() => setMensaje(null)} onCerrar={() => setMensaje(null)} />}

@@ -76,7 +76,7 @@ export function CalendarioCancha({ valor, onChange, minimo, maximo }: Calendario
     </View>
     <View style={styles.grilla}>
       {celdas.map((fecha, indice) => {
-        if (!fecha) return <View key={`vacio-${indice}`} style={styles.celda} />;
+        if (!fecha) return <View key={`vacio-${indice}`} style={styles.columna} />;
         const elegido = fecha === valor;
         const bloqueada = deshabilitada(fecha);
         const { dia } = partes(fecha);
@@ -84,7 +84,7 @@ export function CalendarioCancha({ valor, onChange, minimo, maximo }: Calendario
           accessibilityLabel={`${dia} de ${MESES[mes.mes - 1]} de ${mes.anio}`}
           accessibilityState={{ selected: elegido, disabled: bloqueada }}
           onPress={() => onChange(fecha)}
-          style={[styles.celda, {
+          style={[styles.columna, styles.celda, {
             backgroundColor: elegido ? colors.primary : 'transparent',
             borderColor: elegido ? colors.primary : colors.border,
             opacity: bloqueada ? 0.35 : 1,
@@ -100,10 +100,10 @@ const styles = StyleSheet.create({
   contenedor: { gap: spacing.sm },
   grilla: { flexDirection: 'row', flexWrap: 'wrap' },
   cabecera: { width: `${100 / 7}%`, textAlign: 'center' },
-  celda: {
+  columna: {
     width: `${100 / 7}%`, aspectRatio: 1, maxHeight: 44, minHeight: 38,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 10,
     marginBottom: spacing.xs,
   },
+  celda: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 10 },
   flecha: { padding: spacing.xs },
 });

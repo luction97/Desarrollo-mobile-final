@@ -12,6 +12,7 @@ export async function obtenerPuntosLocales(): Promise<PuntoMapa[]> {
 
 export async function guardarPuntosLocales(puntos: PuntoMapa[]): Promise<void> {
   const todos = new Map((await obtenerPuntosLocales()).map(p => [p.id, p]));
-  puntos.filter(puntoValido).forEach(p => todos.set(p.id, { id: p.id, nombre: p.nombre, latitud: p.latitud, longitud: p.longitud }));
+  puntos.filter(puntoValido).forEach(({ id, nombre, latitud, longitud, complejo }) =>
+    todos.set(id, { id, nombre, latitud, longitud, complejo }));
   try { await Storage.setItem(CLAVE, JSON.stringify([...todos.values()])); } catch { /* La caché no impide consultar el mapa. */ }
 }

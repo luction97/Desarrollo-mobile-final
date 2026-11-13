@@ -12,7 +12,6 @@ import {
 } from '../services/accesoBiometrico';
 import { escucharSesionInvalidada } from '../services/sesionEventos';
 import { notificacionesService } from '../services/notificaciones';
-import { prepararRecordatoriosGuardados } from '../services/reservas';
 import { useSinRed } from '../hooks/useSinRed';
 import { favoritosService } from '../services/favoritos';
 import { AppState } from 'react-native';

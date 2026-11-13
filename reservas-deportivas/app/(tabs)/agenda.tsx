@@ -133,6 +133,8 @@ export default function AgendaScreen() {
       <ActivityIndicator color={colors.primary} /><Text tone="muted">Cargando agenda…</Text>
     </StateView> : <FlatList
       data={agenda.turnos.filter(t => !filtro || t.espacioId === filtro)}
+      refreshing={cargando}
+      onRefresh={cargar}
       keyExtractor={item => item.id}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={uiLayout.listContent}
@@ -147,7 +149,7 @@ export default function AgendaScreen() {
           <View style={uiLayout.row}>
             <View style={uiLayout.grow}>
               <Text numeric variant="action">{item.inicio}–{item.fin}</Text>
-              <Text variant="label" tone="muted">{agenda.espacios.find(e => e.id === item.espacioId)?.nombre ?? item.espacioId}</Text>
+              {!filtro && <Text variant="label" tone="muted">{agenda.espacios.find(e => e.id === item.espacioId)?.nombre ?? item.espacioId}</Text>}
             </View>
             <Badge size="sm" variant={item.estado === 'libre' ? 'success' : item.estado === 'mantenimiento' ? 'warning' : 'neutral'}>
               {reserva && item.estado === 'reservado' ? etiquetasReserva[reserva.estado] : etiquetasTurno[item.estado]}

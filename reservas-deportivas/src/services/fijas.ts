@@ -19,6 +19,7 @@ function validar(datos: DatosFija): string | null {
   if (errorDeFecha(datos.desde)) return 'Revisá la fecha desde. Escribila con año, mes y día.';
   if (datos.hasta && errorDeFecha(datos.hasta)) return 'Revisá la fecha hasta. Escribila con año, mes y día.';
   if (datos.hasta && datos.hasta < datos.desde) return 'La fecha hasta debe ser posterior o igual a la fecha desde.';
+  if (!datos.inicio || !datos.fin) return 'Elegí la hora de inicio y la de fin.';
   return errorDeRangoHorario(datos.inicio, datos.fin);
 }
 

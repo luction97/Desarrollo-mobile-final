@@ -17,7 +17,6 @@ import type { Espacio, ReservaFija } from '../../tipos';
 
 interface FijasPanelProps {
   espacios: Espacio[];
-  /** El personal del complejo puede cargar y editar fijas; el servidor valida el rol (D6 de la API). */
   editable: boolean;
 }
 
@@ -87,6 +86,14 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
     setHojaAbierta(true);
   };
 
+  const cambiarCancha = (ids: string[]) => {
+    const id = ids[0] ?? '';
+    if (id === espacioId) return;
+    setFijas([]);
+    setCargando(true);
+    setEspacioId(id);
+  };
+
   const guardar = async () => {
     if (!editable || operando.current || !espacioId || cargando || error) return;
     if (editandoId && !fijas.some(fija => fija.id === editandoId && fija.espacioId === espacioId)) return;
@@ -98,6 +105,7 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       if (problemaHasta) { setAviso(problemaHasta); return; }
       if (hasta < desde) { setAviso('La fecha final no puede ser anterior a la inicial.'); return; }
     }
+    if (!inicio || !fin) { setAviso('Elegí la hora de inicio y la de fin.'); return; }
     const problemaHoras = errorDeRangoHorario(inicio, fin);
     if (problemaHoras) { setAviso(problemaHoras); return; }
     operando.current = true;
@@ -106,8 +114,8 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       espacioId,
       titular: titular.trim(),
       dia: dia as DatosFija['dia'],
-      inicio: inicio ?? '',
-      fin: fin ?? '',
+      inicio,
+      fin,
       desde,
       hasta: hasta ?? null,
     };
@@ -157,17 +165,25 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
   };
 
   const hastaPorDefecto = useMemo(() => finDeMes(desde), [desde]);
+  const cambiarDesde = (fecha: string) => {
+    setDesde(fecha);
+    if (hasta === hastaPorDefecto) setHasta(finDeMes(fecha));
+    else if (hasta && hasta < fecha) setHasta(fecha);
+  };
 
   return <View style={styles.contenedor}>
     <View style={uiLayout.row}>
       <Text variant="subtitle" style={uiLayout.grow}>Fijas vigentes</Text>
-      {editable && <Button size="sm" title="Nueva reserva fija" onPress={abrirNueva} />}
+      {editable && <Button size="sm" title="Nueva reserva fija" disabled={cargando || ocupado || !!error} onPress={abrirNueva} />}
     </View>
     <SelectorCancha espacios={espacios} seleccionados={espacioId ? [espacioId] : []}
-      onChange={ids => setEspacioId(ids[0] ?? '')} />
+      onChange={cambiarCancha} />
 
     {cargando && <ActivityIndicator color={colors.primary} />}
-    {error && <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>}
+    {error && <>
+      <Text selectable accessibilityRole="alert" tone="danger">{error}</Text>
+      <Button size="sm" variant="secondary" title="Reintentar" onPress={() => void cargar()} />
+    </>}
     {!cargando && !error && !fijas.length && <Text tone="muted">Esta cancha no tiene reservas fijas activas.</Text>}
     {fijas.map(fija => <View key={fija.id} style={[styles.fija, { borderColor: colors.border }]}>
       <View style={uiLayout.grow}>
@@ -184,7 +200,7 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
     </View>)}
 
     <HojaModal visible={hojaAbierta} titulo={editandoId ? 'Editar reserva fija' : 'Nueva reserva fija'}
-      onCerrar={() => setHojaAbierta(false)}
+      onCerrar={() => { if (!operando.current) setHojaAbierta(false); }}
       pie={<View style={uiLayout.row}>
         <Button variant="ghost" style={uiLayout.grow} title="Cancelar" disabled={ocupado} onPress={() => setHojaAbierta(false)} />
         <Button style={uiLayout.grow} title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'}
@@ -211,25 +227,25 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
       </View>
 
       <View style={styles.bloque}>
-        <Text variant="label" tone="muted">Vigencia</Text>
-        <CalendarioCancha valor={desde} onChange={setDesde} minimo={fechaArgentina()} />
+        <Text variant="label">Fecha de inicio</Text>
+        <CalendarioCancha valor={desde} onChange={cambiarDesde} minimo={fechaArgentina()} />
+        <Text variant="label">Fecha de fin</Text>
         <View style={styles.chips}>
           <Chip selected={!hasta} onPress={() => setHasta(null)}>Sin fin</Chip>
           <Chip selected={hasta === hastaPorDefecto} disabled={!hastaPorDefecto}
             onPress={() => setHasta(hastaPorDefecto)}>Fin de mes</Chip>
         </View>
-        {hasta && <CalendarioCancha valor={hasta} onChange={setHasta} minimo={desde} />}
+        {hasta && <CalendarioCancha key={desde} valor={hasta} onChange={setHasta} minimo={desde} />}
       </View>
 
-      <Surface variant="outlined" style={styles.resumen}>
+      {inicio && fin && titular.trim() && <Surface variant="outlined" style={styles.resumen}>
         <Text variant="label">Resumen</Text>
         <Text variant="caption" tone="muted">
-          {nombreDe(espacioId)} · {DIAS_SEMANA[dia]} {inicio ?? '--:--'}–{fin ?? '--:--'} ·{' '}
-          {desde === hastaPorDefecto && !hasta ? 'desde el fin de mes' : `desde ${fechaLegible(desde)}`}
+          {nombreDe(espacioId)} · {DIAS_SEMANA[dia]} {inicio}–{fin} · desde {fechaLegible(desde)}
           {hasta ? ` hasta ${fechaLegible(hasta)}` : ''}
           {titular.trim() ? ` · ${titular.trim()}` : ''}
         </Text>
-      </Surface>
+      </Surface>}
     </HojaModal>
 
     {aBajar && <DialogoAviso titulo="Dar de baja reserva fija" mensaje="La serie dejará de ocupar esos horarios. Los demás bloqueos y reservas se conservan."

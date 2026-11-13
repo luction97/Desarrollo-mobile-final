@@ -33,12 +33,13 @@ test('permisos: jugador reserva; el personal gestiona y documenta la cancha; só
   ]) assert.deepEqual(Object.values(permisos.permisosDe(usuario(rol))), esperado);
 });
 
-async function montarDetalle(rol) {
+async function montarDetalle(rol, fotoGuardada = null) {
   let actual = usuario(rol);
   const llamadas = [];
   const player = { replace() {} };
   const foto = async () => { llamadas.push('elegirFoto'); return { canceled: false, assets: [{ uri: 'file:///foto.jpg' }] }; };
   const Pantalla = cargar('app/espacio/[id].tsx', {
+    '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
     'react-native': nativos,
     'expo-router': {
       useRouter: () => ({ push() {} }), useLocalSearchParams: () => ({ id: cancha.id }),
@@ -60,7 +61,7 @@ async function montarDetalle(rol) {
     '../../src/services/espacios': { obtenerEspacioLocal: async () => null, obtenerEspacio: async () => ({ datos: cancha, local: false }) },
     '../../src/services/medios': {
       obtenerFoto: async () => { llamadas.push('leerFoto'); return 'file:///privada.jpg'; },
-      obtenerFotoEstado: async () => { llamadas.push('leerFotoEstado'); return null; },
+      obtenerFotoEstado: async () => { llamadas.push('leerFotoEstado'); return fotoGuardada; },
       guardarFotoEstado: async () => { llamadas.push('guardarFotoEstado'); return 'file:///estado.jpg'; },
       borrarFotoEstado: async () => { llamadas.push('borrarFotoEstado'); },
       obtenerDescarga: async () => null,
@@ -111,6 +112,16 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   } finally { await caso.cerrar(); }
 });
 
+test('la ficha reabierta recupera la foto local del estado', async () => {
+  const foto = { uri: 'file:///estado.jpg', url: 'https://ejemplo.test/estado.jpg', fecha: '2026-11-13T12:00:00Z' };
+  const caso = await montarDetalle('jugador', foto);
+  try {
+    assert.ok(caso.llamadas.includes('leerFotoEstado'));
+    assert.ok(caso.vista.root.findAllByType('Image').some(n => n.props.source.uri === foto.uri));
+    assert.equal(boton(caso.vista, 'Quitar la foto del estado'), undefined);
+  } finally { await caso.cerrar(); }
+});
+
 
 
 test('Cuenta muestra historial del jugador y concentra el cierre de sesión', async () => {
@@ -133,7 +144,7 @@ test('Cuenta muestra historial del jugador y concentra el cierre de sesión', as
   }
 });
 
-test('Administración: el personal ve fijas y precio, y el servidor define el alcance del rol', async () => {
+test('Administración: el encargado consulta fijas y precio, el administrador puede modificarlos', async () => {
   for (const rol of [null, 'jugador', 'encargado', 'administrador']) {
     let consultas = 0;
     const Pantalla = cargar('app/admin.tsx', {
@@ -161,10 +172,12 @@ test('Administración: el personal ve fijas y precio, y el servidor define el al
       assert.ok(boton(vista, 'Tarifa'));
       await act(async () => { boton(vista, 'Reservas fijas').props.onPress(); });
       const panel = vista.root.findAllByType('FijasPanel');
-      if (panel.length) assert.equal(panel[0].props.editable, true);
+      assert.equal(panel.length, 1);
+      assert.equal(panel[0].props.editable, rol === 'administrador');
       await act(async () => { boton(vista, 'Tarifa').props.onPress(); });
       const tarifa = vista.root.findAllByType('PanelTarifa');
-      if (tarifa.length) assert.equal(tarifa[0].props.puedeCambiar, true);
+      assert.equal(tarifa.length, 1);
+      assert.equal(tarifa[0].props.puedeCambiar, rol === 'administrador');
     } finally { if (vista) await act(async () => { vista.unmount(); }); }
   }
 });

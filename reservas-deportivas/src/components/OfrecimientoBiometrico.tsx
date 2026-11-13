@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
  * La preferencia se guarda en el kv-store; la sesión sigue en el SecureStore.
  */
 export function OfrecimientoBiometrico() {
-  const { ofreceBiometria, resolverOferta, usuario } = useAuth();
+  const { ofreceBiometria, resolverOferta } = useAuth();
   const [mensaje, setMensaje] = useState<string | null>(null);
 
   if (!ofreceBiometria) return mensaje ? (

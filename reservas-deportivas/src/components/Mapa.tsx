@@ -105,7 +105,8 @@ export function Mapa({ puntos }: { puntos: PuntoMapa[] }) {
         <Text variant="label">A {distanciaLegible(distanciaMetros(ubicacion, p))} en línea recta</Text>
       </>}
       {coordenadasVisibles === p.id && <Text selectable numeric variant="label" tone="muted">{p.latitud.toFixed(6)}, {p.longitud.toFixed(6)}</Text>}
-      <Accion titulo={`Cómo llegar a ${p.nombre}`} onPress={() => void llegar(p)} />
+      <Button variant="secondary" size="sm" title="Cómo llegar" accessibilityLabel={`Cómo llegar a ${p.nombre}`}
+        onPress={() => void llegar(p)} />
     </Surface>)}
     <Button variant="ghost" size="sm" title="Acerca del mapa" accessibilityState={{ expanded: verInformacion }} onPress={() => setVerInformacion(v => !v)} />
     {verInformacion && <View style={styles.contenedor}>

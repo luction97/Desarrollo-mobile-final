@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Surface, Text, TextField, uiLayout } from '../ui';
+import { Button, Surface, Text, TextField } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
 import { SelectorCancha } from './SelectorCancha';
 import { operacionesService } from '../../services/operaciones';
@@ -12,12 +12,12 @@ import type { Espacio } from '../../tipos';
 
 interface PanelTarifaProps {
   espacios: Espacio[];
-  /** El personal ve el control; el servidor define si puede aplicarlo (D6 de la API). */
   puedeCambiar: boolean;
+  onActualizar: (espacio: Espacio) => void;
 }
 
 /** Cambio de tarifa por hora de un espacio, con el precio actual a la vista. */
-export function PanelTarifa({ espacios, puedeCambiar }: PanelTarifaProps) {
+export function PanelTarifa({ espacios, puedeCambiar, onActualizar }: PanelTarifaProps) {
   const [espacioId, setEspacioId] = useState(espacios[0]?.id ?? '');
   const [precio, setPrecio] = useState('');
   const [cambiando, setCambiando] = useState(false);
@@ -27,14 +27,15 @@ export function PanelTarifa({ espacios, puedeCambiar }: PanelTarifaProps) {
   useEffect(() => { setPrecio(''); }, [espacioId]);
 
   const importe = Number(precio);
-  const valido = precio.trim() !== '' && Number.isInteger(importe) && importe > 0;
+  const valido = /^\d+$/.test(precio.trim()) && Number.isSafeInteger(importe) && importe > 0;
   const hayCambio = valido && espacio !== null && importe !== espacio.precioPorHora;
 
   const cambiarPrecio = async () => {
-    if (!espacio || !hayCambio || cambiando) return;
+    if (!puedeCambiar || !espacio || !hayCambio || cambiando) return;
     setCambiando(true);
     try {
       const actualizado = await operacionesService.cambiarPrecio(espacio.id, importe);
+      onActualizar(actualizado);
       await guardarEspacioActualizado(actualizado).catch(() => undefined);
       setPrecio('');
       setAviso('Precio actualizado.');
@@ -55,10 +56,12 @@ export function PanelTarifa({ espacios, puedeCambiar }: PanelTarifaProps) {
         <Text variant="caption" tone="muted">Tarifa vigente</Text>
         <Text numeric variant="title" tone="primary">{precioLegible(espacio.precioPorHora)} por hora</Text>
       </Surface>
-      <TextField label="Nuevo precio por hora" value={precio} onChangeText={setPrecio}
-        keyboardType="number-pad" placeholder={String(espacio.precioPorHora)} editable={!cambiando} />
-      <Button title="Guardar precio" onPress={() => void cambiarPrecio()} loading={cambiando}
-        disabled={!hayCambio || cambiando} />
+      {puedeCambiar && <>
+        <TextField label="Nuevo precio por hora" value={precio} onChangeText={setPrecio}
+          keyboardType="number-pad" placeholder={String(espacio.precioPorHora)} editable={!cambiando} />
+        <Button title="Guardar precio" onPress={() => void cambiarPrecio()} loading={cambiando}
+          disabled={!hayCambio || cambiando} />
+      </>}
     </>}
     {aviso && <DialogoAviso titulo="Tarifa" mensaje={aviso} accionPrincipal="Entendido"
       onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}

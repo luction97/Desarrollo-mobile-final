@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { useEvent } from 'expo';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import Ionicons from '@react-native-vector-icons/ionicons';
 import * as ImagePicker from 'expo-image-picker';
-import { Badge, Button, Screen, ScrollScreen, StateView, Text, uiLayout } from '../../src/components/ui';
+import { Badge, Button, PressableSurface, Screen, ScrollScreen, StateView, Text, uiLayout } from '../../src/components/ui';
 import { Mapa } from '../../src/components/Mapa';
 import { FavoritoToggle } from '../../src/components/favoritos';
 import { layout, radius, spacing, useTheme } from '../../src/theme';
@@ -39,7 +40,7 @@ function Detalle({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
   const [indice, setIndice] = useState(-1);
-  const [fotoDescargada, setFotoDescargada] = useState<string | null>(null);
+  const [fotoGuardada, setFotoGuardada] = useState<{ url: string; uri: string } | null>(null);
   const [fotoFallida, setFotoFallida] = useState<string | null>(null);
   const [videoDescargado, setVideoDescargado] = useState<string | null>(null);
   const [videoGrabado, setVideoGrabado] = useState<{ uri: string; url: string } | null>(null);
@@ -53,6 +54,7 @@ function Detalle({ id }: { id: string }) {
   const portada = espacio ? portadaDeEjemplo(espacio) : null;
   const posicion = portada && indice === -1 ? -1 : Math.min(Math.max(0, indice), Math.max(0, galeria.length - 1));
   const urlFoto = galeria[posicion];
+  const fotoDescargada = fotoGuardada && fotoGuardada.url === urlFoto ? fotoGuardada.uri : null;
   const urlVideo = espacio?.videoUrl;
 
   useFocusEffect(useCallback(() => {
@@ -80,12 +82,11 @@ function Detalle({ id }: { id: string }) {
 
   useEffect(() => {
     let activo = true;
-    setFotoDescargada(null);
     if (urlFoto) void obtenerDescarga('imagen', id, urlFoto).then(uri => {
-      if (activo) setFotoDescargada(uri);
+      if (activo) setFotoGuardada(uri ? { url: urlFoto, uri } : null);
     }).catch(() => undefined);
     return () => { activo = false; };
-  }, [id, urlFoto]);
+  }, [id, urlFoto, sinRed]);
 
   // Las fotos y el video publicados se guardan solos en el telefono: la ficha
   // se puede revisar sin conexion, como en cualquier app de canchas.
@@ -107,12 +108,15 @@ function Detalle({ id }: { id: string }) {
       if (activo) setVideoDescargado(uri);
     }).catch(() => undefined);
     return () => { activo = false; };
-  }, [id, urlVideo]);
+  }, [id, urlVideo, sinRed]);
 
   useEffect(() => {
     let activo = true;
     void obtenerVideoGrabado(id).then(video => {
       if (activo) setVideoGrabado(video);
+    }).catch(() => undefined);
+    void obtenerFotoEstado(id).then(foto => {
+      if (activo) setFotoEstado(foto);
     }).catch(() => undefined);
     return () => { activo = false; };
   }, [id]);
@@ -126,9 +130,6 @@ function Detalle({ id }: { id: string }) {
     catch (e) { setAviso(e instanceof Error ? e.message : 'No pudimos completar la operación.'); }
     finally { operando.current = false; setGuardando(false); }
   };
-
-
-
   if (!espacio) return <Screen><StateView>
     {error ? <>
       <Text tone="danger" accessibilityRole="alert">{error}</Text>
@@ -143,20 +144,24 @@ function Detalle({ id }: { id: string }) {
   const puedeMostrarFoto = !!uriFoto && fotoFallida !== uriFoto && (!sinRed || !!fotoDescargada);
   const fuenteFoto = puedeMostrarFoto ? { uri: uriFoto } : portada ?? fotoDeDeporte(espacio.deporteId);
   const fuenteVideo = videoDescargado ?? (!sinRed ? urlVideo : null);
+  const hayAnterior = posicion > (portada ? -1 : 0);
+  const haySiguiente = posicion < galeria.length - 1;
 
   return <ScrollScreen contentContainerStyle={styles.scroll}>
-    {fuenteFoto
-      ? <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto} style={styles.image}
+    {fuenteFoto && <View>
+      <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto} style={styles.image}
         onError={puedeMostrarFoto ? () => setFotoFallida(uriFoto) : undefined}
         accessibilityLabel={puedeMostrarFoto || portada ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
-      : null}
+      {hayAnterior && <PressableSurface style={[styles.flechaFoto, styles.fotoAnterior]}
+        accessibilityLabel="Foto anterior" onPress={() => setIndice(posicion - 1)}>
+        <Ionicons name="chevron-back" size={spacing.xxl} color={colors.text} />
+      </PressableSurface>}
+      {haySiguiente && <PressableSurface style={[styles.flechaFoto, styles.fotoSiguiente]}
+        accessibilityLabel="Foto siguiente" onPress={() => setIndice(posicion + 1)}>
+        <Ionicons name="chevron-forward" size={spacing.xxl} color={colors.text} />
+      </PressableSurface>}
+    </View>}
     <View style={styles.content}>
-      {(galeria.length > 1 || (portada && galeria.length > 0)) && <View style={uiLayout.row}>
-        <Button variant="ghost" size="sm" title="‹" accessibilityLabel="Foto anterior"
-          disabled={guardando || posicion <= (portada ? -1 : 0)} onPress={() => setIndice(posicion - 1)} />
-        <Button variant="ghost" size="sm" title="›" accessibilityLabel="Foto siguiente"
-          disabled={guardando || posicion >= galeria.length - 1} onPress={() => setIndice(posicion + 1)} />
-      </View>}
       {sinRed && fotoDescargada && <Text variant="caption" tone="muted">Mostramos la copia guardada de esta foto.</Text>}
       {uriFoto && fotoFallida === uriFoto && <Button variant="ghost" size="sm"
         title="Reintentar foto" disabled={sinRed && !fotoDescargada} onPress={() => setFotoFallida(null)} />}
@@ -185,7 +190,7 @@ function Detalle({ id }: { id: string }) {
       <Text variant="subtitle" style={styles.sectionTitle}>Ubicación</Text>
       <Mapa puntos={puntosDeEspacios([espacio])} />
 
-            <View style={uiLayout.section}>
+      <View style={uiLayout.section}>
         <Text variant="subtitle" style={styles.sectionTitle}>Estado de la cancha</Text>
         <Text variant="label" tone="muted">Foto reportada por el personal del complejo, con la fecha del reporte.</Text>
         {fotoEstado ? <>
@@ -199,22 +204,22 @@ function Detalle({ id }: { id: string }) {
         </> : <Text tone="muted">Todavía no hay una foto del estado de la cancha.</Text>}
         {puedeActualizarFoto && <Button variant="secondary" title="Agregar foto del estado de la cancha" disabled={guardando}
           onPress={() => void gestionarMedio(async () => {
-            const opciones = { mediaTypes: ['images'] as any, quality: 0.7,
+            const opciones: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7,
               preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible };
             const foto = await conSelectorNativo(() => ImagePicker.launchImageLibraryAsync(opciones));
             if (foto.canceled) return;
             const archivo = await subirFoto(foto.assets[0].uri);
             const localUri = await guardarFotoEstado(id, foto.assets[0].uri, archivo.url);
             setFotoEstado({ uri: localUri, url: archivo.url, fecha: new Date().toISOString() });
-            setAviso('Foto del estado subida al servidor. Queda disponible en la ficha de esta cancha.');
+            setAviso('Foto subida al servidor y guardada en este dispositivo.');
           })} />}
       </View>
 
-<View style={uiLayout.section}>
+      <View style={uiLayout.section}>
         <Text variant="subtitle" style={styles.sectionTitle}>Video de la cancha</Text>
         {videoGrabado ? <>
           <Text variant="label" tone="muted">Video grabado por el personal y subido al servidor.</Text>
-          <VideoDeCancha key={'grabado:' + videoGrabado.uri} fuente={videoGrabado.uri}
+          <VideoDeCancha key={`grabado:${videoGrabado.uri}:${intentoVideo}`} fuente={videoGrabado.uri}
             reintentar={() => setIntentoVideo(n => n + 1)} />
           <Text selectable variant="label">{videoGrabado.url}</Text>
           {puedeActualizarFoto && <Button variant="ghost" title="Quitar el video grabado" disabled={guardando}
@@ -264,6 +269,12 @@ function VideoDeCancha({ fuente, reintentar }: { fuente: string; reintentar: () 
 const styles = StyleSheet.create({
   scroll: { padding: spacing.none, gap: spacing.none },
   image: { width: '100%', aspectRatio: layout.mediaRatio },
+  flechaFoto: {
+    position: 'absolute', bottom: spacing.md, width: spacing.huge, borderRadius: radius.full,
+    alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.none, paddingHorizontal: spacing.none,
+  },
+  fotoAnterior: { left: spacing.md },
+  fotoSiguiente: { right: spacing.md },
   content: { padding: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.md },
   sectionTitle: { marginTop: spacing.xl },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },

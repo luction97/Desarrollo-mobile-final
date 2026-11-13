@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Button, Chip, Surface, Text, TextField, uiLayout } from '../ui';
 import { DialogoAviso } from '../DialogoAviso';
@@ -41,7 +41,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   const [aviso, setAviso] = useState<string | null>(null);
   const [aBajar, setABajar] = useState<Bloqueo | null>(null);
   const [hojaAbierta, setHojaAbierta] = useState(false);
-  const [afectados, setAfectados] = useState<string[] | null>(null);
+  const [revision, setRevision] = useState<{ entrada: EntradaBloqueo; afectados: string[] } | null>(null);
   const operando = useRef(false);
   const generacion = useRef(0);
 
@@ -81,10 +81,9 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   };
 
   const motivoElegido = motivoPropio.trim() || motivo;
-  const resumenHorario = diaEntero ? 'Todo el día' : inicio && fin ? `${inicio} a ${fin}` : 'Elegí la franja horaria';
 
   const abrirHoja = () => {
-    setAfectados(null);
+    setRevision(null);
     setHojaAbierta(true);
   };
 
@@ -93,22 +92,28 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
     if (!espacioIds.length) { setAviso('Elegí al menos una cancha.'); return; }
     if (!motivoElegido.trim()) { setAviso('Escribí el motivo del bloqueo.'); return; }
     if (!diaEntero) {
+      if (!inicio || !fin) { setAviso('Elegí la hora de inicio y la de fin.'); return; }
       const problema = errorDeRangoHorario(inicio, fin);
       if (problema) { setAviso(problema); return; }
     }
+    const entrada: EntradaBloqueo = {
+      espacioIds, fecha, motivo: motivoElegido.trim(),
+      inicio: diaEntero ? undefined : inicio ?? undefined,
+      fin: diaEntero ? undefined : fin ?? undefined,
+    };
     operando.current = true;
     setOcupado(true);
     try {
-      const reservas = await operacionesService.listarReservasDelDia(fecha);
+      const reservas = await operacionesService.listarReservasDelDia(entrada.fecha);
       const ahora = Date.now();
       const lista = reservas.flatMap(reserva => {
-        if (reserva.estado !== 'confirmada' || !espacioIds.includes(reserva.espacioId)) return [];
+        if (reserva.estado !== 'confirmada' || !entrada.espacioIds.includes(reserva.espacioId)) return [];
         const horario = horarioDeReserva(reserva.cancelableHasta);
-        if (!horario || horario.fecha !== fecha || instanteTurno(fecha, horario.fin).getTime() <= ahora) return [];
-        if (inicio && fin && (horario.inicio < inicio || horario.inicio >= fin)) return [];
+        if (!horario || horario.fecha !== entrada.fecha || instanteTurno(entrada.fecha, horario.fin).getTime() <= ahora) return [];
+        if (entrada.inicio && entrada.fin && (horario.inicio < entrada.inicio || horario.inicio >= entrada.fin)) return [];
         return [`${nombreDe(reserva.espacioId)} · ${horario.inicio}`];
       });
-      setAfectados(lista);
+      setRevision({ entrada, afectados: lista });
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos consultar las reservas afectadas.');
     } finally {
@@ -118,24 +123,20 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
   };
 
   const crear = async () => {
-    if (operando.current || !afectados) return;
-    const entrada: EntradaBloqueo = {
-      espacioIds, fecha, motivo: motivoElegido.trim(),
-      inicio: diaEntero ? undefined : inicio ?? undefined,
-      fin: diaEntero ? undefined : fin ?? undefined,
-    };
+    if (operando.current || !revision) return;
+    const { entrada } = revision;
     operando.current = true;
     setOcupado(true);
     try {
       const creados = await operacionesService.bloquear(entrada);
       setHojaAbierta(false);
-      setAfectados(null);
+      setRevision(null);
       setMotivo(''); setMotivoPropio(''); setInicio(null); setFin(null); setDiaEntero(true);
       setAviso(creados.length === 1
         ? 'Bloqueo creado. Las reservas afectadas fueron canceladas.'
         : `${creados.length} bloqueos creados. Las reservas afectadas fueron canceladas.`);
       await cargarBloqueos();
-      await invalidarGrillaLocal(espacioIds[0] ?? '').catch(() => undefined);
+      await Promise.all(entrada.espacioIds.map(id => invalidarGrillaLocal(id).catch(() => undefined)));
       notificarCambioDeTurnos();
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No se pudo crear el bloqueo.');
@@ -154,7 +155,7 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       setABajar(null);
       setAviso('Bloqueo dado de baja. Las reservas que canceló siguen canceladas.');
       await cargarBloqueos();
-      await invalidarGrillaLocal(espacioIds[0] ?? '').catch(() => undefined);
+      await invalidarGrillaLocal(aBajar.espacioId).catch(() => undefined);
       notificarCambioDeTurnos();
     } catch (e) {
       setABajar(null);
@@ -185,50 +186,55 @@ export function BloqueosPanel({ espacios }: BloqueosPanelProps) {
       <Button size="sm" variant="ghost" title="Dar de baja" disabled={ocupado} onPress={() => setABajar(bloqueo)} />
     </View>)}
 
-    <HojaModal visible={hojaAbierta} titulo="Bloquear canchas" onCerrar={() => setHojaAbierta(false)}
+    <HojaModal visible={hojaAbierta} titulo={revision ? 'Revisar bloqueo' : 'Bloquear canchas'}
+      onCerrar={() => { if (!operando.current) setHojaAbierta(false); }}
       pie={<View style={uiLayout.row}>
-        <Button variant="ghost" style={uiLayout.grow} title="Cancelar" disabled={ocupado} onPress={() => setHojaAbierta(false)} />
-        {afectados
+        <Button variant="ghost" style={uiLayout.grow} title={revision ? 'Editar datos' : 'Cancelar'} disabled={ocupado}
+          onPress={() => { if (revision) setRevision(null); else setHojaAbierta(false); }} />
+        {revision
           ? <Button style={uiLayout.grow} title="Confirmar bloqueo" loading={ocupado} disabled={ocupado} onPress={() => void crear()} />
           : <Button style={uiLayout.grow} title="Revisar" loading={ocupado} disabled={ocupado} onPress={() => void revisar()} />}
       </View>}>
-      <SelectorCancha espacios={espacios} seleccionados={espacioIds} onChange={setEspacioIds}
-        etiqueta="Canchas a bloquear" multiple />
+      {!revision && <>
+        <SelectorCancha espacios={espacios} seleccionados={espacioIds} onChange={setEspacioIds}
+          etiqueta="Canchas a bloquear" multiple />
 
-      <View style={styles.bloque}>
-        <Text variant="label" tone="muted">Fecha</Text>
-        <CalendarioCancha valor={fecha} onChange={setFecha} minimo={fechaArgentina()} />
-      </View>
-
-      <View style={styles.bloque}>
-        <Text variant="label" tone="muted">Horario</Text>
-        <View style={styles.chips}>
-          <Chip selected={diaEntero} onPress={() => { setDiaEntero(true); setInicio(null); setFin(null); }}>Todo el día</Chip>
-          <Chip selected={!diaEntero} onPress={() => setDiaEntero(false)}>Franja horaria</Chip>
+        <View style={styles.bloque}>
+          <Text variant="label" tone="muted">Fecha</Text>
+          <CalendarioCancha valor={fecha} onChange={setFecha} minimo={fechaArgentina()} />
         </View>
-        {!diaEntero && <SelectorFranjas inicio={inicio} fin={fin}
-          onChange={(nuevoInicio, nuevoFin) => { setInicio(nuevoInicio); setFin(nuevoFin); }} />}
-      </View>
 
-      <View style={styles.bloque}>
-        <Text variant="label" tone="muted">Motivo</Text>
-        <View style={styles.chips}>
-          {MOTIVOS.map(opcion => <Chip key={opcion} selected={motivo === opcion && !motivoPropio.trim()}
-            onPress={() => { setMotivo(opcion); setMotivoPropio(''); }}>{opcion}</Chip>)}
+        <View style={styles.bloque}>
+          <Text variant="label" tone="muted">Horario</Text>
+          <View style={styles.chips}>
+            <Chip selected={diaEntero} onPress={() => { setDiaEntero(true); setInicio(null); setFin(null); }}>Todo el día</Chip>
+            <Chip selected={!diaEntero} onPress={() => setDiaEntero(false)}>Franja horaria</Chip>
+          </View>
+          {!diaEntero && <SelectorFranjas inicio={inicio} fin={fin}
+            onChange={(nuevoInicio, nuevoFin) => { setInicio(nuevoInicio); setFin(nuevoFin); }} />}
         </View>
-        <Button variant="ghost" size="sm" title="Otro motivo" onPress={() => setMotivo('')} />
-        <TextField label="Motivo escrito" value={motivoPropio} onChangeText={setMotivoPropio} placeholder="Escribí el motivo" />
-      </View>
 
-      <Surface variant="outlined" style={styles.resumen}>
+        <View style={styles.bloque}>
+          <Text variant="label" tone="muted">Motivo</Text>
+          <View style={styles.chips}>
+            {MOTIVOS.map(opcion => <Chip key={opcion} selected={motivo === opcion && !motivoPropio.trim()}
+              onPress={() => { setMotivo(opcion); setMotivoPropio(''); }}>{opcion}</Chip>)}
+          </View>
+          <Button variant="ghost" size="sm" title="Otro motivo" onPress={() => setMotivo('')} />
+          <TextField label="Motivo escrito" value={motivoPropio} onChangeText={setMotivoPropio} placeholder="Escribí el motivo" />
+        </View>
+      </>}
+
+      {revision && <Surface variant="outlined" style={styles.resumen}>
         <Text variant="label">Resumen</Text>
         <Text variant="caption" tone="muted">
-          {espacioIds.map(nombreDe).join(', ')} · {fechaLegible(fecha)} · {resumenHorario} · {motivoElegido || 'sin motivo'}
+          {revision.entrada.espacioIds.map(nombreDe).join(', ')} · {fechaLegible(revision.entrada.fecha)} ·{' '}
+          {revision.entrada.inicio ? `${revision.entrada.inicio}–${revision.entrada.fin}` : 'Todo el día'} · {revision.entrada.motivo}
         </Text>
-        {afectados && (afectados.length
-          ? <Text variant="caption" tone="warning">{afectados.length} reservas van a cancelarse: {afectados.join(', ')}</Text>
-          : <Text variant="caption" tone="muted">No hay reservas afectadas en ese horario.</Text>)}
-      </Surface>
+        {revision.afectados.length
+          ? <Text variant="caption" tone="warning">{revision.afectados.length} reservas podrían cancelarse: {revision.afectados.join(', ')}</Text>
+          : <Text variant="caption" tone="muted">Al consultar, no había reservas afectadas en ese horario.</Text>}
+      </Surface>}
     </HojaModal>
 
     {aBajar && <DialogoAviso titulo="Dar de baja bloqueo"

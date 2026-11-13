@@ -18,11 +18,11 @@ cátedra: su código y su contrato no se modifican.
 |---|---|
 | Invitado | Consultar canchas, fichas, mapa y disponibilidad. Puede elegir un turno y la cantidad de personas. Para confirmar, debe ingresar o registrarse. |
 | Jugador | Reservar turnos libres, consultar sus reservas, mostrar su QR incluso con una copia guardada sin conexión, cancelar dentro del plazo y gestionar favoritos. |
-| Encargado | Consultar la agenda y las reservas fijas, validar ingresos por QR, marcar ausencias, tramitar cancelaciones según las reglas de la API, gestionar bloqueos y documentar el estado de la cancha con fotos y video. |
+| Encargado | Consultar agenda, reservas fijas y tarifas. Validar ingresos por QR, marcar ausencias, tramitar cancelaciones, gestionar bloqueos y documentar el estado de la cancha con fotos y video. |
 | Administrador | Realizar las operaciones del encargado y, además, crear, editar o dar de baja reservas fijas y cambiar tarifas: el servidor limita esas dos operaciones al administrador. |
 
 El registro público crea una cuenta de jugador. La API de la cátedra valida los permisos de cada operación.
-La subida de una foto devuelve un archivo y la galería de la cancha conserva las imágenes asociadas por la API.
+La ficha muestra las imágenes publicadas por la API. Las fotos de estado y los videos grabados se suben como archivos independientes y su asociación con la cancha queda en el dispositivo.
 
 Para preparar y grabar la demostración, seguí la [guía de permisos y pruebas manuales](GUIA_DEMOSTRACION.md).
 
@@ -67,7 +67,7 @@ Abrí otra terminal nueva en la raíz del repositorio; no cierres la terminal de
 cd reservas-deportivas
 npm ci
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-npm start
+npm start -- --go --lan
 ```
 
 `npm ci` instala las dependencias según el lockfile. Metro muestra un QR: escanealo con Expo Go
@@ -75,8 +75,8 @@ compatible con el SDK del proyecto. Para apagar los servicios, detené cada term
 
 ## URL de la API
 
-Con **Expo Go no hay que configurar nada**: la app toma la IP de la PC del host de Metro y prueba
-después `10.0.2.2` (emulador) y `localhost` como alternativas.
+Si `EXPO_PUBLIC_API_URL` está vacía, Expo Go intenta usar el host de Metro en el puerto 3000.
+Desde el celular, comprobá que podés abrir `http://<IPv4-de-la-PC>:3000/salud`.
 
 Si preferís fijarla, editá `reservas-deportivas/.env`:
 
@@ -134,6 +134,19 @@ Dentro de `reservas-deportivas/`:
 
 Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/README.md).
 
+### APK de entrega
+
+Cuando se autorice la compilación, vinculá el proyecto a EAS si falta y configurá
+`EXPO_PUBLIC_API_URL` en el entorno EAS `preview` con la URL pública HTTPS de la API.
+Desde `reservas-deportivas/` ejecutá:
+
+```powershell
+npx eas-cli@latest build --platform android --profile preview
+```
+
+Instalá el APK y verificá el inicio, el acceso a la API y una reserva con Metro y la PC
+apagados. Para la configuración del perfil, consultá la [guía de distribución interna de Expo](https://docs.expo.dev/build/internal-distribution/).
+
 ## Problemas frecuentes
 
 | Problema | Comprobación |
@@ -149,11 +162,12 @@ Para el backend: [api-reservas-deportivas/README.md](api-reservas-deportivas/REA
 ## Estado de la entrega
 
 - Objetivo funcional: catálogo, disponibilidad, reservas, QR offline y operación del personal.
-- La API incluye la consigna pendiente de notificaciones push: los avisos remotos no funcionan
-  todavía. Con Expo Go no hay push remota (SDK 53+); los recordatorios locales sí.
-- Cámara, biometría, háptica y notificaciones requieren validación en dispositivo físico y un
-  build de producción con EAS (`eas.json`).
-- Los mapas usan Leaflet local y teselas de OpenStreetMap, sin API Key ni tarjeta.
+- Deporturnos desactiva su servicio de avisos en Expo Go. Probá el recordatorio local en una
+  app instalada. Los avisos remotos dependen de las credenciales y configuración de la API.
+- Validá cámara, archivos, biometría, háptica y multimedia en Android físico. Comprobá ícono,
+  splash y arranque autónomo con el APK instalado.
+- Los mapas usan Leaflet y OpenStreetMap, con ubicación opcional mediante `expo-location`.
+  La consigna AC-05 menciona `react-native-maps`.
 - Versionar `.env.example`, nunca `.env`. Las variables `EXPO_PUBLIC_*` viajan en la app y no son secretas.
 
 ## Contribuciones

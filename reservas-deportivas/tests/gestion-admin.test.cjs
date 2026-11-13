@@ -15,6 +15,7 @@ const espacios = [
 ];
 
 const dinero = { precioLegible: valor => `$${valor}` };
+const fechas = cargar('src/utils/fechas.ts', {});
 
 function cargarCalendario() {
   return cargar('src/components/admin/CalendarioCancha.tsx', {
@@ -56,9 +57,11 @@ test('el calendario avisa el día elegido y deja navegar de mes', async () => {
     assert.equal(elegida, '2026-11-20');
     const anterior = vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === 'Mes anterior');
     assert.ok(anterior);
-    await act(async () => { anterior.props.onPress(); });
+    assert.equal(anterior.props.disabled, true);
+    const siguiente = vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === 'Mes siguiente');
+    await act(async () => { siguiente.props.onPress(); });
     const titulos = vista.root.findAllByType('NativeText').flatMap(n => n.props.children).filter(c => typeof c === 'string');
-    assert.ok(titulos.some(texto => texto.includes('Octubre')), 'Se navega al mes anterior');
+    assert.ok(titulos.some(texto => texto.includes('Diciembre')), 'Se navega al mes siguiente');
   } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });
 
@@ -84,6 +87,7 @@ test('las franjas horarias se eligen con dos toques y sin escribir horas', async
   try {
     await act(async () => { vista = create(React.createElement(SelectorFranjas, props())); });
     const franja = hora => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === `Franja de ${hora}`);
+    assert.equal(franja('24:00').props.disabled, true);
     await act(async () => { franja('18:00').props.onPress(); });
     await redibujar();
     assert.equal(inicio, '18:00');
@@ -96,6 +100,17 @@ test('las franjas horarias se eligen con dos toques y sin escribir horas', async
     await redibujar();
     assert.equal(inicio, '09:00');
     assert.equal(fin, null);
+    assert.equal(franja('24:00').props.disabled, false);
+    await act(async () => { franja('08:00').props.onPress(); });
+    await redibujar();
+    await act(async () => { franja('24:00').props.onPress(); });
+    await redibujar();
+    await act(async () => { franja('23:00').props.onPress(); });
+    await redibujar();
+    await act(async () => { franja('24:00').props.onPress(); });
+    await redibujar();
+    assert.deepEqual([inicio, fin], ['23:00', '24:00']);
+    assert.equal(franja('24:00').props.accessibilityState.selected, true);
   } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });
 
@@ -123,14 +138,21 @@ test('el botón de guardar el precio sólo se habilita con un importe válido y 
     'react-native': { StyleSheet: { create: s => s }, View: 'View', Platform: { OS: 'android' } },
     '../ui': entorno.ui, '../../theme': entorno.theme, './SelectorCancha': { SelectorCancha: 'SelectorCancha' },
     './HojaModal': { HojaModal: 'HojaModal' }, '../DialogoAviso': { DialogoAviso: 'DialogoAviso' },
-    '../../services/operaciones': { operacionesService: {} },
+    '../../services/operaciones': { operacionesService: {
+      cambiarPrecio: async (id, precioPorHora) => ({ ...espacios.find(e => e.id === id), precioPorHora }),
+    } },
     '../../services/espacios': { guardarEspacioActualizado: async () => undefined },
     '../../services/api': { ApiError: class ApiError extends Error {} },
     '../../utils/dinero': dinero,
   });
   let vista;
   try {
-    await act(async () => { vista = create(React.createElement(PanelTarifa, { espacios, puedeCambiar: true })); });
+    function GestionTarifa() {
+      const [lista, setLista] = React.useState(espacios);
+      return React.createElement(PanelTarifa, { espacios: lista, puedeCambiar: true,
+        onActualizar: actualizado => setLista(actual => actual.map(e => e.id === actualizado.id ? actualizado : e)) });
+    }
+    await act(async () => { vista = create(React.createElement(GestionTarifa)); });
     const boton = () => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === 'Guardar precio');
     assert.equal(boton()?.props.accessibilityState.disabled, true);
     const campo = vista.root.findAllByType('TextInput').find(n => n.props.accessibilityLabel === 'Nuevo precio por hora');
@@ -141,5 +163,68 @@ test('el botón de guardar el precio sólo se habilita con un importe válido y 
     assert.equal(boton()?.props.accessibilityState.disabled, true, 'El mismo precio no es un cambio');
     await act(async () => { campo.props.onChangeText('0'); });
     assert.equal(boton()?.props.accessibilityState.disabled, true);
+    await act(async () => { campo.props.onChangeText('2e4'); });
+    assert.equal(boton()?.props.accessibilityState.disabled, true);
+    await act(async () => { campo.props.onChangeText('20000'); });
+    await act(async () => { boton().props.onPress(); });
+    assert.ok(JSON.stringify(vista.toJSON()).includes('$20000'));
+    await act(async () => { campo.props.onChangeText('20000'); });
+    assert.equal(boton()?.props.accessibilityState.disabled, true);
+  } finally { if (vista) await act(async () => { vista.unmount(); }); }
+});
+
+test('un bloqueo parcial exige horario y confirma la última revisión de todas las canchas', async () => {
+  const entradas = [];
+  const invalidadas = [];
+  let consultas = 0;
+  const { BloqueosPanel } = cargar('src/components/admin/BloqueosPanel.tsx', {
+    'react-native': { ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: s => s }, View: 'View' },
+    '../ui': entorno.ui, '../../theme': entorno.theme, '../DialogoAviso': { DialogoAviso: 'DialogoAviso' },
+    './HojaModal': { HojaModal: 'HojaModal' }, './CalendarioCancha': { CalendarioCancha: 'CalendarioCancha' },
+    './SelectorCancha': { SelectorCancha: 'SelectorCancha' }, './SelectorFranjas': { SelectorFranjas: 'SelectorFranjas' },
+    '../../utils/fechas': fechas, '../../utils/horarios': cargar('src/utils/horarios.ts', {}),
+    '../../canchas/modelo': { nombreCorto: e => e.nombre },
+    '../../services/invalidacionGrilla': {
+      invalidarGrillaLocal: async id => { invalidadas.push(id); }, notificarCambioDeTurnos() {},
+    },
+    '../../services/operaciones': { operacionesService: {
+      listarBloqueos: async () => [], listarReservasDelDia: async () => { consultas++; return []; },
+      bloquear: async entrada => { entradas.push(entrada); return [{}, {}]; },
+    } },
+  });
+  let vista;
+  try {
+    await act(async () => { vista = create(React.createElement(BloqueosPanel, { espacios })); });
+    const boton = titulo => vista.root.findAllByType('Pressable').find(n => n.props.accessibilityLabel === titulo
+      || n.findAllByType('NativeText').some(t => t.props.children === titulo));
+    const tocar = async titulo => {
+      const control = boton(titulo) ?? vista.root.findAllByType('HojaModal')[0].props.pie.props.children
+        .find(n => n.props.title === titulo);
+      assert.ok(control, titulo);
+      await act(async () => { control.props.onPress(); });
+    };
+    await tocar('Bloquear');
+    await tocar('Franja horaria');
+    await tocar('Lluvia');
+    await tocar('Revisar');
+    assert.equal(consultas, 0);
+    assert.ok(vista.root.findByType('DialogoAviso').props.mensaje.includes('inicio'));
+    await act(async () => { vista.root.findByType('DialogoAviso').props.onCerrar(); });
+    await act(async () => { vista.root.findByType('SelectorCancha').props.onChange(['esp-01', 'esp-02']); });
+    await act(async () => { vista.root.findByType('SelectorFranjas').props.onChange('23:00', '24:00'); });
+    await tocar('Revisar');
+    assert.equal(consultas, 1);
+    assert.equal(vista.root.findAllByType('SelectorFranjas').length, 0);
+    await tocar('Editar datos');
+    assert.equal(vista.root.findByType('HojaModal').props.pie.props.children[1].props.title, 'Revisar');
+    await tocar('Mantenimiento');
+    await tocar('Revisar');
+    await tocar('Confirmar bloqueo');
+    assert.equal(consultas, 2);
+    assert.deepEqual(entradas, [{
+      espacioIds: ['esp-01', 'esp-02'], fecha: fechas.fechaArgentina(), motivo: 'Mantenimiento',
+      inicio: '23:00', fin: '24:00',
+    }]);
+    assert.deepEqual(invalidadas, ['esp-01', 'esp-02']);
   } finally { if (vista) await act(async () => { vista.unmount(); }); }
 });

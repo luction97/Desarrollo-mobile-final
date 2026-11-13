@@ -14,7 +14,7 @@ export function crearDocumentoMapa(puntos: PuntoMapa[], ubicacion: CoordenadasMa
 html,body,#map{height:100%;width:100%;margin:0;background:#edf1eb;font-family:system-ui}
 .leaflet-control-zoom a{width:48px;height:48px;line-height:48px}
 .leaflet-control-attribution{font-size:12px;max-width:85%;white-space:normal}
-.leaflet-tooltip{white-space:normal;max-width:190px}
+.leaflet-popup-content{font-size:14px;max-width:190px}
 </style></head><body><div id="map" role="region" aria-label="Mapa de complejos deportivos"></div>
 <script>${leaflet.javascript}</script><script>
 (function(){
@@ -28,7 +28,7 @@ html,body,#map{height:100%;width:100%;margin:0;background:#edf1eb;font-family:sy
       var ll=[p.latitud,p.longitud];ubicaciones.push(ll);
       var texto=document.createElement('span');texto.textContent=p.nombre;
       L.circleMarker(ll,{radius:10,color:'#14532d',fillColor:'#2e7d32',fillOpacity:1,weight:3})
-        .addTo(map).bindTooltip(texto,{permanent:true,direction:'top',offset:[0,-10]})
+        .addTo(map).bindPopup(texto,{closeButton:false,offset:[0,-4]})
         .on('click',function(){enviar({tipo:'seleccion',id:p.id});});
     });
     if(ubicaciones.length===1){map.setView(ubicaciones[0],15);}

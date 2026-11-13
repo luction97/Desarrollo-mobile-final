@@ -1,7 +1,7 @@
 import type { Espacio } from '../tipos';
 
 export interface CoordenadasMapa { latitud: number; longitud: number }
-export interface PuntoMapa extends CoordenadasMapa { id: string; nombre: string }
+export interface PuntoMapa extends CoordenadasMapa { id: string; nombre: string; complejo?: string | null }
 export type EstadoMapa = 'cargando' | 'disponible' | 'error';
 export type MensajeMapa =
   | { tipo: 'estado'; estado: EstadoMapa }
@@ -23,18 +23,30 @@ export function coordenadasValidas(valor: unknown): valor is CoordenadasMapa {
 export function puntoValido(valor: unknown): valor is PuntoMapa {
   const p = valor as PuntoMapa | null;
   return coordenadasValidas(p) && typeof p?.id === 'string' && p.id.length > 0 &&
-    typeof p.nombre === 'string' && p.nombre.length > 0;
+    typeof p.nombre === 'string' && p.nombre.length > 0 &&
+    (p.complejo == null || typeof p.complejo === 'string');
 }
 
 export function puntosDeEspacios(espacios: Espacio[]): PuntoMapa[] {
-  return espacios.map(e => ({ id: e.id, nombre: e.complejo && !['—', '-'].includes(e.complejo)
-    ? e.complejo : e.nombre, latitud: e.coordenadas?.latitud, longitud: e.coordenadas?.longitud })).filter(puntoValido);
+  return espacios.map(e => {
+    const etiqueta = e.complejo?.trim();
+    const complejo = etiqueta && !['—', '-'].includes(etiqueta) ? etiqueta : null;
+    return { id: e.id, nombre: complejo ?? e.nombre, complejo,
+      latitud: e.coordenadas?.latitud, longitud: e.coordenadas?.longitud };
+  }).filter(puntoValido);
 }
 
 export function agruparComplejos(puntos: PuntoMapa[]): PuntoMapa[] {
-  return [...new Map(puntos.filter(puntoValido).map(p => [
-    `${p.nombre}|${p.latitud}|${p.longitud}`, p,
-  ])).values()];
+  const destinos = new Map<string, PuntoMapa>();
+  for (const punto of puntos.filter(puntoValido)) {
+    const complejo = punto.complejo?.toLocaleLowerCase('es-AR');
+    // Las copias anteriores no distinguen complejos de canchas independientes.
+    const clave = complejo ? `complejo:${complejo}`
+      : punto.complejo === null ? `espacio:${punto.id}`
+        : `ubicacion:${punto.nombre}|${punto.latitud}|${punto.longitud}`;
+    if (!destinos.has(clave)) destinos.set(clave, punto);
+  }
+  return [...destinos.values()];
 }
 
 export function leerMensajeMapa(datos: string, puntos: PuntoMapa[]): MensajeMapa | null {

@@ -46,6 +46,16 @@ test('agrupa complejos coincidentes sin colapsar sedes con coordenadas diferente
   assert.equal(modelo.puntosDeEspacios([{ id: p.id, nombre: 'Cancha', complejo: '—', coordenadas: p }])[0].nombre, 'Cancha');
 });
 
+test('el mapa general agrupa canchas de un complejo y conserva los destinos independientes', () => {
+  const puntos = modelo.puntosDeEspacios([
+    { id: 'a', nombre: 'Cancha 1', complejo: 'Polideportivo', coordenadas: p },
+    { id: 'b', nombre: 'Cancha 2', complejo: ' polideportivo ', coordenadas: { ...p, longitud: -59.03 } },
+    { id: 'c', nombre: 'Polideportivo', complejo: '—', coordenadas: p },
+  ]);
+  assert.deepEqual(modelo.agruparComplejos(puntos).map(punto => punto.id), ['a', 'c']);
+  assert.equal(puntos[1].longitud, -59.03, 'La ficha conserva sus coordenadas');
+});
+
 test('puente valida estados, identificadores y enlaces; no abre URLs arbitrarias', () => {
   const leer = m => modelo.leerMensajeMapa(JSON.stringify(m), [p]);
   assert.deepEqual(leer({ tipo: 'seleccion', id: p.id }), { tipo: 'seleccion', id: p.id });
@@ -67,6 +77,8 @@ test('HTML incorpora Leaflet, CSS e imágenes locales sin CDN, y escapa datos', 
   assert.ok(!/<script\s+src=|<link\s/i.test(html));
   assert.ok(!html.includes('</script><script>alert(1)'));
   assert.ok(html.includes('textContent=p.nombre'));
+  assert.ok(html.includes('.bindPopup(texto'));
+  assert.ok(!html.includes('permanent:true'));
   assert.ok(html.includes('if(datos.sinRed){estado(\'error\');return;}'));
   assert.ok(html.includes('connect-src \'none\''));
 });
@@ -87,9 +99,10 @@ test('caché guarda solo puntos públicos y recupera sin red; tolera corrupción
   assert.deepEqual(await servicio.obtenerPuntosLocales(), []);
   await servicio.guardarPuntosLocales([p]);
   assert.deepEqual(await servicio.obtenerPuntosLocales(), [p]);
-  await servicio.guardarPuntosLocales([{ ...p, nombre: 'Nuevo nombre' }]);
+  await servicio.guardarPuntosLocales([{ ...p, nombre: 'Nuevo nombre', complejo: 'Nuevo nombre' }]);
   assert.equal((await servicio.obtenerPuntosLocales()).length, 1);
   assert.equal((await servicio.obtenerPuntosLocales())[0].nombre, 'Nuevo nombre');
+  assert.equal((await servicio.obtenerPuntosLocales())[0].complejo, 'Nuevo nombre');
   Storage.setItem = async () => { throw new Error('disco'); };
   await assert.doesNotReject(() => servicio.guardarPuntosLocales([p]));
 });
