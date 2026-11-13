@@ -16,6 +16,7 @@ import { crearReserva } from '../../src/services/reservas';
 import { ApiError } from '../../src/services/api';
 import preferencias from '../../src/services/preferencias';
 import { useHorarioActual } from '../../src/hooks/useHorarioActual';
+import { avisosDisponibles } from '../../src/services/notificaciones';
 import { diasDeReserva, fechaArgentina, fechaLegible, instanteTurno } from '../../src/utils/fechas';
 import { precioLegible } from '../../src/utils/dinero';
 import { ordenarTurnosParaMostrar } from '../../src/utils/turnos';
@@ -243,7 +244,9 @@ export default function DisponibilidadScreen() {
         : 'No pudimos guardar el QR en este teléfono. Abrí Mis reservas con conexión para guardarlo.';
       setAviso({ titulo: 'Reserva confirmada', mensaje: [
         mensajeQr,
-        resultado.recordatorioDisponible ? null : 'Esta reserva no tiene un recordatorio programado.',
+        resultado.recordatorioDisponible ? null : avisosDisponibles()
+          ? 'Esta reserva no tiene un recordatorio programado.'
+          : 'El recordatorio se activa en la app instalada.',
       ].filter(Boolean).join(' '), reservaId: resultado.dato.reserva.id });
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : 'No se pudo reservar.';

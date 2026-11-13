@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { isRunningInExpoGo } from 'expo';
 import { api } from './api';
 import { fechaRecordatorio } from '../utils/recordatorios';
 
@@ -9,6 +10,16 @@ function encolar<T>(accion: () => Promise<T>): Promise<T> {
   const tarea = cola.then(accion);
   cola = tarea.then(() => undefined, () => undefined);
   return tarea;
+}
+
+/**
+ * Expo Go (SDK 53+) ya no trae el push de expo-notifications: al cargar el módulo
+ * la app muestra un error en pantalla. En Expo Go los avisos quedan desactivados
+ * y se activan en la app instalada o en un development build.
+ */
+export function avisosDisponibles(): boolean {
+  if (Platform.OS === 'web') return false;
+  try { return !isRunningInExpoGo(); } catch { return true; }
 }
 
 // El import público tiene efectos push internos en Expo Go; se carga sólo al usar avisos locales.
@@ -29,11 +40,12 @@ function cargarNotificaciones() {
 
 export const notificacionesService = {
   async inicializar(): Promise<void> {
-    if (Platform.OS !== 'web') await cargarNotificaciones();
+    if (!avisosDisponibles()) return;
+    await cargarNotificaciones();
   },
 
   async pedirPermisos(solicitar = true): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
+    if (!avisosDisponibles()) return false;
     const Notifications = await cargarNotificaciones();
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('recordatorios', {
@@ -48,7 +60,7 @@ export const notificacionesService = {
   },
 
   async programarRecordatorio(nombre: string, inicio: Date, reservaId: string, solicitarPermiso = true): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
+    if (!avisosDisponibles()) return false;
     return encolar(async () => {
       const fecha = fechaRecordatorio(inicio, new Date());
       const Notifications = await cargarNotificaciones();
@@ -73,7 +85,7 @@ export const notificacionesService = {
   },
 
   async cancelarRecordatorio(reservaId: string): Promise<void> {
-    if (Platform.OS === 'web') return;
+    if (!avisosDisponibles()) return;
     await encolar(async () => {
       const Notifications = await cargarNotificaciones();
       await Notifications.cancelScheduledNotificationAsync(`reserva-${reservaId}`);
@@ -81,7 +93,7 @@ export const notificacionesService = {
   },
 
   async cancelarTodos(): Promise<void> {
-    if (Platform.OS === 'web') return;
+    if (!avisosDisponibles()) return;
     await encolar(async () => {
       const Notifications = await cargarNotificaciones();
       await Notifications.cancelAllScheduledNotificationsAsync();
@@ -93,7 +105,7 @@ export const notificacionesService = {
    * Devuelve la función para dejar de escuchar.
    */
   async suscribirApertura(callback: (datos: Record<string, unknown>) => void): Promise<() => void> {
-    if (Platform.OS === 'web') return () => { };
+    if (!avisosDisponibles()) return () => { };
     const Notifications = await cargarNotificaciones();
     const suscripcion = Notifications.addNotificationResponseReceivedListener(respuesta => {
       const datos = respuesta.notification.request.content.data;
@@ -108,7 +120,7 @@ export const notificacionesService = {
    * funcionando: los avisos quedan dentro de la app.
    */
   async registrarDispositivo(): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
+    if (!avisosDisponibles()) return false;
     try {
       const Notifications = await cargarNotificaciones();
       const permisos = await Notifications.getPermissionsAsync();

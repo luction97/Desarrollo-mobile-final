@@ -205,7 +205,7 @@ test('ruta Mis reservas del personal no consulta datos privados ni ofrece crear 
     '../../src/components/CodigoQr': { CodigoQr: 'CodigoQr' }, '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../../src/utils/recordatorios': cargar('src/utils/recordatorios.ts', {}),
     '../../src/mapa/modelo': mapa,
-    '../../src/services/notificaciones': { notificacionesService: {} },
+    '../../src/services/notificaciones': { notificacionesService: {}, avisosDisponibles: () => true },
     '../../src/services/reservas': { reservasGuardadas: async () => { consultas++; return []; } },
   }).default;
   let vista;
@@ -242,7 +242,7 @@ test('Mis reservas cierra la confirmación de cancelación al perder la conexió
     '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../../src/utils/recordatorios': cargar('src/utils/recordatorios.ts', {}),
     '../../src/mapa/modelo': mapa,
-    '../../src/services/notificaciones': { notificacionesService: {} },
+    '../../src/services/notificaciones': { notificacionesService: {}, avisosDisponibles: () => true },
     '../../src/services/reservas': {
       reservasGuardadas: async () => [dato],
       sincronizarReservas: async () => ({ datos: [dato], cambios: [], actualizada: true, guardadas: true }),

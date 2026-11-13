@@ -9,7 +9,7 @@ const fechas = cargar('src/utils/fechas.ts', {});
 const modelos = cargar('src/modelos/reservas.ts', { '../utils/fechas': fechas });
 const inicioFuturo = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-function entorno({ os = 'android', permiso = { granted: true }, respuesta = permiso, fallarCarga = false } = {}) {
+function entorno({ os = 'android', expoGo = false, permiso = { granted: true }, respuesta = permiso, fallarCarga = false } = {}) {
   const llamadas = [];
   let cargas = 0;
   let handler;
@@ -34,6 +34,7 @@ function entorno({ os = 'android', permiso = { granted: true }, respuesta = perm
   };
   const dependencias = {
     'react-native': { Platform: { OS: os } },
+    'expo': { isRunningInExpoGo: () => expoGo },
     './api': { api: { post: async (endpoint, cuerpo) => { llamadas.push(['api', endpoint, cuerpo]); return { datos: cuerpo }; } } },
     '../utils/recordatorios': recordatorios,
     get 'expo-notifications'() {
@@ -78,6 +79,16 @@ test('al tocar una notificación entrega los datos de la reserva', async () => {
   assert.ok(caso.llamadas.some(([nombre]) => nombre === 'respuesta'));
   quitar();
   assert.ok(caso.llamadas.some(([nombre]) => nombre === 'quitar'));
+});
+
+test('en Expo Go no carga expo-notifications: el push no existe y no debe mostrar error', async () => {
+  const caso = entorno({ expoGo: true });
+  await caso.servicio.inicializar();
+  assert.equal(await caso.servicio.programarRecordatorio('Cancha 2', inicioFuturo(), 'res-1'), false);
+  assert.equal(await caso.servicio.registrarDispositivo(), false);
+  assert.equal(await caso.servicio.pedirPermisos(), false);
+  assert.equal(caso.cargas, 0);
+  assert.deepEqual(caso.llamadas, []);
 });
 
 test('anota el teléfono en el servidor para recibir los avisos de suspensión', async () => {

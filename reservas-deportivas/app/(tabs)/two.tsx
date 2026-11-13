@@ -9,6 +9,7 @@ import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { borders, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { cancelarReserva, esErrorSesion, reservasGuardadas, sincronizarReservas } from '../../src/services/reservas';
+import { avisosDisponibles } from '../../src/services/notificaciones';
 import type { ReservaGuardada } from '../../src/modelos/reservas';
 import { precioLegible } from '../../src/utils/dinero';
 import { fechaLegible, instanteTurno } from '../../src/utils/fechas';
@@ -217,7 +218,7 @@ export default function MisReservasScreen() {
             {local && <Text variant="label" tone="warning">QR guardado en el teléfono</Text>}
             <CodigoQr value={qr.reserva.codigoQr} />
             <Text selectable variant="label">Código: {qr.reserva.codigoQr}</Text>
-            {!local && !sinRed && inicioQr && fechaRecordatorio(inicioQr, ahora) && <Button
+            {!local && !sinRed && avisosDisponibles() && inicioQr && fechaRecordatorio(inicioQr, ahora) && <Button
               variant="secondary" title="Programar recordatorio" loading={programando} onPress={activarRecordatorio} />}
             {estadoRecordatorio?.id === qr.reserva.id && <Text accessibilityLiveRegion="polite">{estadoRecordatorio.mensaje}</Text>}
             <Button variant="ghost" title="Volver a mis reservas" onPress={cerrarQr} />
