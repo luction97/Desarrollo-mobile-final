@@ -148,8 +148,9 @@ function Detalle({ id }: { id: string }) {
   const haySiguiente = posicion < galeria.length - 1;
 
   return <ScrollScreen contentContainerStyle={styles.scroll}>
-    {fuenteFoto && <View>
-      <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto} style={styles.image}
+    {fuenteFoto && <View style={styles.marcoFoto}>
+      <Image key={puedeMostrarFoto ? uriFoto : 'ilustrativa'} source={fuenteFoto}
+        style={styles.imagenPrincipal} resizeMode="cover"
         onError={puedeMostrarFoto ? () => setFotoFallida(uriFoto) : undefined}
         accessibilityLabel={puedeMostrarFoto || portada ? 'Foto de ' + espacio.nombre : 'Imagen ilustrativa'} />
       {hayAnterior && <PressableSurface style={[styles.flechaFoto, styles.fotoAnterior]}
@@ -268,7 +269,8 @@ function VideoDeCancha({ fuente, reintentar }: { fuente: string; reintentar: () 
 
 const styles = StyleSheet.create({
   scroll: { padding: spacing.none, gap: spacing.none },
-  image: { width: '100%', aspectRatio: layout.mediaRatio },
+  marcoFoto: { width: '100%', aspectRatio: layout.courtPhotoRatio, overflow: 'hidden' },
+  imagenPrincipal: { position: 'absolute', width: '100%', height: '100%' },
   flechaFoto: {
     position: 'absolute', bottom: spacing.md, width: spacing.huge, borderRadius: radius.full,
     alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.none, paddingHorizontal: spacing.none,
