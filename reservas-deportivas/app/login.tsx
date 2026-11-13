@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,7 +10,7 @@ const LOGO = require('../assets/branding/icon_app-reservas_deportivas_1024.png')
 
 export default function LoginScreen() {
   const { colors } = useTheme();
-  const { login, desbloquear, usuarioGuardado, tieneBiometria, pideReingreso, cargando: restaurando } = useAuth();
+  const { login, desbloquear, usuario, usuarioGuardado, tieneBiometria, pideReingreso, cargando: restaurando } = useAuth();
   const params = useLocalSearchParams<{ volverA?: string; espacioId?: string; fecha?: string; turnoId?: string; personas?: string }>();
   const router = useRouter();
   const [conContraseña, setConContraseña] = useState(false);
@@ -26,10 +26,23 @@ export default function LoginScreen() {
     if (usuarioGuardado?.email && !email) setEmail(usuarioGuardado.email);
   }, [usuarioGuardado?.email]);
 
+  const navegado = useRef(false);
+
   const continuar = () => {
+    if (navegado.current) return;
+    navegado.current = true;
     if (params.volverA === 'reservas') router.replace('/(tabs)/two');
     else router.replace({ pathname: '/(tabs)', params: { espacioId: params.espacioId, fecha: params.fecha, turnoId: params.turnoId, personas: params.personas } });
   };
+
+  // Cuando la sesión se abre (por huella o por contraseña), se entra a la app.
+  useEffect(() => {
+    if (usuario && !restaurando) continuar();
+  }, [usuario, restaurando]);
+
+  useEffect(() => {
+    if (!usuario) navegado.current = false;
+  }, [usuario]);
 
   const ingresar = async () => {
     if (cargando) return;
