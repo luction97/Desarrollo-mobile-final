@@ -9,11 +9,16 @@
 - Verónica Haydeé Peluffo Bou
 - Agustin Vilaboa
 
-<p align="center">
-  <img src="reservas-deportivas/assets/branding/logo-presentacion-reservas-deportivas-villaguay.png" alt="Reservas Deportivas Villaguay" width="220" />
-</p>
-
 Aplicación móvil para consultar y reservar canchas deportivas municipales de Villaguay. Los jugadores buscan horarios y gestionan sus reservas; encargados y administradores operan la agenda y las canchas.
+
+## Capturas de la aplicación
+
+<p align="center">
+  <a href="screenshots/captura-1.jpeg"><img src="screenshots/captura-1.jpeg" alt="Inicio: filtros, cancha seleccionada y horarios disponibles" width="150" /></a>&nbsp;&nbsp;
+  <a href="screenshots/captura-3.jpeg"><img src="screenshots/captura-3.jpeg" alt="Formulario de creación de una reserva fija" width="150" /></a>&nbsp;&nbsp;
+  <a href="screenshots/captura-4.jpeg"><img src="screenshots/captura-4.jpeg" alt="Detalle de una cancha con precio, características y ubicación" width="150" /></a>&nbsp;&nbsp;
+  <a href="screenshots/captura-5.jpeg"><img src="screenshots/captura-5.jpeg" alt="Ubicación de la cancha en el mapa OpenStreetMap" width="150" /></a>
+</p>
 
 ## Funcionalidades
 
