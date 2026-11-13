@@ -22,9 +22,8 @@ function validar(datos: DatosFija): string | null {
   return errorDeRangoHorario(datos.inicio, datos.fin);
 }
 
-function cuerpo(datos: DatosFija): Record<string, unknown> {
-  return {
-    espacioId: datos.espacioId,
+function cuerpo(datos: DatosFija, incluirEspacio = true): Record<string, unknown> {
+  const resultado: Record<string, unknown> = {
     titular: datos.titular.trim(),
     dia: datos.dia,
     inicio: datos.inicio,
@@ -32,6 +31,9 @@ function cuerpo(datos: DatosFija): Record<string, unknown> {
     desde: datos.desde,
     hasta: datos.hasta,
   };
+  // El espacio se crea al alta; al editar la API no lo acepta ("sobra el dato espacioId").
+  if (incluirEspacio) resultado.espacioId = datos.espacioId;
+  return resultado;
 }
 
 export const fijasService = {
@@ -49,7 +51,7 @@ export const fijasService = {
   editar(id: string, datos: DatosFija): Promise<ReservaFija> {
     const error = validar(datos);
     if (error) return Promise.reject(new Error(error));
-    return api.patch<ReservaFija>(`/fijas/${encodeURIComponent(id)}`, cuerpo(datos));
+    return api.patch<ReservaFija>(`/fijas/${encodeURIComponent(id)}`, cuerpo(datos, false));
   },
 
   /** Da de baja la fija en el servidor (activa: false). Los errores 409 de conflicto llegan como mensaje. */

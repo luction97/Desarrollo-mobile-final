@@ -27,7 +27,7 @@ function cargar(archivo, dependencias) {
 const nativos = {
   View: 'View', Text: 'Text', FlatList: 'FlatList', TouchableOpacity: 'TouchableOpacity',
   ActivityIndicator: 'ActivityIndicator', Button: 'Button', ScrollView: 'ScrollView', Image: 'Image',
-  Pressable: 'Pressable', Modal: props => props.visible ? React.createElement('Modal', props, props.children) : null, StyleSheet: { create: s => s },
+  Pressable: 'Pressable', Modal: props => props.visible ? React.createElement('Modal', props, props.children) : null, StyleSheet: { create: s => s }, Platform: { OS: 'android' }, KeyboardAvoidingView: 'KeyboardAvoidingView', Platform: { OS: 'android' },
 };
 const ahora = new Date('2099-01-15T09:00:00-03:00');
 const futuro = { id: 'turno-prueba', espacioId: 'esp-02', fecha: '2099-01-15', inicio: '20:00', fin: '21:00', estado: 'libre', precio: 12000, motivoBloqueo: null };

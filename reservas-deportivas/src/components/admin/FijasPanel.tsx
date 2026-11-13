@@ -184,8 +184,10 @@ export function FijasPanel({ espacios, editable }: FijasPanelProps) {
         <Button style={uiLayout.grow} title={editandoId ? 'Guardar cambios' : 'Crear reserva fija'}
           loading={ocupado} disabled={ocupado} onPress={() => void guardar()} />
       </View>}>
-      <SelectorCancha espacios={espacios} seleccionados={espacioId ? [espacioId] : []}
-        onChange={ids => setEspacioId(ids[0] ?? '')} />
+      <View style={styles.resumenCancha}>
+        <Text variant="caption" tone="muted">Cancha</Text>
+        <Text variant="label">{nombreDe(espacioId)}</Text>
+      </View>
 
       <TextField label="Titular" value={titular} onChangeText={setTitular} placeholder="Grupo de los martes" />
 
@@ -238,4 +240,5 @@ const styles = StyleSheet.create({
   bloque: { gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   resumen: { gap: spacing.xs, padding: spacing.md },
+  resumenCancha: { gap: spacing.xs },
 });

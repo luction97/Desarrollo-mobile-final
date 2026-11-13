@@ -94,7 +94,8 @@ test('fijas: creación y edición con titular limpio y hasta opcional', async ()
   await servicio.crear(datos);
   assert.deepEqual(peticion, ['/fijas', { ...datos, titular: 'Grupo de los martes' }]);
   await servicio.editar('fij-07', { ...datos, titular: 'Grupo', hasta: '2026-12-31' });
-  assert.deepEqual(peticion, ['/fijas/fij-07', { ...datos, titular: 'Grupo', hasta: '2026-12-31' }]);
+  const { espacioId, ...resto } = datos;
+  assert.deepEqual(peticion, ['/fijas/fij-07', { ...resto, titular: 'Grupo', hasta: '2026-12-31' }]);
 });
 
 test('fijas: rechaza datos inválidos sin llamar a la API', async () => {

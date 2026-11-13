@@ -18,7 +18,7 @@ const dinero = { precioLegible: valor => `$${valor}` };
 
 function cargarCalendario() {
   return cargar('src/components/admin/CalendarioCancha.tsx', {
-    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View' },
+    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View', Platform: { OS: 'android' } },
     '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
     '../ui': entorno.ui, '../../theme': entorno.theme,
   });
@@ -64,7 +64,7 @@ test('el calendario avisa el día elegido y deja navegar de mes', async () => {
 
 test('las franjas horarias se eligen con dos toques y sin escribir horas', async () => {
   const { SelectorFranjas, FRANJAS_HORARIAS } = cargar('src/components/admin/SelectorFranjas.tsx', {
-    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View' },
+    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View', Platform: { OS: 'android' } },
     '../ui': entorno.ui, '../../theme': entorno.theme,
   });
   assert.equal(FRANJAS_HORARIAS.length, 16);
@@ -101,7 +101,7 @@ test('las franjas horarias se eligen con dos toques y sin escribir horas', async
 
 test('el selector de cancha muestra la elegida y abre la hoja con la lista', async () => {
   const { SelectorCancha } = cargar('src/components/admin/SelectorCancha.tsx', {
-    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View' },
+    'react-native': { Pressable: 'Pressable', StyleSheet: { create: s => s }, View: 'View', Platform: { OS: 'android' } },
     '@react-native-vector-icons/ionicons': { default: 'Ionicons' },
     '../ui': entorno.ui, '../../theme': entorno.theme, './HojaModal': { HojaModal: 'HojaModal' },
     '../../canchas/modelo': { nombreCorto: espacio => espacio.nombre.split(' - ')[0] },
@@ -120,7 +120,7 @@ test('el selector de cancha muestra la elegida y abre la hoja con la lista', asy
 
 test('el botón de guardar el precio sólo se habilita con un importe válido y distinto', async () => {
   const { PanelTarifa } = cargar('src/components/admin/PanelTarifa.tsx', {
-    'react-native': { StyleSheet: { create: s => s }, View: 'View' },
+    'react-native': { StyleSheet: { create: s => s }, View: 'View', Platform: { OS: 'android' } },
     '../ui': entorno.ui, '../../theme': entorno.theme, './SelectorCancha': { SelectorCancha: 'SelectorCancha' },
     './HojaModal': { HojaModal: 'HojaModal' }, '../DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     '../../services/operaciones': { operacionesService: {} },
