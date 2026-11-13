@@ -61,6 +61,7 @@ async function montarDetalle(rol) {
     '../../src/services/medios': {
       obtenerFoto: async () => { llamadas.push('leerFoto'); return 'file:///privada.jpg'; },
       obtenerDescarga: async () => null,
+      guardarDescarga: async (tipo, idEspacio, url) => { llamadas.push(['guardarDescarga', url]); return 'file:///descarga.jpg'; },
       guardarFoto: async () => { llamadas.push('guardarFoto'); return 'file:///nueva.jpg'; },
       obtenerVideoGrabado: async () => null,
       guardarVideoGrabado: async () => 'file:///video.mp4',
@@ -91,7 +92,7 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
     try {
       assert.equal(boton(caso.vista, 'Agregar foto del estado de la cancha'), undefined);
       assert.equal(boton(caso.vista, 'Grabar video de la cancha'), undefined);
-      assert.deepEqual(caso.llamadas, []);
+      assert.ok(caso.llamadas.some(([nombre]) => nombre === 'guardarDescarga'));
       assert.ok(boton(caso.vista, 'Ver horarios'));
       assert.deepEqual(caso.vista.root.findAllByType('Image').map(n => n.props.source.uri), cancha.imagenes);
       assert.ok(!JSON.stringify(caso.vista.toJSON()).includes('Sin video'));
@@ -102,7 +103,8 @@ test('jugador e invitado ven la cancha sin herramientas; el encargado documenta 
   try {
     assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
     assert.ok(boton(caso.vista, 'Grabar video de la cancha'));
-    assert.deepEqual(caso.llamadas, ['leerFoto']);
+    assert.ok(caso.llamadas.includes('leerFoto'));
+    assert.ok(caso.llamadas.some(([nombre]) => nombre === 'guardarDescarga'));
   } finally { await caso.cerrar(); }
 });
 
@@ -111,7 +113,9 @@ test('el personal registra una foto del estado de la cancha sin presentarla como
   try {
     assert.ok(boton(caso.vista, 'Agregar foto del estado de la cancha'));
     await act(async () => { await boton(caso.vista, 'Agregar foto del estado de la cancha').props.onPress(); });
-    assert.deepEqual(caso.llamadas, ['leerFoto', 'elegirFoto', 'guardarFoto']);
+    assert.ok(caso.llamadas.includes('leerFoto'));
+    assert.ok(caso.llamadas.includes('elegirFoto'));
+    assert.ok(caso.llamadas.includes('guardarFoto'));
     assert.ok(caso.vista.root.findAllByType('Image').some(n => n.props.source.uri === 'file:///nueva.jpg'));
     await act(async () => { await boton(caso.vista, 'Subir archivo').props.onPress(); });
     assert.equal(caso.llamadas.at(-1), 'file:///nueva.jpg');

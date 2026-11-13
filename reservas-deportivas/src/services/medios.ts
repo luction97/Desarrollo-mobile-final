@@ -7,6 +7,12 @@ function carpeta() {
   return dir;
 }
 
+/** Sufijo unico para los archivos guardados: evita que dos descargas del
+ * mismo milisegundo terminen con el mismo nombre. */
+function sufijoUnico(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
 function borrarArchivo(uri: string | null) {
   if (!uri) return;
   const raiz = new Directory(Paths.document, 'medios_canchas').uri.replace(/\/+$/, '') + '/';
@@ -23,7 +29,7 @@ export async function obtenerFoto(espacioId: string): Promise<string | null> {
 export async function guardarFoto(espacioId: string, uri: string): Promise<string> {
   const clave = 'foto:' + espacioId;
   const previa = await preferencias.getItem(clave);
-  const destino = new File(carpeta(), encodeURIComponent(espacioId) + '_' + Date.now() + '.jpg');
+  const destino = new File(carpeta(), encodeURIComponent(espacioId) + '_' + sufijoUnico() + '.jpg');
   try {
     new File(uri).copy(destino);
     await preferencias.setItem(clave, destino.uri);
@@ -49,7 +55,7 @@ export async function borrarFoto(espacioId: string): Promise<void> {
 export async function guardarVideoGrabado(espacioId: string, uri: string, url: string): Promise<string> {
   const clave = 'video-grabado:' + espacioId;
   const previa = await preferencias.getItem(clave);
-  const destino = new File(carpeta(), 'video_' + encodeURIComponent(espacioId) + '_' + Date.now() + '.mp4');
+  const destino = new File(carpeta(), 'video_' + encodeURIComponent(espacioId) + '_' + sufijoUnico() + '.mp4');
   try {
     new File(uri).copy(destino);
     await preferencias.setItem(clave, JSON.stringify({ uri: destino.uri, url }));
@@ -106,7 +112,7 @@ export async function guardarDescarga(tipo: Medio, espacioId: string, url: strin
   if (existente) return existente;
   const clave = claveDescarga(tipo, espacioId, url);
   const previo = await leerDescarga(clave);
-  const nombre = tipo + '_' + encodeURIComponent(espacioId) + '_' + Date.now() + (tipo === 'video' ? '.mp4' : '.img');
+  const nombre = tipo + '_' + encodeURIComponent(espacioId) + '_' + sufijoUnico() + (tipo === 'video' ? '.mp4' : '.img');
   const destino = new File(carpeta(), nombre);
   try {
     const archivo = await File.downloadFileAsync(url, destino);
@@ -118,6 +124,15 @@ export async function guardarDescarga(tipo: Medio, espacioId: string, url: strin
   }
   if (previo?.uri !== destino.uri) borrarArchivo(previo?.uri ?? null);
   return destino.uri;
+}
+
+/**
+ * Las fotos publicadas de un espacio se guardan solas: la ficha se puede revisar
+ * sin conexion, como en las apps profesionales de canchas.
+ */
+export async function guardarFotosPublicadas(espacios: { id: string; imagenes: string[] }[]): Promise<void> {
+  await Promise.all(espacios.flatMap(espacio =>
+    espacio.imagenes.filter(Boolean).map(url => guardarDescarga('imagen', espacio.id, url).catch(() => undefined))));
 }
 
 export async function borrarDescarga(tipo: Medio, espacioId: string, url: string): Promise<void> {

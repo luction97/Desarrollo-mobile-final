@@ -11,7 +11,7 @@ import { layout, radius, spacing, useTheme } from '../../src/theme';
 import { useAuth } from '../../src/context/AuthContext';
 import { useSinRed } from '../../src/hooks/useSinRed';
 import { obtenerEspacio, obtenerEspacioLocal } from '../../src/services/espacios';
-import { borrarDescarga, borrarFoto, borrarVideoGrabado, guardarDescarga, guardarFoto, guardarVideoGrabado, obtenerDescarga, obtenerFoto, obtenerVideoGrabado } from '../../src/services/medios';
+import { borrarFoto, borrarVideoGrabado, guardarDescarga, guardarFoto, guardarVideoGrabado, obtenerDescarga, obtenerFoto, obtenerVideoGrabado } from '../../src/services/medios';
 import { subirFoto, subirVideo } from '../../src/services/archivos';
 import { GrabarVideoCancha } from '../../src/components/GrabarVideoCancha';
 import { ApiError } from '../../src/services/api';
@@ -98,6 +98,19 @@ function Detalle({ id }: { id: string }) {
     return () => { activo = false; };
   }, [id, urlFoto]);
 
+  // Las fotos y el video publicados se guardan solos en el telefono: la ficha
+  // se puede revisar sin conexion, como en cualquier app de canchas.
+  useEffect(() => {
+    const publicadas = [...new Set(espacio?.imagenes.filter(Boolean) ?? [])];
+    if (!publicadas.length || sinRed) return;
+    void Promise.all(publicadas.map(url => guardarDescarga('imagen', id, url).catch(() => undefined)));
+  }, [espacio?.imagenes, sinRed, id]);
+
+  useEffect(() => {
+    if (!espacio?.videoUrl || sinRed) return;
+    void guardarDescarga('video', id, espacio.videoUrl).catch(() => undefined);
+  }, [espacio?.videoUrl, sinRed, id]);
+
   useEffect(() => {
     let activo = true;
     setVideoDescargado(null);
@@ -136,15 +149,6 @@ function Detalle({ id }: { id: string }) {
     setAviso(Platform.OS === 'web' ? 'Foto disponible mientras esta página esté abierta.' : 'Foto guardada en este teléfono.');
   });
 
-  const alternarDescarga = (tipo: 'imagen' | 'video', url: string, descargada: string | null) => gestionarMedio(async () => {
-    const cambiar = tipo === 'imagen' ? setFotoDescargada : setVideoDescargado;
-    if (descargada) {
-      await borrarDescarga(tipo, id, url);
-      cambiar(null);
-    } else {
-      cambiar(await guardarDescarga(tipo, id, url));
-    }
-  });
 
   if (!espacio) return <Screen><StateView>
     {error ? <>
@@ -174,10 +178,7 @@ function Detalle({ id }: { id: string }) {
         <Button variant="ghost" size="sm" title="›" accessibilityLabel="Foto siguiente"
           disabled={guardando || posicion >= galeria.length - 1} onPress={() => setIndice(posicion + 1)} />
       </View>}
-      {urlFoto && Platform.OS !== 'web' && <Button variant="ghost" size="sm"
-        title={fotoDescargada ? 'Borrar foto descargada' : 'Guardar foto sin conexión'}
-        disabled={guardando || (sinRed && !fotoDescargada)}
-        onPress={() => alternarDescarga('imagen', urlFoto, fotoDescargada)} />}
+      {sinRed && fotoDescargada && <Text variant="caption" tone="muted">Mostramos la copia guardada de esta foto.</Text>}
       {uriFoto && fotoFallida === uriFoto && <Button variant="ghost" size="sm"
         title="Reintentar foto" disabled={sinRed && !fotoDescargada} onPress={() => setFotoFallida(null)} />}
 
@@ -240,10 +241,7 @@ function Detalle({ id }: { id: string }) {
           {fuenteVideo ? <VideoDeCancha key={fuenteVideo + ':' + intentoVideo} fuente={fuenteVideo}
             reintentar={() => setIntentoVideo(n => n + 1)} />
             : <Text tone="muted">El video requiere conexión o una descarga previa.</Text>}
-          {Platform.OS !== 'web' && <Button variant="secondary"
-            title={videoDescargado ? 'Borrar video descargado' : 'Guardar video sin conexión'}
-            disabled={guardando || (sinRed && !videoDescargado)}
-            onPress={() => alternarDescarga('video', urlVideo, videoDescargado)} />}
+          {sinRed && videoDescargado && <Text variant="caption" tone="muted">Mostramos la copia guardada del video.</Text>}
         </> : <Text tone="muted">Este espacio todavía no tiene video.</Text>}
         {puedeActualizarFoto && <Button variant="secondary" title="Grabar video de la cancha" disabled={guardando}
           onPress={() => setGrabandoVideo(true)} />}

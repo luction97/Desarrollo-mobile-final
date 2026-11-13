@@ -1,5 +1,6 @@
 import { api, ApiError } from './api';
 import { leerLocal, escribirLocal } from './localStore';
+import { guardarFotosPublicadas } from './medios';
 import type { Deporte, Espacio } from '../tipos';
 
 export async function obtenerEspaciosLocales(): Promise<Espacio[]> {
@@ -10,6 +11,8 @@ export async function obtenerEspacios(): Promise<{ datos: Espacio[]; local: bool
   try {
     const datos = await api.listarTodo<Espacio>('/espacios');
     await escribirLocal('espacios', datos).catch(() => undefined);
+    // Las fotos se guardan solas para poder recorrer el catalogo sin conexion.
+    await guardarFotosPublicadas(datos).catch(() => undefined);
     return { datos, local: false };
   } catch (error) {
     const datos = await leerLocal<Espacio[]>('espacios');

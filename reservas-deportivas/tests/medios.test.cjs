@@ -58,6 +58,18 @@ test('guarda el video grabado por el personal con la direccion del archivo subid
   assert.equal(archivos.has(uri), false);
 });
 
+test('las fotos publicadas se guardan solas para poder verlas sin conexion', async () => {
+  const { medios, archivos } = almacenamiento();
+  await medios.guardarFotosPublicadas([
+    { id: 'esp-1', imagenes: ['https://ejemplo.test/foto.jpg', 'https://ejemplo.test/otra.jpg'] },
+    { id: 'esp-2', imagenes: [] },
+  ]);
+  const guardada = await medios.obtenerDescarga('imagen', 'esp-1', 'https://ejemplo.test/foto.jpg');
+  assert.ok(guardada);
+  assert.ok(archivos.size >= 2);
+  assert.equal(await medios.obtenerDescarga('imagen', 'esp-2', 'https://ejemplo.test/foto.jpg'), null);
+});
+
 test('una descarga interrumpida no deja el parcial ni registra una descarga lista', async () => {
   const { medios, archivos, preferencias, interrumpir } = almacenamiento();
   interrumpir();
