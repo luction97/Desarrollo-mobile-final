@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import { Badge, Button, Screen, Text, uiLayout } from '../../src/components/ui';
+import { DialogoAviso } from '../../src/components/DialogoAviso';
 import { borders, radius, spacing, useTheme } from '../../src/theme';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
@@ -8,10 +10,30 @@ import { etiquetasRol } from '../../src/utils/etiquetas';
 
 export default function PerfilScreen() {
   const router = useRouter();
-  const { usuario, usuarioGuardado, tieneBiometria, sesionVencida, bloquear, logout, cargando } = useAuth();
+  const { usuario, logout, cargando, tieneBiometria, accesoBiometrico, activarAcceso, desactivarAcceso } = useAuth();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [operando, setOperando] = useState(false);
 
   const { puedeReservar } = permisosDe(usuario);
   const { colors } = useTheme();
+
+  const alternarAcceso = async () => {
+    if (!usuario || operando) return;
+    setOperando(true);
+    try {
+      if (accesoBiometrico) {
+        await desactivarAcceso();
+        setAviso('El acceso con huella o rostro quedó desactivado en este teléfono.');
+      } else {
+        if (!tieneBiometria) { setAviso('Este teléfono no tiene huella o rostro configurado.'); return; }
+        const ok = await activarAcceso();
+        if (!ok) { setAviso('No pudimos activar el acceso biométrico.'); return; }
+        setAviso('Listo. La próxima vez entrás con tu huella o tu rostro.');
+      }
+    } finally {
+      setOperando(false);
+    }
+  };
 
   return (
     <Screen topInset>
@@ -19,16 +41,10 @@ export default function PerfilScreen() {
         <Text variant="display" accessibilityRole="header">Cuenta</Text>
         {!usuario ? (
           <View style={styles.seccion}>
-            <Text variant="subtitle">{usuarioGuardado ? 'Sesión bloqueada' : 'Invitado'}</Text>
-            <Text tone="muted">
-              {usuarioGuardado
-                ? 'Tu sesión sigueguardada en el teléfono. Desbloqueá con tu huella o tu contraseña para volver a usarla.'
-                : 'Iniciá sesión para ver tus reservas y gestionar tu cuenta.'}
-            </Text>
-            {usuarioGuardado && tieneBiometria && <Button variant="secondary" title="Usar huella o rostro"
-              onPress={() => router.push('/login')} />}
+            <Text variant="subtitle">Invitado</Text>
+            <Text tone="muted">Iniciá sesión para ver tus reservas y gestionar tu cuenta.</Text>
             <Button title="Iniciar sesión" onPress={() => router.push('/login')} />
-            {!usuarioGuardado && <Button variant="ghost" title="Crear cuenta" onPress={() => router.push('/registro')} />}
+            <Button variant="ghost" title="Crear cuenta" onPress={() => router.push('/registro')} />
           </View>
         ) : (
           <>
@@ -42,11 +58,6 @@ export default function PerfilScreen() {
                 <Badge size="sm">{etiquetasRol[usuario.rol]}</Badge>
               </View>
             </View>
-            {sesionVencida && <View style={styles.seccion}>
-              <Text variant="subtitle" tone="warning">Tu sesión venció</Text>
-              <Text tone="muted">Podés seguir mirando la app, pero para reservar o gestionar tenés que volver a entrar.</Text>
-              <Button variant="secondary" title="Ingresar de nuevo" onPress={() => router.push('/login')} />
-            </View>}
             {puedeReservar && <View style={styles.seccion}>
               <Text variant="subtitle" accessibilityRole="header">Tu historial</Text>
               <View style={[uiLayout.fila, { borderColor: colors.border }]}>
@@ -58,12 +69,26 @@ export default function PerfilScreen() {
                 <Text variant="action" numeric>{usuario.ausencias}</Text>
               </View>
             </View>}
-            {tieneBiometria && <Button variant="ghost" title="Bloquear con huella o rostro"
-              accessibilityLabel="Bloquear la app con biometría" onPress={bloquear} />}
+            <View style={styles.seccion}>
+              <Text variant="subtitle" accessibilityRole="header">Acceso biométrico</Text>
+              <Text variant="label" tone="muted">
+                {accesoBiometrico
+                  ? 'Entrás con tu huella o tu rostro. La sesión sigue guardada en este teléfono.'
+                  : tieneBiometria
+                    ? 'Activá el ingreso con huella o rostro para entrar más rápido la próxima vez.'
+                    : 'Este teléfono no tiene huella o rostro configurado.'}
+              </Text>
+              {tieneBiometria && <Button
+                variant={accesoBiometrico ? 'secondary' : 'primary'}
+                title={accesoBiometrico ? 'Desactivar acceso biométrico' : 'Activar acceso biométrico'}
+                loading={operando} disabled={operando} onPress={() => void alternarAcceso()} />}
+            </View>
             <Button variant="secondary" title="Cerrar sesión" onPress={() => void logout()} loading={cargando} />
           </>
         )}
       </ScrollView>
+      {aviso && <DialogoAviso titulo="Acceso biométrico" mensaje={aviso} accionPrincipal="Entendido"
+        onConfirmar={() => setAviso(null)} onCerrar={() => setAviso(null)} />}
     </Screen>
   );
 }

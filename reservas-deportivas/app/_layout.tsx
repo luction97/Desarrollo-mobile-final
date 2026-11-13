@@ -1,13 +1,14 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, Redirect, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { AuthProvider } from '../src/context/AuthContext';
+import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { AperturaNotificacion } from '../src/components/AperturaNotificacion';
+import { OfrecimientoBiometrico } from '../src/components/OfrecimientoBiometrico';
 import { useTheme } from '../src/theme';
 
 export {
@@ -65,12 +66,25 @@ function RootLayoutNav() {
             options={{ title: 'Escanear QR' }}
           />
           <Stack.Screen name="espacio/[id]" options={{ title: 'La cancha' }} />
-          
+           
           <Stack.Screen name="admin" options={{ title: 'Gestión del complejo' }} />
           <Stack.Screen name="mapa" options={{ title: 'Mapa de complejos' }} />
         </Stack>
         <AperturaNotificacion />
+        <OfrecimientoBiometrico />
+        <ReingresoBiometrico />
       </ThemeProvider>
     </AuthProvider>
   );
+}
+
+/**
+ * Con una sesión guardada y el acceso biométrico activo, la app vuelve a la
+ * pantalla de reingreso: la biometría abre la sesión, no la reemplaza.
+ */
+function ReingresoBiometrico() {
+  const { pideReingreso } = useAuth();
+  const ruta = usePathname();
+  if (!pideReingreso || ruta === '/login') return null;
+  return <Redirect href="/login" />;
 }

@@ -62,18 +62,20 @@ export const authService = {
     });
   },
 
-  /** El token sigue siendo valido: sirve para reingresar sin contrasena. */
-  async sesionVigente(): Promise<boolean> {
-    const token = await storage.getItem('token');
-    return !!token && tokenVigente(token, Date.now());
-  },
-
-  async restaurarSesion(): Promise<Usuario | null> {
+  /**
+   * Devuelve la sesión guardada. Si el token venció, la borra: un token
+   * inválido nunca alcanza para volver a entrar.
+   */
+  async restaurarSesion(): Promise<{ usuario: Usuario | null; vigente: boolean }> {
     return cambiarSesion(async () => {
       const token = await storage.getItem('token');
-      if (!token) return null;
-      // La sesión sobrevive al cierre de la app aunque el token haya caducado.
-      return authService.obtenerUsuarioGuardado();
+      const guardado = await authService.obtenerUsuarioGuardado();
+      if (!token || !guardado) return { usuario: null, vigente: false };
+      if (!tokenVigente(token, Date.now())) {
+        await Promise.allSettled([storage.deleteItem('token'), storage.deleteItem('usuario')]);
+        return { usuario: null, vigente: false };
+      }
+      return { usuario: guardado, vigente: true };
     });
   },
 

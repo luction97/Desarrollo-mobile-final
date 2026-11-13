@@ -133,6 +133,7 @@ test('Cuenta muestra historial del jugador y concentra el cierre de sesión', as
       '../../src/components/ui': entorno.ui, '../../src/theme': entorno.theme,
       '../../src/context/AuthContext': { useAuth: () => ({ usuario: usuario(rol), logout() {}, cargando: false }) },
       '../../src/utils/permisos': permisos, '../../src/utils/etiquetas': etiquetas,
+      '../../src/components/DialogoAviso': { DialogoAviso: 'DialogoAviso' },
     }).default;
     let vista;
     try {

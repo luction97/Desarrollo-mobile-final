@@ -41,25 +41,16 @@ test('un 401 tardío conserva la sesión más reciente y las solicitudes de ingr
   await new Promise(resolve => setImmediate(resolve));
   rechazar(respuesta);
   await actual;
-  assert.equal(valores.has('token'), false);
-  assert.equal(valores.get('usuario'), 'nuevo');
+  assert.equal(valores.size, 0);
   assert.equal(invalidaciones, 1);
 });
 
-test('la sesión sobrevive al cierre de la app aunque el token haya caducado', async () => {
-  const sesiones = cargar('src/services/sesionEventos.ts', {});
-  const valores = new Map([['token', 'token-caducado'], ['usuario', '{"id":"usr-1","nombre":"Jugador"}']]);
-  const { authService } = cargar('src/services/auth.ts', {
-    './api': { api: {} },
-    './storage': { storage: {
-      getItem: async k => valores.get(k) ?? null,
-      setItem: async (k, v) => { valores.set(k, v); },
-      deleteItem: async k => { valores.delete(k); },
-    } },
-    '../utils/sesion': { tokenVigente: () => false },
-    './sesionEventos': sesiones,
-  });
-  const usuario = await authService.restaurarSesion();
-  assert.equal(usuario?.id, 'usr-1');
-  assert.equal(await authService.sesionVigente(), false);
+test('la sesión no se cierra al volver pronto: sólo tras un rato largo en segundo plano', () => {
+  const { debeBloquearSesion, MINUTOS_BLOQUEO_SESION } = cargar('src/utils/sesion.ts', {});
+  const ahora = 1_000_000_000;
+  assert.equal(debeBloquearSesion(null, ahora), false);
+  assert.equal(debeBloquearSesion(ahora, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - 30_000, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - 4 * 60_000, ahora), false);
+  assert.equal(debeBloquearSesion(ahora - (MINUTOS_BLOQUEO_SESION + 1) * 60_000, ahora), true);
 });

@@ -301,7 +301,7 @@ test('sin reservas futuras propias no inicializa notificaciones al reabrir', asy
 
 test('AuthContext: arranque invitado sin carga nativa; restauración con reservas y logout conservan avisos', async () => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  for (const [guardado, biometria] of [[null, false], [usuario, false], [usuario, true]]) {
+  for (const guardado of [null, usuario]) {
     const caso = entorno();
     const reservas = cargarReservas(caso, { datos: [guardada] });
     let contexto;
@@ -310,9 +310,17 @@ test('AuthContext: arranque invitado sin carga nativa; restauración con reserva
       react: { ...React, default: React },
       'react-native': { AppState: { addEventListener: () => ({ remove() {} }) } },
       '../hooks/useSinRed': { useSinRed: () => false },
-      '../services/auth': { authService: { obtenerPerfil: async () => guardado, restaurarSesion: async () => guardado, logout: async () => { cerrada = true; } } },
-      '../services/biometria': { biometriaDisponible: async () => biometria },
+      '../services/auth': { authService: { obtenerPerfil: async () => guardado, restaurarSesion: async () => ({ usuario: guardado, vigente: !!guardado }), logout: async () => { cerrada = true; } } },
+      '../services/biometria': { biometriaDisponible: async () => false },
       '../services/favoritos': { favoritosService: {} },
+      '../services/accesoBiometrico': {
+        accesoBiometricoActivado: async () => false,
+        activarAccesoBiometrico: async () => undefined,
+        desactivarAccesoBiometrico: async () => undefined,
+        marcarOfertaBiometrica: async () => undefined,
+        ofertaBiometricaHecha: async () => false,
+      },
+      '../utils/sesion': { debeBloquearSesion: () => false },
       '../services/sesionEventos': { escucharSesionInvalidada: () => () => {} },
       '../services/notificaciones': { notificacionesService: caso.servicio },
       '../services/reservas': reservas,
@@ -323,13 +331,9 @@ test('AuthContext: arranque invitado sin carga nativa; restauración con reserva
       await act(async () => { vista = create(React.createElement(AuthProvider, null, React.createElement(Consumidor))); });
       assert.equal(contexto.cargando, false);
       assert.equal(contexto.usuario, guardado);
-      assert.equal(contexto.sesionVencida, false);
       assert.equal(caso.cargas, guardado ? 1 : 0);
       assert.ok(!caso.llamadas.some(([nombre]) => ['solicitar', 'programar'].includes(nombre)));
       if (guardado) {
-        await act(async () => { contexto.bloquear(); });
-        assert.equal(contexto.usuario, null);
-        assert.equal(contexto.usuarioGuardado, guardado);
         await act(async () => { await contexto.logout(); });
         assert.equal(cerrada, true);
         assert.equal(contexto.usuario, null);
